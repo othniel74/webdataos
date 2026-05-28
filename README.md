@@ -61,6 +61,9 @@ Every successful run produces a **decision brief**: a concise answer, what chang
 | Speechmatics | Speech-to-text and text-to-speech adapters implemented |
 | TriggerWare | Workflow event adapter with local recording and remote delivery |
 | Outcomes | Database-backed outcome records and statistics |
+| Named entity extraction | Post-synthesis LLM pass extracts real company, regulation, and product names from evidence; written into `extracted_entities` on every run |
+| Change detection | `ChangeDetectionService` diffs each run against the previous run; decision briefs now show delta headlines like "+2 new signals \| 4 new entities (vs 2 days ago)" |
+| Source quality tiering | T1 (official: CVE, SEC, vendor trust pages), T2 (major news), T3 (other); T1 sources get 1.4× retrieval ranking boost; tier badges in evidence panel |
 
 ---
 
@@ -98,27 +101,33 @@ Browser / SDK
 Every monitor run and analyst chat turn goes through `ResearchAgentOrchestrator.run`:
 
 ```text
-1. Transcribe         — Speechmatics transcribes audio input if present
-2. Memory search      — Cognee graph + self-hosted embedding search for prior context
-3. Retrieve context   — rank existing IntelligenceRecords by query relevance; freshness-filtered
-4. Live refresh       — if <2 matching records, call Bright Data through GatewayService
-5. Synthesize         — ReportSynthesizer calls LLM with evidence + memory; rule-based fallback
-6. Reason             — ReasoningEngine evaluates against org context; produces materiality + recommendations
-7. Propose actions    — AutonomousAction records written to DB; require admin approval before execution
-8. Memory upsert      — write synthesis result back to Cognee + self-hosted memory
-9. Workflow trigger   — send material signal event to TriggerWare
-10. Decision brief    — assembled from all of the above; primary user-facing output
-11. AgentRun record   — full ResearchReport JSON persisted to DB
+1.  Transcribe          — Speechmatics transcribes audio input if present
+2.  Memory search       — Cognee graph + self-hosted embedding search for prior context
+3.  Previous run fetch  — retrieve prior run's report JSON for change detection baseline
+4.  Retrieve context    — rank existing IntelligenceRecords by query relevance; freshness-filtered; T1 sources boosted 1.4×
+5.  Live refresh        — if <2 matching records, call Bright Data through GatewayService
+6.  Synthesize          — ReportSynthesizer calls LLM with evidence + memory; rule-based fallback
+7.  Entity extraction   — second LLM pass extracts real named entities (companies, regulations, products) from synthesis text
+8.  Change detection    — ChangeDetectionService diffs current run against previous; produces delta headline + signal diff
+9.  Reason              — ReasoningEngine evaluates against org context; produces materiality + recommendations
+10. Propose actions     — AutonomousAction records written to DB; require admin approval before execution
+11. Entity name update  — generic entity names on evidence records replaced with LLM-extracted company names in-flight
+12. Memory upsert       — write synthesis result back to Cognee + self-hosted memory
+13. Workflow trigger    — send material signal event to TriggerWare
+14. Decision brief      — change-detection-driven headline, what-changed summary, cited evidence, graph context, run receipt
+15. AgentRun record     — full ResearchReport JSON persisted to DB including extracted_entities and change_report
 ```
 
 ### Package responsibilities
 
 | Package | Role |
 |---|---|
-| `packages/agents` | `ResearchAgentOrchestrator` (run loop), `ResearchPlanner` (task decomposition), `ReportSynthesizer` (LLM + rule-based synthesis) |
+| `packages/agents` | `ResearchAgentOrchestrator` (run loop), `ResearchPlanner` (task decomposition), `ReportSynthesizer` (LLM + rule-based synthesis), `EntityExtractor` (post-synthesis named entity extraction) |
 | `packages/brightdata` | Thin `BrightDataClient` wrapping SERP, Web Scraper, Web Unlocker, and Scraping Browser endpoints |
 | `packages/gateway` | Self-healing retrieval gateway: failure detection → tool rotation → normalization. Routes: SERP → Web Scraper → Web Unlocker → Scraping Browser |
-| `packages/intelligence` | `IntelligenceService`: topic/source/record CRUD, source discovery, evidence refresh, freshness scoring, Neo4j graph sync, retrieval ranking |
+| `packages/intelligence` | `IntelligenceService`: topic/source/record CRUD, source discovery, evidence refresh, freshness scoring, source quality tiering (T1/T2/T3), Neo4j graph sync, retrieval ranking with tier boost, entity name enrichment backfill |
+| `packages/intelligence/change_detection` | `ChangeDetectionService`: diffs current vs previous run; produces `ChangeReport` with new/resolved signals, entity delta, confidence delta, and `delta_headline()` |
+| `packages/intelligence/source_quality` | `classify_source_tier(url)` and `boost_score(score, tier)` — URL-based tier classification with T1 (official), T2 (major news), T3 (web) |
 | `packages/llm` | `LLMClient`: async OpenAI-compatible client. OpenAI primary → AI/ML API fallback. `available` property gates all LLM paths |
 | `packages/reasoning` | `ReasoningEngine`: package-specific frameworks (security/gtm/finance/enterprise), materiality assessments, action proposals. Mock mode when no LLM |
 | `packages/memory` | `MemoryProvider`: routes between Cognee and self-hosted. Writes to both; reads Cognee first then merges self-hosted results |
@@ -144,8 +153,10 @@ The frontend graph viewer supports:
 - Zoom in/out/fit-all buttons + pinch-to-zoom on touch devices
 - Double-click to focus on a node's immediate neighborhood
 - Search with live node highlighting and match counter
-- Node type filter (Workspace, Company, Risk, Signal, etc.)
-- Click to select and inspect any node
+- Node type filter via dropdown — "All node types" resets, individual types show node counts
+- Click to select and inspect any node; detail panel shows summary, confidence, connections
+- Smart per-type canvas labels: Source nodes show domain only, Evidence shows entity name, Run nodes show date
+- Extracted entity nodes (`DETECTED_ENTITY` edges) written from every run's LLM-extracted named entities
 
 Graph APIs return only tenant-scoped data. Demo graph routes use the demo tenant/session scope and never expose customer data.
 
@@ -429,6 +440,7 @@ curl http://45.77.89.209/graph/status
 | `POST` | `/intelligence/retrieval/context` | Ranked evidence context for reasoning |
 | `POST` | `/intelligence/topics/{topic_id}/discover` | Discover sources through live search |
 | `POST` | `/intelligence/topics/{topic_id}/refresh` | Refresh evidence for a topic |
+| `POST` | `/intelligence/topics/{topic_id}/enrich-entities` | Backfill: replace generic entity names with LLM-extracted real names; re-mirrors to Neo4j |
 | `GET` | `/graph/status` | Neo4j status and graph counts |
 | `GET` | `/graph/topics/{topic_id}` | Graph snapshot for a workspace |
 | `POST` | `/graph/topics/{topic_id}/backfill` | Sync evidence into Neo4j |
@@ -507,7 +519,7 @@ infra/
   prometheus/           Prometheus config
   grafana/              Grafana dashboards
 alembic/
-  versions/             Database migrations (0001–0007)
+  versions/             Database migrations (0001–0009)
 sdks/
   python/               Python SDK
   typescript/           TypeScript SDK
@@ -526,7 +538,7 @@ tests/                  Automated test suite (40 tests, conftest.py for isolatio
 | `tenant_memberships` | Clerk org/user → tenant mappings |
 | `topics` | Workspaces: entities, signals, refresh cadence |
 | `sources` | Discovered source URLs per workspace (cascade-delete with topic) |
-| `intelligence_records` | Extracted evidence with freshness status and optional pgvector embedding |
+| `intelligence_records` | Extracted evidence with freshness status, optional pgvector embedding, and `source_tier` (1/2/3) |
 | `change_events` | Field-level diffs detected between refresh runs |
 | `refresh_runs` | Per-topic refresh run records |
 | `agent_runs` | Full `ResearchReport` JSON including decision brief |
@@ -553,9 +565,12 @@ tests/                  Automated test suite (40 tests, conftest.py for isolatio
 | GDPR erasure | `DELETE /auth/tenants/{id}` — wipes content data, anonymizes accounts, retains audit trail |
 | Live monitoring dashboard | Implemented via Monitor route and `/monitor/{workspace_id}` |
 | Multi-turn Analyst chat | Implemented via `/chat/{workspace_id}` history and message routes |
-| Evidence inspector | Evidence list, detail, retrieval context, and graph panels |
-| Knowledge graph | Force-directed canvas with zoom, pan, search, highlight, pinch-to-zoom, double-click focus |
+| Evidence inspector | Evidence list, detail, retrieval context, source tier badges, and graph panels |
+| Knowledge graph | Force-directed canvas with zoom, pan, search, highlight, type-filter dropdown, pinch-to-zoom, double-click focus |
 | Persistent graph memory | Every run writes to Neo4j; entity and relationship memory accumulates across runs |
+| Named entity extraction | Post-synthesis LLM pass; real company/regulation/product names in briefs and graph |
+| Change detection | Decision briefs show concrete signal diffs vs previous run, not "no material change" |
+| Source quality tiering | T1/T2/T3 classification on all evidence; T1 gets retrieval boost and UI badge |
 | Bright Data integration | Live retrieval with self-healing recovery chain |
 | LLM provider fallback | OpenAI primary → AI/ML API → rule-based synthesis |
 | Cognee integration | Local Cognee deployed; Cloud mode optional |
