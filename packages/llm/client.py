@@ -90,7 +90,7 @@ class LLMClient:
                     "Authorization": f"Bearer {provider.api_key}",
                     "Content-Type": "application/json",
                 },
-                timeout=60.0,
+                timeout=20.0,
             )
             self._clients[provider.name] = client
         return client
@@ -133,7 +133,7 @@ class LLMClient:
                 return data["choices"][0]["message"]["content"]
             except httpx.HTTPStatusError as exc:
                 last_error = exc
-                if exc.response.status_code in {401, 403}:
+                if exc.response.status_code in {401, 402, 403, 429}:
                     self._disabled.add(provider.name)
                 logger.warning(
                     "llm_provider_failed",

@@ -3,6 +3,8 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 from fastapi import HTTPException
 
+from apps.api.db.models import DemoSession, IntelligenceRecord, Source, Topic
+from apps.api.routes.demo import run_demo_monitor
 from packages.brightdata.client import BrightDataClient
 from packages.common.clerk import _domain_from_publishable_key, _jwks_url
 from packages.common.config import get_settings
@@ -178,3 +180,60 @@ async def test_mixed_auth_allows_configured_api_key(monkeypatch):
     assert auth.auth_type == "api_key"
     assert auth.principal == "api-key"
     get_settings.cache_clear()
+
+
+class _FakeDemoDb:
+    def __init__(self, topic: Topic) -> None:
+        self.objects = {(Topic, topic.id): topic}
+
+    async def get(self, cls, object_id):
+        return self.objects.get((cls, object_id))
+
+    def add(self, obj) -> None:
+        self.objects[(obj.__class__, obj.id)] = obj
+
+    async def flush(self) -> None:
+        return None
+
+
+class _FakeDemoAgent:
+    def __init__(self) -> None:
+        self.request = None
+
+    async def run(self, db, request):
+        self.request = request
+        return {"run_id": "demo_run"}
+
+
+@pytest.mark.asyncio
+async def test_demo_monitor_uses_fast_bounded_baseline_path():
+    session = DemoSession(
+        id="demo-session",
+        tenant_id="tenant_demo",
+        workspace_id="demo_workspace",
+        mission="vendor_risk",
+        entities=["Okta", "Stripe", "Microsoft"],
+        watch_types=["vendor risk", "compliance signals"],
+        runs_used=0,
+    )
+    topic = Topic(
+        id=session.workspace_id,
+        tenant_id=session.tenant_id,
+        name="Demo: Vendor Risk and Compliance",
+        entities=session.entities,
+        watch_types=session.watch_types,
+    )
+    db = _FakeDemoDb(topic)
+    agent = _FakeDemoAgent()
+
+    result = await run_demo_monitor(session=session, db=db, agent=agent)
+
+    assert result == {"run_id": "demo_run"}
+    assert session.runs_used == 1
+    assert agent.request.enable_llm is False
+    assert agent.request.enable_memory is False
+    assert agent.request.enable_workflows is False
+    assert agent.request.allow_live_refresh is False
+    assert agent.request.max_sources == 3
+    assert sum(1 for cls, _ in db.objects if cls is Source) == 3
+    assert sum(1 for cls, _ in db.objects if cls is IntelligenceRecord) == 3

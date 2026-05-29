@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.db.models import AgentRun, DemoSession, Topic
+from apps.api.db.models import AgentRun, DemoSession, IntelligenceRecord, Source, Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import get_agent_orchestrator, get_graph_service, get_intelligence_service
 from packages.agents.orchestrator import ResearchAgentOrchestrator
@@ -18,6 +18,7 @@ from packages.common.time import utc_now
 from packages.enterprise.packs import get_pack
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.intelligence.service import IntelligenceService
+from packages.intelligence.utils import infer_authority, infer_source_type, stable_id
 from packages.schemas.agent import ResearchRequest
 
 router = APIRouter(prefix="/demo", tags=["Public Demo"])
@@ -42,6 +43,78 @@ DEMO_MISSIONS = {
         "entities": ["Nvidia", "Microsoft", "Salesforce"],
         "signals": ["filings", "supplier signals", "market movement", "pricing changes"],
     },
+}
+
+DEMO_BASELINE_SOURCES = {
+    "vendor_risk": [
+        {
+            "entity": "Okta",
+            "url": "https://trust.okta.com/",
+            "title": "Okta Trust",
+            "summary": "Okta publishes trust, security, privacy, compliance, and service-status material that vendor-risk teams can monitor for assurance changes.",
+            "signal_type": "vendor_risk",
+        },
+        {
+            "entity": "Stripe",
+            "url": "https://stripe.com/docs/security",
+            "title": "Stripe Security",
+            "summary": "Stripe documents platform security controls and operating practices that procurement and compliance teams can use during vendor review.",
+            "signal_type": "compliance",
+        },
+        {
+            "entity": "Microsoft",
+            "url": "https://www.microsoft.com/trust-center",
+            "title": "Microsoft Trust Center",
+            "summary": "Microsoft's Trust Center centralizes security, privacy, compliance, and transparency information relevant to enterprise risk reviews.",
+            "signal_type": "vendor_risk",
+        },
+    ],
+    "gtm": [
+        {
+            "entity": "OpenAI",
+            "url": "https://openai.com/business/",
+            "title": "OpenAI for Business",
+            "summary": "OpenAI positions enterprise AI around productivity, workflow automation, and secure deployment across business teams.",
+            "signal_type": "competitor_move",
+        },
+        {
+            "entity": "Anthropic",
+            "url": "https://www.anthropic.com/enterprise",
+            "title": "Anthropic Enterprise",
+            "summary": "Anthropic's enterprise messaging emphasizes safe AI, business workflows, and Claude deployment for organizations.",
+            "signal_type": "messaging_shift",
+        },
+        {
+            "entity": "Google",
+            "url": "https://cloud.google.com/vertex-ai",
+            "title": "Google Vertex AI",
+            "summary": "Google Cloud positions Vertex AI as a platform for building, deploying, and governing enterprise AI applications.",
+            "signal_type": "competitor_move",
+        },
+    ],
+    "market": [
+        {
+            "entity": "Nvidia",
+            "url": "https://investor.nvidia.com/financial-info/sec-filings/default.aspx",
+            "title": "NVIDIA SEC filings",
+            "summary": "NVIDIA investor filings provide public financial and market-risk disclosures useful for supplier and market monitoring.",
+            "signal_type": "filing",
+        },
+        {
+            "entity": "Microsoft",
+            "url": "https://www.microsoft.com/en-us/investor/earnings",
+            "title": "Microsoft Investor Relations",
+            "summary": "Microsoft investor materials provide public earnings, segment, and risk disclosures for market intelligence workflows.",
+            "signal_type": "market_movement",
+        },
+        {
+            "entity": "Salesforce",
+            "url": "https://investor.salesforce.com/financials/sec-filings/default.aspx",
+            "title": "Salesforce SEC filings",
+            "summary": "Salesforce filings expose public business, market, and operational signals relevant to enterprise finance monitoring.",
+            "signal_type": "filing",
+        },
+    ],
 }
 
 
@@ -125,6 +198,82 @@ async def _ensure_topic(db: AsyncSession, session: DemoSession, package_id: str)
     return topic
 
 
+async def _ensure_demo_baseline_records(db: AsyncSession, session: DemoSession, topic: Topic) -> int:
+    """Create a fast baseline so public demo runs do not depend on paid live APIs."""
+    selected_entities = {entity.lower() for entity in (topic.entities or []) if entity}
+    selected_signals = topic.watch_types or DEMO_MISSIONS[session.mission]["signals"]
+    created = 0
+    now = utc_now()
+    sources = DEMO_BASELINE_SOURCES[session.mission]
+    for item in sources:
+        if selected_entities and item["entity"].lower() not in selected_entities:
+            continue
+        source_id = stable_id(topic.id, item["url"])
+        source = await db.get(Source, source_id)
+        if not source:
+            source = Source(
+                id=source_id,
+                tenant_id=session.tenant_id,
+                topic_id=topic.id,
+                url=item["url"],
+                title=item["title"],
+                snippet=item["summary"],
+                source_type=infer_source_type(item["url"]),
+                authority=infer_authority(item["url"]),
+                status="active",
+                last_checked=now,
+            )
+            db.add(source)
+        record_id = stable_id(topic.id, item["url"], item["entity"], "demo_baseline")
+        record = await db.get(IntelligenceRecord, record_id)
+        facts = {
+            "company": item["entity"],
+            "evidence_title": item["title"],
+            "signal_type": item["signal_type"],
+            "watch_signals": selected_signals,
+            "positioning": item["summary"],
+            "features": selected_signals[:3],
+            "target_customers": ["enterprise teams"],
+            "demo_baseline": True,
+        }
+        if record:
+            record.tenant_id = session.tenant_id
+            record.topic_id = topic.id
+            record.source_id = source_id
+            record.entity_name = item["entity"]
+            record.source_url = item["url"]
+            record.source_type = infer_source_type(item["url"])
+            record.facts_json = facts
+            record.summary = item["summary"]
+            record.confidence = 0.74
+            record.freshness_status = "fresh"
+            record.last_checked = now
+            record.extracted_at = now
+            continue
+        db.add(
+            IntelligenceRecord(
+                id=record_id,
+                tenant_id=session.tenant_id,
+                topic_id=topic.id,
+                source_id=source_id,
+                entity_name=item["entity"],
+                entity_type="company",
+                source_url=item["url"],
+                source_type=infer_source_type(item["url"]),
+                facts_json=facts,
+                summary=item["summary"],
+                confidence=0.74,
+                freshness_status="fresh",
+                embedding_text=f"{item['entity']} {item['summary']} {' '.join(selected_signals)}",
+                last_checked=now,
+                extracted_at=now,
+            )
+        )
+        created += 1
+    await db.flush()
+    return created
+
+
 @router.get("/catalog")
 async def catalog():
     _require_demo_enabled()
@@ -204,6 +353,7 @@ async def run_demo_monitor(
     )
     session.runs_used += 1
     session.updated_at = utc_now()
+    await _ensure_demo_baseline_records(db, session, topic)
     report = await agent.run(
         db,
         ResearchRequest(
@@ -211,10 +361,12 @@ async def run_demo_monitor(
             workspace_id=session.workspace_id,
             topic_id=session.workspace_id,
             package_id=mission["package_id"],
-            max_sources=1,
-            enable_memory=True,
+            freshness_required_days=30,
+            max_sources=3,
+            enable_memory=False,
             enable_workflows=False,
-            allow_live_refresh=True,
+            enable_llm=False,
+            allow_live_refresh=False,
         ),
     )
     return report
@@ -253,8 +405,9 @@ async def demo_analyst_chat(
             topic_id=session.workspace_id,
             package_id=mission["package_id"],
             max_sources=2,
-            enable_memory=True,
+            enable_memory=False,
             enable_workflows=False,
+            enable_llm=False,
             allow_live_refresh=False,
         ),
     )

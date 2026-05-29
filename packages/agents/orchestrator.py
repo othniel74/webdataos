@@ -214,11 +214,13 @@ class ResearchAgentOrchestrator:
                         )
                     )
 
-            summary, findings, companies, changes, confidence = await self.synthesizer.synthesize_async(
+            synthesizer = self.synthesizer if request.enable_llm else ReportSynthesizer()
+            summary, findings, companies, changes, confidence = await synthesizer.synthesize_async(
                 task_text, records, memories
             )
             db_changes = await self._recent_changes(db, topic_id, since=previous_run_at)
-            if self.llm.available:
+            llm_used = request.enable_llm and self.llm.available and synthesizer is self.synthesizer
+            if llm_used:
                 provider = self.llm.last_provider or self.llm.provider or "llm"
                 partner_trace.append(f"{provider}.chat.synthesis")
                 stages.append(
@@ -226,7 +228,12 @@ class ResearchAgentOrchestrator:
                 )
             else:
                 stages.append(
-                    ResearchRunStage(name="synthesize", status="fallback", provider="local_synthesizer", detail=f"confidence={confidence:.2f}")
+                    ResearchRunStage(
+                        name="synthesize",
+                        status="fallback",
+                        provider="local_synthesizer",
+                        detail="llm disabled for this run" if not request.enable_llm else f"confidence={confidence:.2f}",
+                    )
                 )
 
             # ── Phase 1+2: Load org context and run reasoning engine ──
@@ -345,7 +352,9 @@ class ResearchAgentOrchestrator:
             fallbacks_used = []
             if "self_hosted" in self.memory.provider_name:
                 fallbacks_used.append("self_hosted_memory")
-            if not self.llm.available:
+            if not request.enable_llm:
+                fallbacks_used.append("llm_disabled")
+            elif not self.llm.available:
                 fallbacks_used.append("local_synthesizer")
             outcome_count = await self._outcome_count(db, topic_id, run_id)
             value_loop = self._value_loop(
@@ -372,7 +381,7 @@ class ResearchAgentOrchestrator:
                     "speechmatics": "speechmatics" if transcript else None,
                     "memory": self.memory.provider_name if request.enable_memory else None,
                     "retrieval": "bright_data_gateway",
-                    "llm": (self.llm.last_provider or self.llm.provider) if self.llm.available else "local_synthesizer",
+                    "llm": (self.llm.last_provider or self.llm.provider) if llm_used else "local_synthesizer",
                     "workflow": "triggerware" if request.enable_workflows else None,
                 },
                 counts={
