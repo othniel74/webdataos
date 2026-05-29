@@ -52,13 +52,9 @@ class ReasoningEngine:
         """Deterministic mock reasoning that demonstrates the full output shape."""
 
         contracts_by_entity = {}
-        thresholds = None
-        exposure = None
         if org_context:
             for c in org_context.contracts:
                 contracts_by_entity[c.get("entity_name", "").lower()] = c
-            thresholds = org_context.risk_thresholds
-            exposure = org_context.financial_exposure
 
         assessments = []
         recommendations = []
@@ -388,7 +384,7 @@ class ReasoningEngine:
                     proposals.append(ActionProposal(
                         action_type="draft_email",
                         title=f"Draft renegotiation email for {rec.affected_entities[0] if rec.affected_entities else 'entity'}",
-                        description=f"Draft email to vendor requesting updated terms based on detected pricing change.",
+                        description="Draft email to vendor requesting updated terms based on detected pricing change.",
                         payload={"recommendation_id": rec.id, "template": "renegotiation", "entities": rec.affected_entities},
                         recommendation_id=rec.id,
                         requires_approval=True,
@@ -413,7 +409,7 @@ class ReasoningEngine:
                 proposals.append(ActionProposal(
                     action_type="update_risk_register",
                     title=f"Update risk register: {entity}",
-                    description=f"Add finding to risk register for next review cycle.",
+                    description="Add finding to risk register for next review cycle.",
                     payload={"recommendation_id": rec.id, "entities": rec.affected_entities},
                     recommendation_id=rec.id,
                     requires_approval=False,

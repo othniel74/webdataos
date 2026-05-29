@@ -5,7 +5,7 @@ assess materiality, and generate recommendations for a specific intelligence dom
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

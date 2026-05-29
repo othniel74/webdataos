@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.db.models import AutonomousAction, OrganizationalContext, Outcome
+from apps.api.db.models import AutonomousAction, OrganizationalContext
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
 from packages.common.time import utc_now

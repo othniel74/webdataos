@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Any
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 
 
 class ToolName(str, Enum):

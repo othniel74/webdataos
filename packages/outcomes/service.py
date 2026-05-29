@@ -7,7 +7,6 @@ from collections import defaultdict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import Outcome
-from packages.common.time import utc_now
 from packages.schemas.reasoning import OutcomeRead, OutcomeRecord, OutcomeStats
 
 

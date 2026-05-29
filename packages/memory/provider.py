@@ -58,7 +58,7 @@ class MemoryProvider:
         # Also store in Cognee if available (knowledge graph)
         if self.cognee.available:
             try:
-                cognee_record = await self.cognee.upsert(request)
+                await self.cognee.upsert(request)
                 logger.info("memory_dual_write", cognee=True, self_hosted=True)
                 # Return the Cognee record ID but with self-hosted content
                 record.provider = "cognee+self_hosted"

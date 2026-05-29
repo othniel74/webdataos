@@ -23,7 +23,7 @@ import math
 import uuid
 from typing import Sequence
 
-from sqlalchemy import select, or_, func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.models import MemoryEntry
