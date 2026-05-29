@@ -306,10 +306,10 @@ function HomePage({ nav, user, auth }) {
         </div>
       </section>
 
-      {/* v3 capabilities */}
+      {/* Platform capabilities */}
       <section style={{ padding: "56px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <Eye>v3 capabilities</Eye>
+          <Eye>Platform capabilities</Eye>
           <h2 style={{ fontSize: 26, marginTop: 6 }}>From data collection to decision engine</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginTop: 24 }}>
             {[
@@ -534,7 +534,7 @@ function DocsPage() {
             { m: "POST", p: "/outcomes", d: "Record outcome" }, { m: "GET", p: "/outcomes/{ws_id}", d: "List outcomes" },
             { m: "GET", p: "/outcomes/{ws_id}/stats", d: "Outcome stats" }, { m: "GET", p: "/metrics", d: "Prometheus metrics" },
           ].map((ep, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "60px 280px 1fr", padding: "7px 12px", background: T.bgSub, borderBottom: `1px solid ${T.border}`, alignItems: "center", fontSize: 12 }}><span style={{ fontWeight: 700, fontFamily: "'JetBrains Mono'", color: ep.m === "POST" ? "#22c55e" : T.accent }}>{ep.m}</span><span style={{ fontFamily: "'JetBrains Mono'" }}>{ep.p}</span><span style={{ color: T.dim }}>{ep.d}</span></div>)}</div></DS>}
-          {s === "deploy" && <DS t="Deployment"><DC t="Quick Start">cp .env.example .env → set OPENAI_API_KEY and BRIGHTDATA credentials → docker compose -f infra/docker-compose.yml up --build. Mock mode runs when Bright Data credentials are empty.</DC><DC t="Environment">OPENAI_API_KEY (LLM + memory embeddings), BRIGHTDATA_API_KEY, BRIGHTDATA_SERP_ENDPOINT, BRIGHTDATA_WEB_SCRAPER_ENDPOINT, BRIGHTDATA_WEB_UNLOCKER_ENDPOINT, BRIGHTDATA_SCRAPING_BROWSER_ENDPOINT, DATABASE_URL, API_KEY.</DC><DC t="Graceful degradation">Without OPENAI_API_KEY: rule-based synthesis + keyword memory. Without BRIGHTDATA_*: mock gateway. Without DATABASE_URL: in-memory fallback. Every layer works independently.</DC></DS>}
+          {s === "deploy" && <DS t="Deployment"><DC t="Quick Start">cp .env.example .env → set OPENAI_API_KEY and BRIGHTDATA credentials → docker compose -f infra/docker-compose.yml up --build. Local fallback runs when Bright Data credentials are empty.</DC><DC t="Environment">OPENAI_API_KEY (LLM + memory embeddings), BRIGHTDATA_API_KEY, BRIGHTDATA_SERP_ENDPOINT, BRIGHTDATA_WEB_SCRAPER_ENDPOINT, BRIGHTDATA_WEB_UNLOCKER_ENDPOINT, BRIGHTDATA_SCRAPING_BROWSER_ENDPOINT, DATABASE_URL, API_KEY.</DC><DC t="Graceful degradation">Without OPENAI_API_KEY: rule-based synthesis + keyword memory. Without BRIGHTDATA_*: local gateway fallback. Without DATABASE_URL: in-memory fallback. Every layer works independently.</DC></DS>}
         </div>
       </div>
     </div>

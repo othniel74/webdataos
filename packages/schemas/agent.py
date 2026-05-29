@@ -41,7 +41,7 @@ class ResearchReport(BaseModel):
     partner_trace: list[str] = Field(default_factory=list)
     confidence: float = 0.0
     plan: list[ResearchPlanStep] = Field(default_factory=list)
-    # ── v2: Reasoning & autonomous analyst fields ──
+    # Reasoning and autonomous analyst fields.
     reasoning: dict | None = Field(default=None, description="ReasoningOutput from the LLM-backed reasoning engine")
     autonomous_actions: list[dict] = Field(default_factory=list, description="Proposed actions with approval status")
     org_context_used: bool = Field(default=False, description="Whether organizational context was applied")

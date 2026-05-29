@@ -1,4 +1,4 @@
-"""API routes for v2 capabilities: organizational context, autonomous actions, and outcome tracking."""
+"""API routes for organizational context, autonomous actions, and outcome tracking."""
 from __future__ import annotations
 
 import uuid
@@ -21,7 +21,7 @@ from packages.schemas.reasoning import (
     OutcomeStats,
 )
 
-router = APIRouter(tags=["v2 — Autonomous Analyst"], dependencies=[Depends(authenticated_context)])
+router = APIRouter(tags=["Autonomous Analyst"], dependencies=[Depends(authenticated_context)])
 
 _outcome_svc = OutcomeService()
 

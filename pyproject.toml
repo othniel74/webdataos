@@ -1,7 +1,7 @@
 [project]
-name = "web-data-unlocked"
+name = "webdataos"
 version = "0.1.0"
-description = "Self-healing web intelligence gateway for Bright Data-powered agents"
+description = "Enterprise live-web intelligence runtime powered by Bright Data"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.111.0",

@@ -1,371 +1,244 @@
-# WebDataOS — Enterprise Live-Web Intelligence Runtime
+# WebDataOS
 
-**WebDataOS** is an enterprise intelligence platform that turns public web signals into fresh, structured, evidence-backed intelligence. It serves both developers (via REST API and SDKs) and business users (via web interface) across three intelligence domains: Security & Compliance, GTM Intelligence, and Finance & Market Intelligence.
+Enterprise live-web intelligence runtime for AI agents.
 
-The system is built on a partner runtime architecture where each integration has a single, non-overlapping responsibility:
+WebDataOS turns public web signals into sourced intelligence briefs, reusable memory, and operational actions for Security & Compliance, GTM Intelligence, and Finance & Market Intelligence teams. It combines live Bright Data retrieval, LLM synthesis, Cognee knowledge memory, self-hosted fallback memory, Speechmatics transcription, TriggerWare workflow hooks, and outcome learning in one deployable platform.
 
-| Partner | Role | What it does |
-|---------|------|-------------|
-| **Bright Data** | Web → Evidence | SERP API, Web Scraper API, Web Unlocker, Scraping Browser, and MCP Server. Self-healing gateway with failure detection and recovery routing. |
-| **Speechmatics** | Voice → Transcript | Converts spoken requests and uploaded audio into structured text before enrichment. |
-| **Cognee** | Memory → Knowledge Graph | Open-source knowledge graph memory. `remember()` stores, `recall()` searches with graph reasoning. Local or Cloud. |
-| **Self-hosted Memory** | Memory → Vector Store | PostgreSQL + OpenAI embeddings for semantic search. Fallback when Cognee is unavailable. Zero vendor lock-in. |
-| **TriggerWare** | Signal → Action | Material changes fire alerts, review tasks, and downstream workflow automations. |
-| **OpenAI** | Evidence → Intelligence | LLM-powered synthesis and embedding generation for semantic memory search. |
-| **Neo4j** | Entity → Graph | Entity relationship storage for intelligence records. Free tier available via Aura. |
+## Live Deployments
 
----
+| Surface | URL |
+| --- | --- |
+| Production frontend | https://webdataos.vercel.app |
+| Full-stack Vultr deployment | http://45.77.89.209 |
+| API health | http://45.77.89.209/health |
+| Cognee Local UI | http://45.77.89.209:3200 |
+| Cognee reverse proxy | http://45.77.89.209/cognee/ |
+
+## Current Production Status
+
+| Layer | Status |
+| --- | --- |
+| Frontend | React/Vite UI deployed on Vercel and Vultr. |
+| Backend | FastAPI API deployed on Vultr behind Nginx. |
+| Bright Data | Live credentials configured for SERP, Web Scraper, Web Unlocker, Scraping Browser, and MCP endpoint fallback. |
+| LLM routing | OpenAI primary with AI/ML API fallback. AI/ML API model listing is exposed through the API. |
+| Memory | Cognee local is deployed; self-hosted PostgreSQL memory remains available as fallback. |
+| Speechmatics | API key configured; endpoint defaults to the Speechmatics batch transcription API. |
+| TriggerWare | Adapter is implemented; a production endpoint must be provided before live workflow delivery. |
+| Outcomes | Outcome records and stats are live database-backed views. They start empty until real outcomes are recorded. |
 
 ## Architecture
 
-```
-User (text / voice / audio upload)
-  │
-  ├── Speechmatics ──► Transcription
-  │
-  ├── Memory Provider ──► Cognee graph recall + self-hosted fallback search
-  │
-  ├── Intelligence Engine ──► Retrieve existing records, check freshness
-  │   │
-  │   └── Bright Data Gateway ──► SERP → Web Scraper → Scraping Browser → Web Unlocker → MCP
-  │       │                       (self-healing: FailureDetector → RecoveryRouter)
-  │       └── ResultNormalizer ──► Clean JSON + evidence records
-  │
-  ├── LLM Synthesizer ──► Contextual analysis (OpenAI) with memory context
-  │
-  ├── Reasoning Engine ──► Materiality assessment against org context
-  │   └── Autonomous Actions ──► Proposals with human approval gates
-  │
-  ├── Memory Provider ──► Store in Cognee + self-hosted memory
-  │
-  └── TriggerWare ──► Fire workflow actions for material signals
+```text
+User request or audio upload
+  -> Speechmatics transcription, when audio is supplied
+  -> Memory recall through Cognee local/cloud plus self-hosted fallback search
+  -> Intelligence engine checks freshness and retrieves evidence
+  -> Bright Data gateway routes across SERP, Web Scraper, Scraping Browser, Web Unlocker, and MCP fallback
+  -> LLM synthesizer uses OpenAI with AI/ML API fallback
+  -> Reasoning engine applies workspace context and materiality rules
+  -> Autonomous action proposals are generated behind approval gates
+  -> Outcomes are recorded for learning and score calibration
+  -> TriggerWare can send material events to downstream workflows
 ```
 
----
+## Core Capabilities
 
-## Quick Start
+| Capability | Description |
+| --- | --- |
+| Live web retrieval | Self-healing Bright Data gateway with failure detection, recovery routing, and normalized evidence records. |
+| Workspace intelligence | Package-based workflows for security, GTM, finance, and enterprise-wide intelligence. |
+| Organizational context | Contracts, risk thresholds, financial exposure, renewal calendars, priorities, and compliance requirements per workspace. |
+| LLM synthesis | OpenAI-compatible synthesis with OpenAI first and AI/ML API fallback. |
+| Provider flexibility | AI/ML API support allows additional model vendors through one OpenAI-compatible interface. |
+| Knowledge memory | Cognee knowledge graph memory is primary; PostgreSQL-backed semantic or keyword memory is available as fallback. |
+| Transcription | Speechmatics batch transcription for audio URL workflows, with typed transcript support for direct input. |
+| Workflow automation | TriggerWare event delivery for downstream actions when a workflow endpoint is configured. |
+| Outcome learning | Recommendations can be scored against actual outcomes to measure hit rate, signal accuracy, and entity accuracy. |
 
-### Prerequisites
+## Partner Integrations
 
-- Docker & Docker Compose
-- (Optional) OpenAI API key for LLM synthesis and semantic memory search
-- (Optional) Bright Data API credentials for live web retrieval
+| Partner | Responsibility | Notes |
+| --- | --- | --- |
+| Bright Data | Public web evidence retrieval | Used for SERP, scraping, browser automation, unlocker recovery, and MCP fallback. |
+| OpenAI | Primary chat and embedding provider | Used for LLM synthesis and semantic memory when configured. |
+| AI/ML API | OpenAI-compatible fallback LLM provider | Supports multiple model vendors through the configured AI/ML API model. |
+| Cognee | Knowledge graph memory | Runs locally in the Vultr deployment; Cloud credentials are optional. |
+| Speechmatics | Speech-to-text | Used for audio URL transcription before intelligence enrichment. |
+| TriggerWare | Workflow automation | Sends material events when endpoint credentials are configured. |
+| Neo4j | Entity graph storage | Optional Aura/self-hosted graph backend for relationship storage. |
 
-### 1. Configure environment
+## Environment Configuration
+
+Copy the template and fill only the credentials needed for the environment:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials:
+Important variables:
 
-```env
-# Required for LLM-powered synthesis, semantic memory, and Cognee
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
+| Variable | Purpose |
+| --- | --- |
+| `APP_ENV`, `LOG_LEVEL` | Runtime environment and logging. |
+| `API_AUTH_ENABLED`, `API_KEYS`, `API_KEY_HEADER_NAME` | API authentication controls. |
+| `DATABASE_URL`, `SYNC_DATABASE_URL` | Async and sync PostgreSQL connection strings. |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | Primary LLM and embedding provider. |
+| `AIMLAPI_API_KEY`, `AIMLAPI_BASE_URL`, `AIMLAPI_MODELS_URL`, `AIMLAPI_MODEL` | AI/ML API fallback provider and model catalog configuration. |
+| `BRIGHTDATA_API_KEY`, `BRIGHTDATA_*` | Bright Data live retrieval and recovery routes. |
+| `COGNEE_ENDPOINT`, `COGNEE_API_KEY` | Optional Cognee Cloud configuration. Leave empty for local Cognee. |
+| `COGNEE_UI_PORT`, `COGNEE_LLM_MODEL`, `COGNEE_EMBEDDING_MODEL` | Local Cognee UI and model settings. |
+| `SPEECHMATICS_API_KEY`, `SPEECHMATICS_ENDPOINT` | Speechmatics transcription configuration. |
+| `TRIGGERWARE_API_KEY`, `TRIGGERWARE_ENDPOINT` | TriggerWare workflow delivery configuration. |
+| `NEO4J_ENABLED`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Optional graph database configuration. |
+| `VITE_API_BASE_URL`, `VITE_API_KEY` | Frontend build-time API connection settings. |
 
-# Optional OpenAI-compatible fallback for LLM synthesis
-AIMLAPI_API_KEY=...
-AIMLAPI_BASE_URL=https://api.aimlapi.com/v1
-AIMLAPI_MODELS_URL=https://api.aimlapi.com/models
-AIMLAPI_MODEL=gpt-4o
+Do not commit real secrets. Production credentials should be stored in the deployment environment on Vultr, Vercel, or the relevant secret manager.
 
-# Required for live web retrieval (mock mode when empty)
-BRIGHTDATA_API_KEY=...
-BRIGHTDATA_API_ENDPOINT=https://api.brightdata.com/request
-BRIGHTDATA_SCRAPER_ENDPOINT=https://api.brightdata.com/datasets/v3/trigger
-BRIGHTDATA_SERP_ZONE=serp_api1
-BRIGHTDATA_WEB_UNLOCKER_ZONE=web_unlocker2
-BRIGHTDATA_SCRAPING_BROWSER_ZONE=scraping_browser2
-BRIGHTDATA_SCRAPING_BROWSER_ENDPOINT=wss://brd.superproxy.io:9222
-BRIGHTDATA_BROWSER_USER=
-BRIGHTDATA_BROWSER_PASSWORD=
-BRIGHTDATA_MCP_ENDPOINT=https://mcp.brightdata.com/sse?token=YOUR_TOKEN&groups=advanced_scraping
+## Local Development
 
-# Cognee Cloud (optional — local mode works without these)
-COGNEE_ENDPOINT=https://your-instance.cognee.ai
-COGNEE_API_KEY=ck_...
-COGNEE_UI_PORT=3200
-COGNEE_LLM_MODEL=openai/gpt-4o-mini
-COGNEE_EMBEDDING_MODEL=openai/text-embedding-3-small
-
-# Partner workflow/runtime APIs
-SPEECHMATICS_API_KEY=...
-SPEECHMATICS_ENDPOINT=https://asr.api.speechmatics.com/v2/jobs
-TRIGGERWARE_API_KEY=...
-TRIGGERWARE_ENDPOINT=https://your-triggerware-workflow-endpoint
-
-# Neo4j (optional — free tier: neo4j.com/cloud/aura-free)
-NEO4J_ENABLED=true
-NEO4J_URI=neo4j+s://xxxxxxxx.databases.neo4j.io
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
-
-# Database (defaults work with Docker Compose)
-DATABASE_URL=postgresql+asyncpg://webdata:webdata@db:5432/webdata
-
-# API authentication
-API_AUTH_ENABLED=true
-API_KEYS=your-api-key-here
-```
-
-### 2. Start services
+### Docker Compose
 
 ```bash
 docker compose -f infra/docker-compose.yml up --build
 ```
 
-This starts: API (port 8000), Web UI (port 3000), PostgreSQL (5432), Neo4j (7474), Prometheus (9090), Grafana (3001).
+This starts the API, web UI, PostgreSQL, Neo4j, Prometheus, and Grafana services defined in the local Compose stack.
 
-### 3. Verify
-
-```bash
-curl http://localhost:8000/health
-```
-
-### 4. Create a workspace and run research
+### Backend
 
 ```bash
-# List available intelligence packages
-curl http://localhost:8000/workspaces/packages \
-  -H "X-API-Key: your-api-key-here"
-
-# Create a workspace
-curl -X POST http://localhost:8000/workspaces \
-  -H "X-API-Key: your-api-key-here" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Enterprise Workspace",
-    "package_id": "enterprise",
-    "entities": ["Okta", "Stripe", "HubSpot"],
-    "signals": ["vendor_risk", "pricing_change", "regulatory_change"],
-    "refresh_frequency_minutes": 1440
-  }'
-
-# Run a research task
-curl -X POST http://localhost:8000/agent/research \
-  -H "X-API-Key: your-api-key-here" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "Assess current vendor risk and pricing signals",
-    "workspace_id": "enterprise_workspace",
-    "package_id": "enterprise",
-    "input_mode": "text",
-    "enable_memory": true,
-    "enable_workflows": true
-  }'
-```
-
----
-
-## Local Development (without Docker)
-
-```bash
-# Backend
 python -m venv .venv
-source .venv/bin/activate
+. .venv/Scripts/activate
 pip install -e ".[dev]"
 uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-# Frontend
+### Frontend
+
+```bash
 cd apps/web
 npm install
 npm run dev
 ```
 
-The live frontend is the polished v3 Vite app in `apps/web/src/main.jsx`. It talks to the FastAPI backend through `VITE_API_BASE_URL` and sends `VITE_API_KEY` as the `X-API-Key` header when API auth is enabled. Docker Compose passes both values into the web image at build time.
+The frontend lives in `apps/web` and talks to the backend through `VITE_API_BASE_URL`. When API authentication is enabled, it sends `VITE_API_KEY` using the configured API key header.
 
-### Deployment
+## Deployment
 
-- Full stack on Vultr: `docs/deployment/VULTR.md`
-- Frontend on Vercel with Vultr backend: `docs/deployment/VERCEL.md`
+| Target | Documentation |
+| --- | --- |
+| Vultr full stack | `docs/deployment/VULTR.md` |
+| Vercel frontend with Vultr API | `docs/deployment/VERCEL.md` |
 
----
+The current production pattern is:
+
+```text
+Vercel frontend -> Vultr Nginx -> FastAPI backend -> PostgreSQL / Cognee / partner APIs
+```
+
+Vultr can also serve the frontend and backend together for a fully self-hosted deployment.
+
+## API Surface
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/health` | Runtime health and partner integration status. |
+| `GET` | `/ready` | Readiness check. |
+| `GET` | `/llm/providers` | LLM provider availability and routing status. |
+| `GET` | `/llm/aimlapi/models` | AI/ML API model catalog proxy. |
+| `GET` | `/workspaces/packages` | List intelligence packages. |
+| `POST` | `/workspaces` | Create a workspace. |
+| `GET` | `/workspaces` | List workspaces. |
+| `POST` | `/agent/research` | Run a research task and generate a report. |
+| `POST` | `/gateway/fetch` | Fetch live web evidence through the Bright Data recovery gateway. |
+| `POST` | `/intelligence/topics` | Create an intelligence topic. |
+| `POST` | `/intelligence/topics/{id}/discover` | Discover sources through live search. |
+| `POST` | `/intelligence/topics/{id}/refresh` | Refresh records for a topic. |
+| `GET` | `/intelligence/records` | List evidence records. |
+| `POST` | `/intelligence/retrieval/context` | Retrieve ranked evidence context. |
+| `POST` | `/transcriptions` | Submit or normalize transcription input. |
+| `POST` | `/memory/upsert` | Store evidence in memory. |
+| `POST` | `/memory/search` | Search Cognee/self-hosted memory. |
+| `POST` | `/workflows/trigger` | Send a workflow event through TriggerWare. |
+| `POST` | `/context` | Upsert organizational context. |
+| `GET` | `/context/{workspace_id}` | Get organizational context. |
+| `GET` | `/actions/{workspace_id}` | List autonomous actions. |
+| `POST` | `/actions/{id}/approve` | Approve or reject an action. |
+| `POST` | `/actions/{id}/execute` | Execute an approved action. |
+| `POST` | `/outcomes` | Record a recommendation outcome. |
+| `GET` | `/outcomes/{workspace_id}` | List workspace outcomes. |
+| `GET` | `/outcomes/{workspace_id}/stats` | Get outcome statistics. |
+| `GET` | `/runs` | List agent runs. |
+| `GET` | `/runs/{id}` | Get run details and report. |
+| `GET` | `/metrics` | Prometheus metrics. |
 
 ## Intelligence Packages
 
-| Package | Entities | Signals | Bright Data Routes | Output Focus |
-|---------|----------|---------|-------------------|-------------|
-| **Security & Compliance** | Vendors, Regulators, Domains, Security pages | Vendor risk, Regulatory change, Breach exposure, Compliance | serp_api, web_unlocker, scraping_browser, web_scraper_api | Risk brief, Evidence, Recommended action |
-| **GTM Intelligence** | Competitors, Accounts, Products, Markets | Competitor moves, Pricing changes, Messaging shifts, Buying signals | serp_api, web_scraper_api, scraping_browser, mcp_server | Market brief, Account intelligence, Competitive change |
-| **Finance & Market** | Companies, Suppliers, Sectors, Market pages | Filings, Supplier signals, Market movement, Alternative data | serp_api, web_scraper_api, scraping_browser | Market signal, Company brief, Supplier risk |
-| **Enterprise Intelligence OS** | All of the above | All of the above | serp_api, web_unlocker, scraping_browser, web_scraper_api, mcp_server | Executive brief, Cross-track alerts, Shared evidence |
+| Package | Entities | Signals | Output |
+| --- | --- | --- | --- |
+| Security & Compliance | Vendors, regulators, domains, security pages | Vendor risk, regulatory change, breach exposure, compliance | Risk brief, evidence, recommended actions. |
+| GTM Intelligence | Competitors, accounts, products, markets | Competitor moves, pricing changes, messaging shifts, buying signals | Market brief, account intelligence, competitive changes. |
+| Finance & Market Intelligence | Companies, suppliers, sectors, market pages | Filings, supplier signals, market movement, alternative data | Market signal, company brief, supplier risk. |
+| Enterprise Intelligence OS | Cross-domain entities | Cross-domain signals | Executive brief, cross-track alerts, shared evidence. |
 
----
+## Operational Behavior
 
-## Memory Architecture
+WebDataOS is designed to degrade gracefully. Missing optional credentials reduce capability instead of preventing the platform from starting:
 
-WebDataOS uses a dual memory system — Cognee for knowledge graph memory and a self-hosted vector store for embedding-backed search. Both write on upsert; search merges results from both.
-
-### Cognee (Primary — Knowledge Graph)
-
-Cognee is open source (`pip install cognee`). It provides `remember()`, `recall()`, and `forget()` operations backed by a knowledge graph that captures entity relationships, reasoning patterns, and evidence chains.
-
-**Local mode** (default): Cognee runs locally with the installed package. Requires `LLM_API_KEY` (set automatically from `OPENAI_API_KEY`).
-
-**Cloud mode**: Set `COGNEE_ENDPOINT` and `COGNEE_API_KEY` to connect to Cognee Cloud.
-
-### Self-Hosted (Fallback — Vector Store)
-
-When Cognee is not installed, the system falls back to a self-hosted memory service:
-
-- **With OPENAI_API_KEY**: Content embedded via `text-embedding-3-small`, stored in PostgreSQL, searched by cosine similarity.
-- **Without OPENAI_API_KEY**: Keyword matching against entity names and content text.
-
-### Neo4j (Graph Database)
-
-The intelligence engine stores evidence records in Neo4j for entity relationship queries. Configure with:
-
-```env
-NEO4J_ENABLED=true
-NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=your-password
-```
-
-Neo4j Aura Free tier: up to 200K nodes, 400K relationships, auto-deleted after 30 days of inactivity.
-
-### Graceful Degradation
-
-| Component | With it | Without it |
-|-----------|---------|------------|
-| Cognee (`pip install cognee`) | Knowledge graph memory with `remember`/`recall` | Skipped, self-hosted only |
-| `COGNEE_ENDPOINT` + `COGNEE_API_KEY` | Cognee Cloud (managed) | Cognee local (self-hosted) |
-| `OPENAI_API_KEY` + `AIMLAPI_API_KEY` | Mutual LLM fallback. OpenAI is tried first, then AI/ML API. `AIMLAPI_MODEL` can be any supported AI/ML API chat model/vendor. | Rule-based synthesis |
-| `SPEECHMATICS_API_KEY` | Live Speechmatics batch transcription for `audio_url` requests | Mock-safe transcript text |
-| `TRIGGERWARE_ENDPOINT` + optional `TRIGGERWARE_API_KEY` | POST workflow events to the configured workflow endpoint | Local action proposal event |
-| `OPENAI_API_KEY` | Semantic memory embeddings | Keyword memory search |
-| `NEO4J_ENABLED=true` | Entity relationship graph | PostgreSQL-only storage |
-| `BRIGHTDATA_*` | Live web retrieval with recovery | Mock gateway responses |
-
-Cognee Local UI runs in the production Docker profile and is available on port `3200` by default. It uses local Cognee storage and the configured LLM/embedding provider; Cognee Cloud credentials are only needed for managed Cognee Cloud.
-
----
-
-## Bright Data Self-Healing Gateway
-
-The gateway detects failure types and automatically routes to the next Bright Data route:
-
-| Failure Type | Recovery Route |
-|-------------|---------------|
-| `blocked`, `captcha`, `geo_blocked`, `rate_limited` | Web Unlocker → Scraping Browser → MCP Server |
-| `javascript_required`, `empty_response`, `selector_failed` | Scraping Browser → Web Unlocker → MCP Server |
-| `web_scraper_api` failure | Scraping Browser |
-| `scraping_browser` failure | Web Unlocker |
-| `web_unlocker` failure | MCP Server |
-
-Every fetch attempt is logged with tool used, failure type, latency, and recovery path. The full path is returned in the `GatewayFetchResponse`.
-
----
-
-## v3 Capabilities
-
-### Organizational Context (Phase 1)
-Store contracts, risk thresholds, financial exposure, renewal calendar, strategic priorities, and compliance requirements per workspace. The reasoning engine uses this context to assess materiality.
-
-### LLM-Backed Reasoning (Phase 2)
-Package-specific reasoning frameworks evaluate evidence against organizational context. Each finding gets a materiality rating (critical/high/medium/low/informational), impact description, financial impact estimate, and urgency assessment.
-
-### Autonomous Actions (Phase 3)
-The system proposes concrete actions: draft emails, schedule reviews, update risk registers, notify teams. High-stakes actions require human approval. Low-risk actions auto-approve.
-
-### Outcome Learning (Phase 4)
-Record what happened after each recommendation. The system tracks hit rate, signal accuracy, and entity accuracy to improve future materiality scoring.
-
----
-
-## API Reference
-
-### Core Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check with partner status |
-| `GET` | `/workspaces/packages` | List intelligence packages |
-| `POST` | `/workspaces` | Create workspace |
-| `GET` | `/workspaces` | List workspaces |
-| `GET` | `/workspaces/{id}` | Get workspace details |
-| `POST` | `/agent/research` | Run LLM-powered research task |
-| `POST` | `/gateway/fetch` | Self-healing Bright Data fetch |
-| `POST` | `/intelligence/topics` | Create topic |
-| `POST` | `/intelligence/topics/{id}/discover` | Discover sources via SERP |
-| `POST` | `/intelligence/topics/{id}/refresh` | Refresh topic records |
-| `GET` | `/intelligence/records` | List evidence records |
-| `POST` | `/intelligence/retrieval/context` | Retrieve ranked context |
-| `POST` | `/transcriptions` | Speechmatics transcription |
-| `POST` | `/memory/upsert` | Store evidence memory |
-| `POST` | `/memory/search` | Semantic memory search |
-| `POST` | `/workflows/trigger` | TriggerWare workflow |
-| `GET` | `/runs` | List agent runs |
-| `GET` | `/runs/{id}` | Get run details + report |
-| `GET` | `/metrics` | Prometheus metrics |
-
-### Analyst Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/context` | Upsert organizational context |
-| `GET` | `/context/{workspace_id}` | Get organizational context |
-| `GET` | `/actions/{workspace_id}` | List autonomous actions |
-| `POST` | `/actions/{id}/approve` | Approve or reject action |
-| `POST` | `/actions/{id}/execute` | Execute approved action |
-| `POST` | `/outcomes` | Record outcome |
-| `GET` | `/outcomes/{workspace_id}` | List outcomes |
-| `GET` | `/outcomes/{workspace_id}/stats` | Outcome stats |
-
----
+| Missing dependency | Behavior |
+| --- | --- |
+| Bright Data credentials | Local fallback responses are used for development. Production should set live Bright Data credentials. |
+| OpenAI key | AI/ML API can be used when configured; otherwise synthesis falls back to deterministic output. |
+| AI/ML API key | OpenAI remains the primary provider. |
+| Cognee Cloud credentials | Local Cognee is used. |
+| Cognee local runtime | Self-hosted memory remains available. |
+| Speechmatics key | Typed transcripts and text workflows continue. |
+| TriggerWare endpoint | Workflow events are recorded locally instead of being delivered externally. |
+| Neo4j | PostgreSQL-backed storage continues without graph persistence. |
 
 ## Project Structure
 
+```text
+apps/
+  api/                  FastAPI backend
+    main.py             Application entry point and health routes
+    dependencies.py     Service wiring
+    db/                 SQLAlchemy models and sessions
+    routes/             API route handlers
+  web/                  React/Vite frontend
+    src/main.jsx        Main application UI
+packages/
+  agents/               Research orchestration and synthesis
+  brightdata/           Bright Data API clients
+  common/               Runtime configuration and shared utilities
+  enterprise/           Intelligence package definitions
+  gateway/              Self-healing retrieval gateway
+  intelligence/         Evidence records, topics, and retrieval
+  llm/                  OpenAI and AI/ML API routing
+  memory/               Cognee and self-hosted memory providers
+  outcomes/             Outcome tracking and analytics
+  partners/             Speechmatics, Cognee, and TriggerWare adapters
+  reasoning/            Materiality and action reasoning
+  schemas/              Pydantic models
+infra/                  Docker Compose, Nginx, Prometheus, Grafana
+docs/                   Product and deployment documentation
+tests/                  Automated test suite
 ```
-├── apps/
-│   ├── api/                  # FastAPI backend
-│   │   ├── main.py           # App entry point
-│   │   ├── dependencies.py   # Service wiring
-│   │   ├── db/               # SQLAlchemy models & session
-│   │   └── routes/           # API route handlers
-│   └── web/                  # Vite + React frontend
-│       └── src/main.jsx      # Polished v3 UI wired to the backend
-├── packages/
-│   ├── agents/               # Orchestrator, planner, synthesizer
-│   ├── enterprise/           # Intelligence package definitions
-│   ├── gateway/              # Bright Data self-healing gateway
-│   ├── intelligence/         # Evidence records, topics, retrieval
-│   ├── llm/                  # OpenAI chat client
-│   ├── memory/               # Dual memory: Cognee (graph) + self-hosted (vectors)
-│   │   ├── provider.py       # Smart router: Cognee primary, self-hosted fallback
-│   │   ├── service.py        # Self-hosted memory with embeddings
-│   │   └── embeddings.py     # OpenAI embedding client
-│   ├── outcomes/             # Outcome tracking service
-│   ├── reasoning/            # Reasoning engine + frameworks
-│   ├── schemas/              # Pydantic models
-│   └── partners/             # Speechmatics, Cognee, TriggerWare adapters
-├── infra/                    # Docker Compose, Prometheus, Grafana
-├── tests/                    # Test suite
-└── docs/                     # BRD and documentation
-```
 
----
+## Requirement Alignment
 
-## Graceful Degradation
-
-Every layer degrades gracefully based on available credentials:
-
-| Credential | With it | Without it |
-|-----------|---------|------------|
-| `cognee` package | Knowledge graph memory via `remember`/`recall` | Self-hosted memory only |
-| `COGNEE_ENDPOINT` + `COGNEE_API_KEY` | Cognee Cloud (managed) | Cognee local |
-| `OPENAI_API_KEY` + `AIMLAPI_API_KEY` | Mutual LLM fallback. OpenAI is tried first, then AI/ML API. `AIMLAPI_MODEL` can be any supported AI/ML API chat model/vendor. | Rule-based synthesis |
-| `SPEECHMATICS_API_KEY` | Live Speechmatics batch transcription for `audio_url` requests | Mock-safe transcript text |
-| `TRIGGERWARE_ENDPOINT` + optional `TRIGGERWARE_API_KEY` | POST workflow events to the configured workflow endpoint | Local action proposal event |
-| `OPENAI_API_KEY` | Semantic memory embeddings | Keyword memory search |
-| `NEO4J_ENABLED=true` | Entity relationship graph | PostgreSQL-only storage |
-| `BRIGHTDATA_*` | Live public web retrieval with recovery routing | Mock gateway responses |
-| `DATABASE_URL` | Persistent storage | In-memory fallback |
-
-The system runs at whatever level of integration the environment supports.
-
----
+| Requirement | Status |
+| --- | --- |
+| Bright Data integration | Implemented and configured for live production use. |
+| Enterprise use cases | Security & Compliance, GTM Intelligence, and Finance & Market Intelligence are represented as first-class packages. |
+| LLM provider fallback | OpenAI primary with AI/ML API fallback. |
+| Cognee integration | Local Cognee deployment is live; Cloud mode remains optional. |
+| Speechmatics integration | Implemented for transcription workflows. |
+| TriggerWare integration | Adapter implemented; production endpoint still required. |
+| Outcome learning | Database-backed outcome recording and statistics are live. |
+| Self-hosted deployment | Vultr full-stack deployment is live. |
+| Hosted frontend deployment | Vercel frontend deployment is live. |
 
 ## License
 
