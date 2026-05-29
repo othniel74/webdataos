@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context, get_graph_service, get_intelligence_service
+from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import AuthContext
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.intelligence.service import IntelligenceService
@@ -28,6 +29,7 @@ async def topic_graph(
     graph: Neo4jGraphClient = Depends(get_graph_service),
     auth: AuthContext = Depends(authenticated_context),
 ) -> GraphSnapshot:
+    topic_id = normalize_workspace_id(topic_id)
     topic = await db.get(Topic, topic_id)
     if not topic or topic.tenant_id != auth.tenant_id:
         raise HTTPException(status_code=404, detail="Workspace graph not found")
@@ -44,6 +46,7 @@ async def backfill_topic_graph(
     service: IntelligenceService = Depends(get_intelligence_service),
     auth: AuthContext = Depends(authenticated_context),
 ) -> GraphBackfillResult:
+    topic_id = normalize_workspace_id(topic_id)
     topic = await db.get(Topic, topic_id)
     if not topic or topic.tenant_id != auth.tenant_id:
         raise HTTPException(status_code=404, detail="Workspace graph not found")

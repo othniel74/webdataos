@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import ChatMessage
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
+from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import AuthContext
 
 router = APIRouter(prefix="/chat", tags=["Chat"], dependencies=[Depends(authenticated_context)])
@@ -40,6 +41,7 @@ async def list_chat_messages(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    workspace_id = normalize_workspace_id(workspace_id)
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.workspace_id == workspace_id, ChatMessage.tenant_id == auth.tenant_id)
@@ -57,6 +59,7 @@ async def create_chat_message(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    workspace_id = normalize_workspace_id(workspace_id)
     message = ChatMessage(
         id=str(uuid.uuid4()),
         tenant_id=auth.tenant_id,
@@ -78,6 +81,7 @@ async def clear_chat_messages(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    workspace_id = normalize_workspace_id(workspace_id)
     await db.execute(
         delete(ChatMessage).where(ChatMessage.workspace_id == workspace_id, ChatMessage.tenant_id == auth.tenant_id)
     )

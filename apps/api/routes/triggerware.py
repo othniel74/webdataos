@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import AgentRun, AutonomousAction
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
+from packages.common.identifiers import normalize_workspace_id
 
 router = APIRouter(prefix="/triggerware", tags=["TriggerWare"], dependencies=[Depends(authenticated_context)])
 
@@ -26,6 +27,7 @@ async def list_triggerware_events(
     """
     stmt = select(AutonomousAction).order_by(desc(AutonomousAction.created_at)).limit(limit)
     if workspace_id:
+        workspace_id = normalize_workspace_id(workspace_id)
         stmt = stmt.where(AutonomousAction.workspace_id == workspace_id)
     if status:
         stmt = stmt.where(AutonomousAction.status == status)

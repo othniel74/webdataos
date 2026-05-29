@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.session import get_db
 from apps.api.db.models import AgentRun
 from apps.api.dependencies import authenticated_context
+from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import AuthContext
 
 router = APIRouter(prefix="/runs", tags=["Runs"], dependencies=[Depends(authenticated_context)])
@@ -18,6 +19,7 @@ async def list_runs(
 ):
     stmt = select(AgentRun).where(AgentRun.tenant_id == auth.tenant_id).order_by(desc(AgentRun.created_at)).limit(limit)
     if topic_id:
+        topic_id = normalize_workspace_id(topic_id)
         stmt = stmt.where(AgentRun.topic_id == topic_id)
     result = await db.execute(stmt)
     runs = result.scalars().all()

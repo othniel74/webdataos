@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import AutonomousAction, OrganizationalContext
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
+from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import AuthContext
 from packages.common.time import utc_now
 from packages.outcomes.service import OutcomeService
@@ -35,6 +36,7 @@ async def upsert_context(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ) -> OrgContextRead:
+    payload.workspace_id = normalize_workspace_id(payload.workspace_id)
     result = await db.execute(
         select(OrganizationalContext).where(
             OrganizationalContext.workspace_id == payload.workspace_id,
@@ -73,6 +75,7 @@ async def get_context(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ) -> OrgContextRead:
+    workspace_id = normalize_workspace_id(workspace_id)
     result = await db.execute(
         select(OrganizationalContext).where(
             OrganizationalContext.workspace_id == workspace_id,
@@ -94,6 +97,7 @@ async def list_actions(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    workspace_id = normalize_workspace_id(workspace_id)
     stmt = select(AutonomousAction).where(
         AutonomousAction.workspace_id == workspace_id,
         AutonomousAction.tenant_id == auth.tenant_id,
@@ -153,6 +157,7 @@ async def record_outcome(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    payload.workspace_id = normalize_workspace_id(payload.workspace_id)
     return await _outcome_svc.record(db, payload, tenant_id=auth.tenant_id)
 
 
@@ -162,6 +167,7 @@ async def list_outcomes(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    workspace_id = normalize_workspace_id(workspace_id)
     return await _outcome_svc.list_outcomes(db, workspace_id, tenant_id=auth.tenant_id)
 
 
@@ -171,6 +177,7 @@ async def outcome_stats(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    workspace_id = normalize_workspace_id(workspace_id)
     return await _outcome_svc.get_stats(db, workspace_id, tenant_id=auth.tenant_id)
 
 

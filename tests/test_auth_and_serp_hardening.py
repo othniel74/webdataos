@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from packages.brightdata.client import BrightDataClient
 from packages.common.config import get_settings
+from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import require_api_key
 
 
@@ -119,6 +120,18 @@ async def test_mixed_auth_sanitizes_clerk_org_tenant(monkeypatch):
 
     assert auth.tenant_id == "clerk_org_org_abc_demo"
     get_settings.cache_clear()
+
+
+def test_normalize_workspace_id_repairs_legacy_clerk_azp_workspace_id():
+    assert (
+        normalize_workspace_id("clerk_org_http://45.77.89.209_workspace_enterprise")
+        == "workspace_enterprise"
+    )
+
+
+def test_normalize_workspace_id_keeps_normal_workspace_ids():
+    assert normalize_workspace_id("workspace_enterprise") == "workspace_enterprise"
+    assert normalize_workspace_id("customer_vendor_risk") == "customer_vendor_risk"
 
 
 @pytest.mark.asyncio

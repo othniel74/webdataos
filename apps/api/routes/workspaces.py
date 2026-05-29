@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
+from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import AuthContext
 from packages.enterprise.packs import get_pack, list_packs, package_id_from_description
 from packages.schemas.workspace import IntelligencePackRead, WorkspaceCreate, WorkspaceRead
@@ -68,7 +69,7 @@ async def create_workspace(
     auth: AuthContext = Depends(authenticated_context),
 ) -> WorkspaceRead:
     pack = get_pack(payload.package_id)
-    workspace_id = payload.id or _slug(payload.name)
+    workspace_id = normalize_workspace_id(payload.id) if payload.id else _slug(payload.name)
     existing = await db.get(Topic, workspace_id)
     if existing:
         if existing.tenant_id != auth.tenant_id:
@@ -113,6 +114,7 @@ async def get_workspace(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ) -> WorkspaceRead:
+    workspace_id = normalize_workspace_id(workspace_id)
     topic = await db.get(Topic, workspace_id)
     if topic and topic.tenant_id != auth.tenant_id:
         raise HTTPException(status_code=404, detail="Workspace not found")
