@@ -33,7 +33,7 @@ User (text / voice / audio upload)
   │
   ├── LLM Synthesizer ──► Contextual analysis (OpenAI) with memory context
   │
-  ├── Reasoning Engine (v2) ──► Materiality assessment against org context
+  ├── Reasoning Engine ──► Materiality assessment against org context
   │   └── Autonomous Actions ──► Proposals with human approval gates
   │
   ├── Memory Provider ──► Store in Cognee + self-hosted memory
@@ -157,6 +157,8 @@ npm install
 npm run dev
 ```
 
+The live frontend is the Vite app in `apps/web/src/main.tsx`. It talks to the FastAPI backend through `VITE_API_BASE_URL` and sends `VITE_API_KEY` as the `X-API-Key` header when API auth is enabled. Docker Compose passes both values into the web image at build time.
+
 ---
 
 ## Intelligence Packages
@@ -230,7 +232,7 @@ Every fetch attempt is logged with tool used, failure type, latency, and recover
 
 ---
 
-## v2 Capabilities
+## v3 Capabilities
 
 ### Organizational Context (Phase 1)
 Store contracts, risk thresholds, financial exposure, renewal calendar, strategic priorities, and compliance requirements per workspace. The reasoning engine uses this context to assess materiality.
@@ -272,7 +274,7 @@ Record what happened after each recommendation. The system tracks hit rate, sign
 | `GET` | `/runs/{id}` | Get run details + report |
 | `GET` | `/metrics` | Prometheus metrics |
 
-### v2 Endpoints
+### Analyst Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|

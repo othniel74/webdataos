@@ -595,7 +595,7 @@ function OutcomesPage({ ws }: { ws: Workspace }) {
 function DocsPage() {
   return <div className="container-sm">
     <div className="eyebrow">Documentation</div>
-    <h2 style={{ fontSize: 22, marginTop: 6 }}>WebDataOS v2 API Reference</h2>
+    <h2 style={{ fontSize: 22, marginTop: 6 }}>WebDataOS v3 API Reference</h2>
     <p style={{ color: 'var(--text-d)', fontSize: 13, marginTop: 6, lineHeight: 1.7 }}>All endpoints require <code className="mono" style={{ background: 'var(--bg-inset)', padding: '2px 6px', borderRadius: 4 }}>X-API-Key</code> header. Base URL: <code className="mono" style={{ background: 'var(--bg-inset)', padding: '2px 6px', borderRadius: 4 }}>{API}</code></p>
     <div className="panel-grid" style={{ marginTop: 16 }}>
       {[
@@ -613,13 +613,13 @@ function DocsPage() {
         { m:'POST',p:'/memory/search',d:'Cognee + self-hosted memory search' },
         { m:'POST',p:'/workflows/trigger',d:'TriggerWare workflow' },
         { m:'GET',p:'/runs',d:'List agent runs' },{ m:'GET',p:'/runs/{id}',d:'Get run + report' },
-        { m:'POST',p:'/context',d:'Upsert org context (v2)' },{ m:'GET',p:'/context/{ws_id}',d:'Get org context (v2)' },
-        { m:'GET',p:'/actions/{ws_id}',d:'List autonomous actions (v2)' },
-        { m:'POST',p:'/actions/{id}/approve',d:'Approve/reject action (v2)' },
-        { m:'POST',p:'/actions/{id}/execute',d:'Execute action (v2)' },
-        { m:'POST',p:'/outcomes',d:'Record outcome (v2)' },
-        { m:'GET',p:'/outcomes/{ws_id}',d:'List outcomes (v2)' },
-        { m:'GET',p:'/outcomes/{ws_id}/stats',d:'Outcome stats (v2)' },
+        { m:'POST',p:'/context',d:'Upsert org context' },{ m:'GET',p:'/context/{ws_id}',d:'Get org context' },
+        { m:'GET',p:'/actions/{ws_id}',d:'List autonomous actions' },
+        { m:'POST',p:'/actions/{id}/approve',d:'Approve/reject action' },
+        { m:'POST',p:'/actions/{id}/execute',d:'Execute action' },
+        { m:'POST',p:'/outcomes',d:'Record outcome' },
+        { m:'GET',p:'/outcomes/{ws_id}',d:'List outcomes' },
+        { m:'GET',p:'/outcomes/{ws_id}/stats',d:'Outcome stats' },
         { m:'GET',p:'/metrics',d:'Prometheus metrics' },
       ].map((ep, i) => <div key={i} style={{ display:'grid', gridTemplateColumns:'60px 280px 1fr', padding:'8px 14px', borderBottom:'1px solid var(--border)', alignItems:'center', fontSize: 12 }}>
         <span className="mono" style={{ fontWeight:700, color: ep.m==='POST' ? 'var(--green)' : 'var(--accent)' }}>{ep.m}</span>
