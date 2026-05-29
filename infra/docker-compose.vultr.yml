@@ -6,13 +6,13 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: production
-      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209
+      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209,*.vercel.app
 
   worker:
     restart: unless-stopped
     environment:
       APP_ENV: production
-      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209
+      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209,*.vercel.app
 
   web:
     restart: unless-stopped
