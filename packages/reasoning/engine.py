@@ -69,13 +69,38 @@ class ReasoningEngine:
             entity = (rec.entity_name or "Unknown").lower()
             contract = contracts_by_entity.get(entity, {})
             facts = rec.facts or {}
+            signal_text = self._signal_text(rec)
+            signal_type = self._classify_signal(signal_text)
 
             # Assess materiality based on org context
             materiality = "informational"
             impact_desc = f"Evidence collected for {rec.entity_name}."
             financial_impact = None
             urgency = "standard"
-            affected_contracts = []
+            affected_contracts = [rec.entity_name] if rec.entity_name else []
+
+            if signal_type in {"breach", "security_risk", "compliance"}:
+                materiality = "high" if signal_type == "breach" else "medium"
+                urgency = "urgent" if signal_type == "breach" else "standard"
+                impact_desc = (
+                    f"{signal_type.replace('_', ' ').title()} signal detected for {rec.entity_name}. "
+                    "Review security, compliance, and vendor-risk posture before the next decision cycle."
+                )
+                reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as {signal_type}")
+            elif signal_type == "pricing":
+                materiality = "medium"
+                impact_desc = (
+                    f"Pricing or commercial-change signal detected for {rec.entity_name}. "
+                    "Review commercial exposure, renewal terms, and budget impact."
+                )
+                reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as pricing")
+            elif signal_type == "model_release":
+                materiality = "low"
+                impact_desc = (
+                    f"Product or model-release signal detected for {rec.entity_name}. "
+                    "Track whether this changes capability, adoption, or competitive positioning."
+                )
+                reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as model_release")
 
             # Check for pricing changes against contract
             if facts.get("pricing_model") and contract:
@@ -85,7 +110,7 @@ class ReasoningEngine:
                     financial_impact = round(contract_value * 0.02, 2)  # estimated 2% impact
                     total_impact += financial_impact or 0
                     impact_desc = f"Pricing signal detected for {rec.entity_name}. Contract value: ${contract_value:,.0f}. Estimated impact: ${financial_impact:,.0f}."
-                    affected_contracts.append(contract.get("entity_name", entity))
+                    affected_contracts = [contract.get("entity_name", rec.entity_name or entity)]
                     reasoning_trace.append(f"pricing_check: {rec.entity_name} pricing_model={facts.get('pricing_model')} vs contract_value={contract_value}")
 
             # Check renewal proximity
@@ -129,7 +154,7 @@ class ReasoningEngine:
             else:
                 title = f"Monitor {entity_names[0]} — {assessment.materiality} materiality signal"
                 description = assessment.impact_description
-                suggested = ["Add to next review cycle", "Request updated documentation"]
+                suggested = self._suggest_actions(assessment.impact_description)
 
             recommendations.append(Recommendation(
                 id=rec_id,
@@ -173,6 +198,54 @@ class ReasoningEngine:
             confidence=confidence,
             reasoning_trace=reasoning_trace,
         )
+
+    def _signal_text(self, rec: IntelligenceRecordRead) -> str:
+        facts = rec.facts or {}
+        values = [
+            rec.entity_name or "",
+            rec.source_url or "",
+            rec.summary or "",
+            str(facts.get("evidence_title") or ""),
+            str(facts.get("snippet") or ""),
+            str(facts.get("pricing_model") or ""),
+            str(facts.get("positioning") or ""),
+        ]
+        return " ".join(values).lower()
+
+    def _classify_signal(self, text: str) -> str:
+        if any(term in text for term in ["breach", "incident", "vulnerability", "exploit", "leak", "ransomware"]):
+            return "breach"
+        if any(term in text for term in ["security", "threat", "risk", "soc2", "soc 2", "trust", "governance"]):
+            return "security_risk"
+        if any(term in text for term in ["compliance", "regulation", "regulatory", "audit", "gdpr", "eu ai act", "policy"]):
+            return "compliance"
+        if any(term in text for term in ["pricing", "price", "cost", "plan", "subscription", "renewal"]):
+            return "pricing"
+        if any(term in text for term in ["launch", "release", "model", "integration", "enterprise", "feature"]):
+            return "model_release"
+        return "informational"
+
+    def _suggest_actions(self, impact_description: str) -> list[str]:
+        text = impact_description.lower()
+        if "breach" in text or "security" in text or "risk" in text:
+            return [
+                "Open a vendor-risk review",
+                "Request updated security documentation",
+                "Notify security and procurement owners",
+            ]
+        if "compliance" in text or "regulatory" in text:
+            return [
+                "Map the signal to current compliance obligations",
+                "Request updated compliance evidence",
+                "Create a follow-up item for the compliance owner",
+            ]
+        if "pricing" in text or "commercial" in text:
+            return [
+                "Review budget and renewal exposure",
+                "Ask procurement to confirm commercial impact",
+                "Compare alternative vendors or plans",
+            ]
+        return ["Add to monitoring queue", "Review at next analyst checkpoint"]
 
     async def _llm_reason(self, framework, records, org_context, memories, changes):
         """Production LLM reasoning — placeholder for real API call."""
