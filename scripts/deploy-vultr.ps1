@@ -64,6 +64,8 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --p
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T api alembic upgrade head || true
 "@
 
+$startupEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($startup))
+
 $body = @{
   region = $Region
   plan = $Plan
@@ -71,8 +73,7 @@ $body = @{
   label = $Label
   hostname = $Label
   enable_ipv6 = $true
-  backups = "enabled"
-  user_data = $startup
+  user_data = $startupEncoded
 }
 
 if ($FirewallGroupId) { $body.firewall_group_id = $FirewallGroupId }
@@ -84,7 +85,17 @@ $headers = @{
   "Content-Type" = "application/json"
 }
 
-$instance = Invoke-RestMethod -Method Post -Uri "https://api.vultr.com/v2/instances" -Headers $headers -Body $json
+try {
+  $instance = Invoke-RestMethod -Method Post -Uri "https://api.vultr.com/v2/instances" -Headers $headers -Body $json
+} catch {
+  $response = $_.Exception.Response
+  if ($response -and $response.GetResponseStream()) {
+    $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
+    $bodyText = $reader.ReadToEnd()
+    throw "Vultr API create instance failed: $bodyText"
+  }
+  throw
+}
 $id = $instance.instance.id
 Write-Host "Created Vultr instance: $id"
 Write-Host "Waiting for IP..."
