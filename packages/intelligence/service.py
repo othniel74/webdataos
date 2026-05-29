@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import ChangeEvent, IntelligenceRecord, RefreshRun, Source, Topic
 from packages.brightdata.client import BrightDataClient
 from packages.common.config import get_settings
+from packages.common.logging import get_logger
 from packages.gateway.service import GatewayService
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.common.time import utc_now
@@ -22,6 +23,8 @@ from packages.schemas.intelligence import (
     TopicCreate,
     TopicRead,
 )
+
+logger = get_logger(__name__)
 
 
 class IntelligenceService:
@@ -200,13 +203,16 @@ class IntelligenceService:
         source.next_refresh_due = now + timedelta(minutes=1440)
         await db.commit()
         payload = self._record_read(model)
-        self.graph.upsert_intelligence_record({
-            "entity_name": payload.entity_name,
-            "source_url": payload.source_url,
-            "source_type": payload.source_type,
-            "facts": payload.facts,
-            "last_checked": payload.last_checked,
-        })
+        try:
+            self.graph.upsert_intelligence_record({
+                "entity_name": payload.entity_name,
+                "source_url": payload.source_url,
+                "source_type": payload.source_type,
+                "facts": payload.facts,
+                "last_checked": payload.last_checked,
+            })
+        except Exception as exc:
+            logger.warning("neo4j_mirror_failed", error=str(exc)[:300], topic_id=topic_id, source_url=source.url)
         return payload
 
     async def retrieve_context(self, db: AsyncSession, req: RetrievalRequest) -> list[RetrievalResult]:

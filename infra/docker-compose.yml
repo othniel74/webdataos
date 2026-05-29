@@ -37,7 +37,6 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
       SYNC_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
-      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
       SYSTEM_ROOT_DIRECTORY: /data/cognee/.cognee_system
       DATA_ROOT_DIRECTORY: /data/cognee/.data_storage
       COGNEE_LOGS_DIR: /data/cognee/logs
@@ -66,7 +65,6 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
       SYNC_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
-      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
       SYSTEM_ROOT_DIRECTORY: /data/cognee/.cognee_system
       DATA_ROOT_DIRECTORY: /data/cognee/.data_storage
       COGNEE_LOGS_DIR: /data/cognee/logs

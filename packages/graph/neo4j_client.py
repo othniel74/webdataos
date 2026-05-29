@@ -13,6 +13,8 @@ class Neo4jGraphClient:
                 self.driver = GraphDatabase.driver(
                     self.settings.neo4j_uri,
                     auth=(self.settings.neo4j_username or self.settings.neo4j_user, self.settings.neo4j_password),
+                    connection_timeout=5,
+                    max_transaction_retry_time=3,
                 )
             except Exception:
                 self.enabled = False
