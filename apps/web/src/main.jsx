@@ -297,7 +297,7 @@ const packIcon = (id, size = 18) => {
 /* ═══════════════════════════════════════════════════════════════════════
    APP
    ═══════════════════════════════════════════════════════════════════════ */
-const PUB = ["Home", "Demo", "Pricing"];
+const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
 const PRIV = ["Feed", "Brief", "Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
 const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
@@ -413,13 +413,14 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'Inter','DM Sans',system-ui,sans-serif" }}>
       <style>{CSS}</style>
+      <style>{UPGRADE_PUBLIC_EXTRA_CSS}</style>
       <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { setApiBearerToken(null); setUser(null); setPage("Home"); }} backendOk={backendOk} />
-      {page === "Home" && <HomePage nav={nav} user={user} auth={() => setShowAuth(true)} />}
-      {page === "Demo" && <DemoPage nav={nav} />}
-      {page === "Solution" && <SolutionManualPage nav={nav} />}
-      {page === "Pricing" && <PricingPage nav={nav} tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} user={user} auth={() => setShowAuth(true)} />}
-      {page === "Docs" && <DocsManualPage />}
-      {page === "Developer" && <DevPage />}
+      {page === "Home" && <PublicHomePage nav={nav} user={user} auth={() => setShowAuth(true)} />}
+      {page === "Demo" && <PublicDemoPage nav={nav} auth={() => setShowAuth(true)} />}
+      {page === "Solution" && <PublicSolutionPage nav={nav} auth={() => setShowAuth(true)} />}
+      {page === "Pricing" && <PublicPricingPage nav={nav} user={user} auth={() => setShowAuth(true)} />}
+      {page === "Docs" && <PublicDocsPage nav={nav} auth={() => setShowAuth(true)} />}
+      {page === "Developer" && <PublicDeveloperPage nav={nav} auth={() => setShowAuth(true)} />}
       {page === "Feed" && canUsePrivateApi && <FeedPage nav={nav} ws={ws} />}
       {page === "Brief" && canUsePrivateApi && <BriefPage ws={ws} nav={nav} runResearch={runResearch} setActions={setActions} />}
       {page === "Monitor" && canUsePrivateApi && <MonitorPage ws={ws} nav={nav} saveWorkspace={saveWorkspace} report={report} setReport={setReport} setActions={setActions} backendOk={backendOk} />}
@@ -781,37 +782,40 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const navItems = user ? [...PRIV, ...(isSuperAdmin(user) ? ["Admin"] : [])] : PUB;
   const brandTarget = user ? "Monitor" : "Home";
   const go = n => { setPage(n); setMenuOpen(false); };
+  const publicNav = !user && PUB.includes(page);
+  const lightNav = publicNav && page !== "Demo";
+  const linkColor = (active) => active ? (lightNav ? "#0B1426" : "#F1F5F9") : (lightNav ? "#64748B" : "#64748B");
 
   const headerStyle = {
     position: "sticky", top: 0, zIndex: 50,
-    height: 56, padding: "0 28px",
+    height: publicNav ? 60 : 56, padding: publicNav ? "0 40px" : "0 28px",
     display: "flex", alignItems: "center", justifyContent: "space-between",
-    background: "rgba(7,11,20,.97)",
-    borderBottom: "1px solid rgba(255,255,255,.07)",
-    backdropFilter: "blur(20px)",
-    WebkitBackdropFilter: "blur(20px)",
+    background: lightNav ? "rgba(255,255,255,.97)" : "rgba(7,11,20,.97)",
+    borderBottom: lightNav ? "1px solid #E2E8F0" : "1px solid rgba(255,255,255,.07)",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
   };
 
   return (
     <>
       <header style={headerStyle}>
         {/* Brand */}
-        <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: "#0ea5e9", display: "grid", placeItems: "center" }}>
-            <Layers size={14} color="#000" />
+        <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+          <div style={{ width: publicNav ? 26 : 28, height: publicNav ? 26 : 28, borderRadius: publicNav ? 5 : 6, background: publicNav ? "linear-gradient(135deg, #1D4ED8, #3B82F6)" : "#0ea5e9", display: "grid", placeItems: "center" }}>
+            <Layers size={publicNav ? 13 : 14} color={publicNav ? "#fff" : "#000"} />
           </div>
-          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em", color: "#f0f4f8" }}>WebDataOS</span>
-          {backendOk === false && <span style={{ fontSize: 10, color: "#ef4444", marginLeft: 2 }}>offline</span>}
+          <span style={{ fontSize: publicNav ? 14.5 : 15, fontWeight: 700, letterSpacing: "-.03em", color: lightNav ? "#0B1426" : "#f0f4f8" }}>WebDataOS</span>
+          {backendOk === false && !publicNav && <span style={{ fontSize: 10, color: "#ef4444", marginLeft: 2 }}>offline</span>}
         </button>
 
         {/* Center nav links */}
         {!isMobile && (
           <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
             {navItems.map(n => (
-              <button key={n} onClick={() => go(n)} style={NAV_LINK(page === n)}>
+              <button key={n} onClick={() => go(n)} style={publicNav ? { border: "none", background: "transparent", color: linkColor(page === n), fontSize: 13.5, fontWeight: page === n ? 600 : 500, padding: "0 12px", height: 60, cursor: "pointer", position: "relative", display: "inline-flex", alignItems: "center" } : NAV_LINK(page === n)}>
                 {n}
                 {page === n && (
-                  <span style={{ position: "absolute", bottom: 0, left: 16, right: 16, height: 1, background: "#0ea5e9" }} />
+                  <span style={{ position: "absolute", bottom: 0, left: publicNav ? 12 : 16, right: publicNav ? 12 : 16, height: publicNav ? 2 : 1, background: publicNav ? "#2563EB" : "#0ea5e9", borderRadius: 2 }} />
                 )}
               </button>
             ))}
@@ -837,13 +841,13 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
             </>
           ) : (
             <>
-              <button onClick={onAuth} style={{ padding: "7px 16px", borderRadius: 6, border: "1px solid rgba(255,255,255,.18)", background: "transparent", fontSize: 13, color: "#c8d8e8", fontWeight: 500, cursor: "pointer" }}>
+              <button onClick={onAuth} style={{ padding: "7px 16px", borderRadius: 6, border: lightNav ? "1px solid #E2E8F0" : "1px solid rgba(255,255,255,.18)", background: "transparent", fontSize: 13.5, color: lightNav ? "#0B1426" : "#c8d8e8", fontWeight: 500, cursor: "pointer" }}>
                 Sign in
               </button>
-              <button onClick={onAuth} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={onAuth} style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "#2563EB", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>
                 Get started
               </button>
-              <button onClick={() => go("Demo")} style={{ padding: "7px 16px", borderRadius: 6, border: "1px solid rgba(255,255,255,.18)", background: "transparent", color: "#c8d8e8", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+              <button onClick={() => go("Demo")} style={{ padding: "8px 18px", borderRadius: 6, border: lightNav ? "1px solid #E2E8F0" : "1px solid rgba(255,255,255,.18)", background: lightNav ? "#fff" : "rgba(255,255,255,.07)", color: lightNav ? "#0B1426" : "#F1F5F9", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
                 Demo
               </button>
             </>
@@ -888,6 +892,454 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
    HOME (Public) — product overview, no tier selection
    ═══════════════════════════════════════════════════════════════════════ */
 // Fires once when the element enters the viewport — used for scroll-reveal
+/* Public site redesign inspired by the standalone prototype, wired to the real app. */
+function PublicEyebrow({ children }) {
+  return <div className="pub-eyebrow"><span />{children}</div>;
+}
+
+function PublicButton({ children, onClick, tone = "primary" }) {
+  return <button className={`pub-btn pub-btn-${tone}`} onClick={onClick}>{children}</button>;
+}
+
+function PublicMapPreview() {
+  const nodes = [
+    ["Workspace", "scope", "pub-map-workspace"],
+    ["Entity", "vendor", "pub-map-entity"],
+    ["Signal", "change", "pub-map-signal"],
+    ["Evidence", "source", "pub-map-evidence"],
+    ["Action", "workflow", "pub-map-action"],
+  ];
+  return (
+    <div className="pub-map">
+      <div className="pub-map-line line-a" />
+      <div className="pub-map-line line-b" />
+      <div className="pub-map-line line-c" />
+      <div className="pub-map-line line-d" />
+      {nodes.map(([title, sub, cls]) => (
+        <div className={`pub-map-node ${cls}`} key={title}><strong>{title}</strong><span>{sub}</span></div>
+      ))}
+      <div className="pub-map-caption">Relationship context behind the brief</div>
+    </div>
+  );
+}
+
+const UPGRADE_PUBLIC_CSS = `
+.upgrade-page,.upgrade-demo-page{font-family:'DM Sans','Inter',system-ui,sans-serif}
+.upgrade-light{background:#fff;color:#0B1426}.upgrade-container{max-width:1200px;margin:0 auto}.upgrade-hero-light{background:#fff;padding:104px 40px 88px}.upgrade-hero-grid{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:72px;align-items:center}.upgrade-hero-light h1{font-size:60px;font-weight:700;color:#0B1426;line-height:1.09;letter-spacing:-2.5px;margin-bottom:24px;text-wrap:pretty}.upgrade-hero-light p{font-size:17px;color:#64748B;line-height:1.75;max-width:580px}.upgrade-pill{display:inline-flex;align-items:center;gap:7px;border-radius:100px;padding:4px 14px;margin-bottom:22px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px}.upgrade-pill span{width:6px;height:6px;border-radius:50%;background:#22C55E}.upgrade-pill-blue{background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8}.upgrade-pill-green{background:#F0FDF4;border:1px solid #BBF7D0;color:#059669}.upgrade-pill-dark{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#94A3B8}.upgrade-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:34px}.upgrade-actions-center{justify-content:center}.upgrade-live-panel{background:#0B1426;border:1px solid #1E293B;border-radius:16px;padding:22px;box-shadow:0 24px 70px rgba(15,23,42,.18)}.upgrade-panel-head{display:flex;justify-content:space-between;margin-bottom:16px;color:#64748B;font-size:11px;text-transform:uppercase;letter-spacing:.8px;font-family:'DM Mono',monospace}.upgrade-panel-head strong{color:#22C55E}.upgrade-signal{background:color-mix(in srgb,var(--accent) 7%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);border-left:3px solid var(--accent);border-radius:7px;padding:11px 13px;margin-bottom:10px}.upgrade-signal div{display:flex;justify-content:space-between;margin-bottom:5px}.upgrade-signal strong{font-size:9.5px;color:var(--accent);letter-spacing:.6px}.upgrade-signal span{font-size:9.5px;color:#475569;font-family:'DM Mono',monospace}.upgrade-signal p{font-size:12px;color:#E2E8F0;line-height:1.45}.upgrade-ask-row{display:flex;align-items:center;gap:8px;margin-top:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:8px 12px}.upgrade-ask-row span{flex:1;font-size:12px;color:#64748B;font-style:italic}.upgrade-ask-row button{width:24px;height:24px;border:none;border-radius:5px;background:#2563EB;color:#fff;display:grid;place-items:center}
+.upgrade-dark-band{background:#0B1426;padding:96px 40px}.upgrade-centered{text-align:center;max-width:680px;margin:0 auto 56px}.upgrade-centered h2{font-size:44px;font-weight:700;line-height:1.12;letter-spacing:-1.8px;margin-bottom:16px;color:inherit}.upgrade-dark-band .upgrade-centered h2,.upgrade-dark-band .upgrade-centered p{color:#F1F5F9}.upgrade-centered p{font-size:16px;color:#64748B;line-height:1.72}.upgrade-surface-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.upgrade-surface-card{background:#131F35;border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:22px}.upgrade-surface-head{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.7px;font-family:'DM Mono',monospace;margin-bottom:10px}.upgrade-surface-head span{width:7px;height:7px;border-radius:50%}.upgrade-surface-card p{font-size:13px;color:#94A3B8;line-height:1.55;margin-bottom:16px}.upgrade-surface-list{display:grid;gap:9px}.upgrade-surface-list div{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px 12px;color:#CBD5E1;font-size:12px}.upgrade-surface-list span{width:6px;height:6px;border-radius:50%;background:#22C55E}
+.upgrade-white-band{background:#fff;padding:96px 40px}.upgrade-white-band .upgrade-centered h2{color:#0B1426}.upgrade-story-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}.upgrade-story{border:1px solid #E2E8F0;border-left:3px solid var(--accent);border-radius:10px;padding:26px}.upgrade-story span{font-size:10.5px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.8px}.upgrade-story h3{font-size:14.5px;color:#0F172A;font-weight:700;margin:14px 0 10px;line-height:1.45}.upgrade-story p{font-size:13px;color:#64748B;line-height:1.65}.upgrade-memory-band{background:#F8FAFC;padding:96px 40px;border-top:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0}.upgrade-memory-grid{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center}.upgrade-memory-grid h2{font-size:38px;font-weight:700;color:#0B1426;letter-spacing:-1.5px;line-height:1.18;margin-bottom:16px}.upgrade-memory-grid>div>p{font-size:15.5px;color:#64748B;line-height:1.78;margin-bottom:30px}.upgrade-memory-point{display:flex;gap:14px;margin-top:18px}.upgrade-memory-point svg{color:#2563EB;flex:none;margin-top:3px}.upgrade-memory-point strong{display:block;color:#0F172A;font-size:14px;margin-bottom:3px}.upgrade-memory-point span{display:block;color:#64748B;font-size:13px;line-height:1.65}.upgrade-domain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.upgrade-domain-card{border:1px solid #E2E8F0;border-radius:12px;background:#FAFAFA;padding:28px}.upgrade-domain-icon{width:42px;height:42px;background:color-mix(in srgb,var(--accent) 10%,#fff);border:1px solid color-mix(in srgb,var(--accent) 22%,#fff);border-radius:10px;margin-bottom:18px}.upgrade-domain-card h3{font-size:15.5px;color:#0F172A;margin-bottom:8px}.upgrade-domain-card p{font-size:13px;color:#64748B;line-height:1.6}.upgrade-flow-band{background:#F8FAFC;padding:96px 40px;border-top:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0}.upgrade-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative}.upgrade-flow:before{content:'';position:absolute;top:19px;left:14%;right:14%;height:1.5px;background:linear-gradient(90deg,#BFDBFE 0%,#2563EB 50%,#BFDBFE 100%)}.upgrade-flow>div{text-align:center;padding:0 24px;position:relative;z-index:1}.upgrade-flow span{display:grid;place-items:center;width:40px;height:40px;background:#2563EB;border-radius:50%;margin:0 auto 22px;border:3px solid #EFF6FF;box-shadow:0 0 0 3px #2563EB;color:#fff;font-size:12px;font-weight:700;font-family:'DM Mono',monospace}.upgrade-flow h3{font-size:13.5px;color:#0F172A;margin-bottom:9px}.upgrade-flow p{font-size:12.5px;color:#64748B;line-height:1.65}.upgrade-dark-cta{background:#0B1426;padding:96px 40px;text-align:center}.upgrade-dark-cta h2{font-size:52px;font-weight:700;color:#F1F5F9;line-height:1.1;letter-spacing:-2px;margin-bottom:20px}.upgrade-dark-cta h2 span{color:#2563EB}.upgrade-dark-cta p{font-size:17px;color:#94A3B8;line-height:1.75}
+.upgrade-demo-page{background:#0B1426;min-height:calc(100vh - 60px);color:#F1F5F9}.upgrade-demo-hero{padding:88px 40px 64px;text-align:center;max-width:760px;margin:0 auto}.upgrade-demo-hero h1{font-size:56px;font-weight:700;line-height:1.1;letter-spacing:-2.5px;margin-bottom:22px}.upgrade-demo-hero h1 span{color:#94A3B8;font-weight:300}.upgrade-demo-hero p{font-size:17px;color:#64748B;line-height:1.75;max-width:560px;margin:0 auto}.upgrade-demo-scenarios{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:0 40px 40px}.upgrade-scenario-card{text-align:left;background:#131F35;border:1px solid #1E293B;border-radius:14px;padding:28px;color:#F1F5F9;display:flex;flex-direction:column;min-height:300px}.upgrade-scenario-card.active{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}.upgrade-scenario-icon{width:44px;height:44px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:10px;display:grid;place-items:center;color:var(--accent);margin-bottom:20px}.upgrade-scenario-card h3{font-size:16.5px;line-height:1.35;margin-bottom:12px}.upgrade-scenario-card p{font-size:13px;color:#64748B;line-height:1.65;margin-bottom:24px;flex:1}.upgrade-chip-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}.upgrade-chip-row span{font-size:11.5px;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);border:1px solid color-mix(in srgb,var(--accent) 25%,transparent);border-radius:5px;padding:3px 9px;font-family:'DM Mono',monospace}.upgrade-scenario-card>strong{font-size:13.5px;color:#F1F5F9}.upgrade-demo-setup{max-width:1080px;margin:0 auto 40px;padding:20px 24px;background:#0F1A2D;border:1px solid #1E293B;border-radius:12px;display:grid;grid-template-columns:1fr 1fr 1.3fr auto;gap:18px;align-items:center}.upgrade-demo-setup span{display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.8px;font-family:'DM Mono',monospace;margin-bottom:6px}.upgrade-demo-setup strong{display:block;font-size:13px;color:#CBD5E1;line-height:1.4}.upgrade-demo-setup button,.upgrade-upgrade-box button{border:none;background:#2563EB;color:#fff;border-radius:7px;padding:11px 20px;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;justify-content:center}.upgrade-demo-setup button:disabled{opacity:.7}.upgrade-demo-error{max-width:1080px;margin:0 auto 24px;border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.08);border-radius:9px;color:#FCA5A5;padding:12px 14px;display:flex;justify-content:space-between;gap:12px}.upgrade-demo-error button{background:transparent;border:1px solid rgba(239,68,68,.35);border-radius:6px;color:#FCA5A5;padding:6px 10px}.upgrade-running{max-width:760px;margin:0 auto 56px;background:#131F35;border:1px solid #1E293B;border-radius:14px;padding:24px}.upgrade-running-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}.upgrade-running-head strong{display:block}.upgrade-running-head span{display:block;color:#64748B;font-size:12px;margin-top:3px}.upgrade-run-list{display:grid;gap:9px}.upgrade-run-list div{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.06);font-size:13px;color:#94A3B8}.upgrade-run-list span{width:8px;height:8px;border-radius:50%;background:#334155}.upgrade-run-list .active span{background:#3B82F6;box-shadow:0 0 14px rgba(59,130,246,.6)}.upgrade-run-list .done span{background:#22C55E}.upgrade-run-list strong{font-size:10px;text-transform:uppercase;color:#475569;font-family:'DM Mono',monospace}.upgrade-brief-shell{max-width:1080px;margin:0 auto 80px;background:#131F35;border:1px solid #1E293B;border-radius:14px;overflow:hidden}.upgrade-brief-top{display:flex;align-items:center;justify-content:space-between;padding:18px 32px;border-bottom:1px solid rgba(255,255,255,.06)}.upgrade-brief-top div{display:flex;align-items:center;gap:8px}.upgrade-live-dot{width:8px;height:8px;border-radius:50%;background:#22C55E}.upgrade-brief-top strong{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:#64748B;font-family:'DM Mono',monospace}.upgrade-brief-top p{font-size:11px;color:#475569;font-family:'DM Mono',monospace}.upgrade-brief-top em{font-style:normal;color:#22C55E;border:1px solid rgba(34,197,94,.22);background:rgba(34,197,94,.1);border-radius:5px;padding:3px 10px;margin-left:12px;text-transform:uppercase}.upgrade-brief-tabs{display:flex;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.12);padding:0 32px}.upgrade-brief-tabs button{border:none;background:transparent;color:#64748B;padding:14px 18px;font-size:12px;font-weight:700;cursor:pointer}.upgrade-brief-tabs button.active{color:#F1F5F9;border-bottom:2px solid #2563EB}.upgrade-brief-grid{display:grid;grid-template-columns:1fr 1fr}.upgrade-brief-grid>div{padding:28px 32px}.upgrade-brief-grid>div:first-child{border-right:1px solid rgba(255,255,255,.06)}.upgrade-kicker{display:block;font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;font-family:'DM Mono',monospace}.upgrade-brief-grid p,.upgrade-tab-body p{font-size:13.5px;color:#CBD5E1;line-height:1.72;margin-bottom:24px}.upgrade-key-list,.upgrade-action-list{display:grid;gap:10px}.upgrade-key-list div{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:11px 13px}.upgrade-key-list strong{display:inline-block;font-size:9px;color:#93C5FD;background:rgba(37,99,235,.12);border-radius:4px;padding:2px 6px;margin-bottom:6px}.upgrade-key-list p{font-size:12.5px;margin:0 0 3px;color:#E2E8F0}.upgrade-key-list span{font-size:10.5px;color:#475569;font-family:'DM Mono',monospace}.upgrade-action-list div{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;font-size:13px;color:#CBD5E1;line-height:1.55}.upgrade-action-list svg{color:#22C55E;flex:none;margin-top:2px}.upgrade-upgrade-box{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.2);border-radius:10px;padding:20px;margin-top:28px}.upgrade-upgrade-box strong{display:block;font-size:13.5px;margin-bottom:6px}.upgrade-upgrade-box p{font-size:12.5px;color:#64748B;margin-bottom:16px}.upgrade-tab-body{padding:28px 32px}.upgrade-evidence-list{display:grid;gap:10px}.upgrade-evidence-list>div{background:rgba(255,255,255,.03);border:1px solid #1E293B;border-radius:9px;padding:14px 18px}.upgrade-evidence-list>div>div{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px}.upgrade-evidence-list strong{font-size:13px}.upgrade-evidence-list span{font-size:10px;color:#475569;font-family:'DM Mono',monospace}.upgrade-evidence-list p{font-size:12.5px;color:#64748B;margin:0 0 8px}.upgrade-empty{color:#64748B!important}.upgrade-memory-result{display:grid;grid-template-columns:.9fr 1.1fr;gap:24px;align-items:start}.upgrade-memory-result h3{font-size:22px;margin-bottom:10px}.upgrade-memory-metrics{display:flex;gap:8px;flex-wrap:wrap}.upgrade-memory-metrics span{font-size:11px;color:#93C5FD;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.2);border-radius:5px;padding:5px 8px}.upgrade-chat{margin-top:24px;border-top:1px solid rgba(255,255,255,.08);padding-top:18px}.upgrade-chat-title{display:flex;align-items:center;gap:8px;font-weight:800;margin-bottom:12px}.upgrade-chat-bubble{max-width:82%;padding:11px 13px;border-radius:12px;background:#0B1426;border:1px solid rgba(255,255,255,.08);color:#94A3B8;font-size:13px;line-height:1.6;margin-bottom:10px}.upgrade-chat-bubble.user{margin-left:auto;background:#2563EB;color:#fff;border:none}.upgrade-chat-input{display:flex;gap:8px}.upgrade-chat-input input{flex:1;background:#0B1426;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:11px 12px;color:#F1F5F9}.upgrade-chat-input button{width:44px;border:none;border-radius:8px;background:#2563EB;color:#fff}
+@media(max-width:900px){.upgrade-hero-grid,.upgrade-memory-grid,.upgrade-brief-grid,.upgrade-memory-result{grid-template-columns:1fr}.upgrade-surface-grid,.upgrade-story-grid,.upgrade-domain-grid,.upgrade-flow,.upgrade-demo-scenarios{grid-template-columns:1fr}.upgrade-hero-light,.upgrade-dark-band,.upgrade-white-band,.upgrade-memory-band,.upgrade-flow-band,.upgrade-dark-cta,.upgrade-demo-hero{padding-left:24px;padding-right:24px}.upgrade-hero-light h1,.upgrade-demo-hero h1{font-size:42px}.upgrade-demo-setup{grid-template-columns:1fr;margin-left:24px;margin-right:24px}.upgrade-brief-shell{margin-left:24px;margin-right:24px}.upgrade-brief-grid>div:first-child{border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}.upgrade-flow:before{display:none}.upgrade-brief-top{align-items:flex-start;flex-direction:column}.upgrade-brief-tabs{overflow:auto}.upgrade-dark-cta h2{font-size:38px}}
+`;
+
+const UPGRADE_PUBLIC_EXTRA_CSS = `
+.upgrade-domain-table{border-top:1px solid #E2E8F0}.upgrade-domain-table>div{display:grid;grid-template-columns:.8fr 1.2fr 1.2fr;gap:20px;padding:20px 0;border-bottom:1px solid #E2E8F0}.upgrade-domain-table>div:first-child{font-size:10.5px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.8px}.upgrade-domain-table strong{font-size:14px;color:#0F172A}.upgrade-domain-table p{font-size:13px;color:#64748B;line-height:1.65}.upgrade-price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.upgrade-price-card{border:1px solid #E2E8F0;border-radius:12px;background:#FAFAFA;padding:30px}.upgrade-price-card.featured{border-color:#2563EB;box-shadow:0 0 0 1px rgba(37,99,235,.25)}.upgrade-price-card span,.upgrade-dev-grid span{font-size:10.5px;color:#2563EB;text-transform:uppercase;letter-spacing:.8px;font-weight:800}.upgrade-price-card h2{font-size:32px;color:#0B1426;margin:12px 0 8px}.upgrade-price-card p,.upgrade-doc-list p,.upgrade-dev-grid p{font-size:13px;color:#64748B;line-height:1.65}.upgrade-price-card button{margin-top:24px;width:100%;border:none;border-radius:8px;background:#2563EB;color:#fff;font-weight:800;padding:12px}.upgrade-doc-list{display:grid;gap:12px;max-width:820px}.upgrade-doc-list div,.upgrade-dev-grid div{background:#FAFAFA;border:1px solid #E2E8F0;border-radius:12px;padding:22px}.upgrade-doc-list h3{font-size:15px;color:#0F172A;margin-bottom:6px}.upgrade-dev-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.upgrade-dev-grid code{display:block;background:#0B1426;color:#E2E8F0;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12px;overflow:auto}@media(max-width:900px){.upgrade-domain-table>div,.upgrade-price-grid,.upgrade-dev-grid{grid-template-columns:1fr}.upgrade-domain-table>div:first-child{display:none}}
+`;
+
+function PublicHomePage({ nav, user, auth }) {
+  const start = user ? () => nav("Monitor") : auth;
+  const surfaces = [
+    ["Signal Feed", "Live intelligence stream, prioritized by materiality and relevance to your watchlist.", "#22C55E", ["Vendor disclosure changed", "Competitor pricing shifted", "Regulatory guidance updated"]],
+    ["Decision Brief", "A concise explanation of what changed, why it matters, and the recommended next step.", "#2563EB", ["Situation", "Evidence", "Business impact"]],
+    ["AI Analyst", "Ask follow-up questions against saved evidence, memory, and the latest monitoring run.", "#F59E0B", ["What changed?", "Which source matters?", "What action follows?"]],
+  ];
+  const stories = [
+    ["Security & Risk", "Our board asked if we were exposed by a vendor breach. We found out from social posts, not our own workflow.", "WebDataOS watches vendor and regulatory signals, then creates a sourced brief for review.", "#EF4444"],
+    ["GTM Intelligence", "A competitor changed pricing and sales heard about it after deals were already affected.", "The system tracks positioning, pricing, product, and account signals so teams can respond earlier.", "#2563EB"],
+    ["Finance & Market", "A supplier and market signal changed before it appeared in the weekly reporting pack.", "Monitoring connects filings, market movement, and source evidence to business impact.", "#059669"],
+    ["Operations", "A workflow risk was visible in scattered public updates, but no one had a single place to see it.", "WebDataOS turns external changes into recommended actions and outcome receipts.", "#7C3AED"],
+  ];
+  const domains = [
+    ["Security & Compliance", "Vendor breach monitoring, regulatory change tracking, compliance status monitoring, risk review briefs.", "#EF4444"],
+    ["GTM Intelligence", "Competitor launches, pricing changes, messaging shifts, buying signals, battlecard updates.", "#059669"],
+    ["Finance & Market", "Filings, supplier signals, market movement, sector changes, alternative public data.", "#2563EB"],
+  ];
+  return (
+    <main className="upgrade-page upgrade-light">
+      <style>{UPGRADE_PUBLIC_CSS}</style>
+      <section className="upgrade-hero-light">
+        <div className="upgrade-container upgrade-hero-grid">
+          <div>
+            <div className="upgrade-pill upgrade-pill-blue"><span /> Live Web Intelligence</div>
+            <h1>Live web intelligence for enterprise decisions.</h1>
+            <p>WebDataOS monitors vendors, competitors, markets, regulations, and public signals, then turns what changed into source-backed evidence, business reasoning, recommended actions, and run receipts.</p>
+            <div className="upgrade-actions">
+              <PublicButton onClick={start}>Start free trial <ArrowRight size={13} /></PublicButton>
+              <PublicButton tone="ghost" onClick={() => nav("Demo")}>Watch demo</PublicButton>
+            </div>
+          </div>
+          <div className="upgrade-live-panel">
+            <div className="upgrade-panel-head"><span>Monitoring</span><strong>Live</strong></div>
+            {[
+              ["HIGH RISK", "Vendor disclosure changed; security review should open before renewal.", "#EF4444"],
+              ["WATCH", "Competitor messaging and pricing page shifted this cycle.", "#F59E0B"],
+              ["INFO", "Market and supplier source added to the current evidence baseline.", "#2563EB"],
+            ].map(([tag, text, color]) => (
+              <div className="upgrade-signal" style={{ "--accent": color }} key={tag}>
+                <div><strong>{tag}</strong><span>just now</span></div>
+                <p>{text}</p>
+              </div>
+            ))}
+            <div className="upgrade-ask-row"><span>Ask anything about your watchlist...</span><button><ArrowRight size={12} /></button></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="upgrade-dark-band">
+        <div className="upgrade-container">
+          <div className="upgrade-centered">
+            <div className="upgrade-pill upgrade-pill-dark">Platform overview</div>
+            <h2>Three surfaces. One operating system.</h2>
+            <p>WebDataOS monitors your market so your team does not have to interpret scattered links from scratch.</p>
+          </div>
+          <div className="upgrade-surface-grid">
+            {surfaces.map(([title, text, color, items]) => (
+              <div className="upgrade-surface-card" key={title}>
+                <div className="upgrade-surface-head"><span style={{ background: color }} />{title}</div>
+                <p>{text}</p>
+                <div className="upgrade-surface-list">{items.map(item => <div key={item}><span />{item}</div>)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="upgrade-white-band">
+        <div className="upgrade-container">
+          <div className="upgrade-centered">
+            <h2>Every enterprise team has this story.</h2>
+            <p>The signals were there. Nobody saw them in time.</p>
+          </div>
+          <div className="upgrade-story-grid">
+            {stories.map(([title, quote, fix, color]) => (
+              <div className="upgrade-story" style={{ "--accent": color }} key={title}>
+                <span>{title}</span>
+                <h3>&quot;{quote}&quot;</h3>
+                <p>{fix}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="upgrade-memory-band">
+        <div className="upgrade-container upgrade-memory-grid">
+          <div>
+            <div className="upgrade-pill upgrade-pill-blue">Decision memory</div>
+            <h2>Every run builds your team's decision memory.</h2>
+            <p>Every run adds what changed, what evidence supported it, what action was recommended, and what happened next. Future analysis has context instead of starting cold.</p>
+            {["Decision memory", "Relationship intelligence", "Navigate and discover"].map(item => (
+              <div className="upgrade-memory-point" key={item}><CheckCircle size={16} /><div><strong>{item}</strong><span>{item === "Relationship intelligence" ? "Entities, sources, signals, recommendations, and outcomes stay connected." : item === "Navigate and discover" ? "Ask the Analyst to compare what the team knew before with what changed now." : "Briefs, signals, and outcomes remain searchable and reusable."}</span></div></div>
+            ))}
+          </div>
+          <PublicMapPreview />
+        </div>
+      </section>
+
+      <section className="upgrade-white-band">
+        <div className="upgrade-container">
+          <div className="upgrade-centered">
+            <div className="upgrade-pill upgrade-pill-green">Ready to deploy</div>
+            <h2>Intelligence ready-built for your team's decisions.</h2>
+            <p>Start with a domain, then refine the workspace with your entities, signals, and operating cadence.</p>
+          </div>
+          <div className="upgrade-domain-grid">
+            {domains.map(([title, text, color]) => (
+              <div className="upgrade-domain-card" style={{ "--accent": color }} key={title}>
+                <div className="upgrade-domain-icon" />
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="upgrade-flow-band">
+        <div className="upgrade-container">
+          <div className="upgrade-centered">
+            <h2>From signal to decision in one run.</h2>
+            <p>No manual curation. No raw extraction dump. A repeatable path from monitoring to evidence, reasoning, action, and outcome.</p>
+          </div>
+          <div className="upgrade-flow">
+            {["Set your scope", "Live web scan", "Business reasoning", "Action receipt"].map((item, i) => (
+              <div key={item}><span>{String(i + 1).padStart(2, "0")}</span><h3>{item}</h3><p>{["Define vendors, competitors, topics, and accounts.", "Collect news, filings, pricing pages, public sources, and pages your team cares about.", "Rank signals by materiality and explain business impact.", "Create recommended actions and record what happened next."][i]}</p></div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="upgrade-dark-cta">
+        <div className="upgrade-container">
+          <div className="upgrade-pill upgrade-pill-dark"><span /> Always monitoring</div>
+          <h2>The web does not wait.<br /><span>Your intelligence should not either.</span></h2>
+          <p>Start with a demo run, then create a workspace for continuous monitoring.</p>
+          <div className="upgrade-actions upgrade-actions-center">
+            <PublicButton onClick={start}>{user ? "Open workspace" : "Start free trial"} <ArrowRight size={13} /></PublicButton>
+            <PublicButton tone="ghost" onClick={() => nav("Demo")}>Try demo</PublicButton>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function UpgradeScenarioIcon({ scenario }) {
+  const icon = scenario.icon === "chart" ? <TrendingUp size={21} /> : scenario.icon === "globe" ? <Globe size={21} /> : <Shield size={21} />;
+  return <div className="upgrade-scenario-icon" style={{ "--accent": scenario.color }}>{icon}</div>;
+}
+
+function PublicDemoPage({ nav, auth }) {
+  const [phase, setPhase] = useState("pick");
+  const [selectedId, setSelectedId] = useState(DEMO_SCENARIOS[0].id);
+  const [session, setSession] = useState(null);
+  const [step, setStep] = useState(0);
+  const [report, setReport] = useState(null);
+  const [evidence, setEvidence] = useState([]);
+  const [graph, setGraph] = useState(null);
+  const [error, setError] = useState("");
+  const [question, setQuestion] = useState("Which signal needs action and what evidence supports it?");
+  const [messages, setMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [tab, setTab] = useState("brief");
+  const selected = DEMO_SCENARIOS.find(s => s.id === selectedId) || DEMO_SCENARIOS[0];
+  const brief = decisionFromReport(report);
+  const steps = ["Create demo workspace", "Scan public sources", "Verify evidence", "Build decision memory", "Generate brief and actions"];
+  const graphCount = graph?.counts?.nodes || graph?.nodes?.length || 0;
+  const recommendationList = [
+    brief?.recommended_action,
+    ...(report?.reasoning?.recommendations || []).map(r => r.title || r.description).filter(Boolean),
+  ].filter(Boolean).slice(0, 3);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("webdataos_demo_session");
+    if (saved) endpoints.demoCurrent(saved).then(active => setSession(active)).catch(() => localStorage.removeItem("webdataos_demo_session"));
+  }, []);
+
+  const run = async () => {
+    setPhase("running"); setStep(0); setError(""); setReport(null); setEvidence([]); setGraph(null); setTab("brief");
+    let idx = 0;
+    const ticker = setInterval(() => { idx += 1; setStep(Math.min(idx, steps.length - 1)); }, 900);
+    try {
+      let active = session;
+      if (!active) {
+        active = await endpoints.demoSession(selected.id);
+        localStorage.setItem("webdataos_demo_session", active.session_id);
+      }
+      const scoped = await endpoints.demoWorkspace(active.session_id, { mission: selected.id, entities: selected.entities, signals: selected.signals }).catch(() => active);
+      setSession(scoped);
+      const result = await endpoints.demoRun(scoped.session_id || active.session_id);
+      const sid = scoped.session_id || active.session_id;
+      const [ev, gr] = await Promise.all([endpoints.demoEvidence(sid).catch(() => ({ records: [] })), endpoints.demoGraph(sid).catch(() => null)]);
+      clearInterval(ticker);
+      setStep(steps.length); setReport(result); setEvidence(ev.records || []); setGraph(gr); setPhase("result");
+    } catch (err) {
+      clearInterval(ticker);
+      const msg = err?.message || "Demo run failed.";
+      setError(msg.includes("429") || msg.toLowerCase().includes("limit") ? "Demo run limit reached for this browser session. Reset the sandbox or create an account for a full workspace." : msg.includes("[object Object]") ? "The demo backend rejected the request. Reset the sandbox and try again." : msg);
+      setPhase("pick");
+    }
+  };
+
+  const reset = () => {
+    localStorage.removeItem("webdataos_demo_session");
+    setSession(null); setReport(null); setEvidence([]); setGraph(null); setMessages([]); setError(""); setPhase("pick"); setTab("brief");
+  };
+
+  const ask = async () => {
+    const q = question.trim();
+    if (!q || chatLoading) return;
+    setQuestion(""); setMessages(prev => [...prev, { role: "user", content: q }]); setChatLoading(true);
+    try {
+      if (!session?.session_id) throw new Error("Run a demo scenario first.");
+      const result = await endpoints.demoChat(session.session_id, q, messages.slice(-8));
+      const b = decisionFromReport(result);
+      setMessages(prev => [...prev, { role: "assistant", content: b.answer || result.summary || "No answer returned." }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "assistant", content: err?.message || "The analyst could not answer right now." }]);
+    } finally { setChatLoading(false); }
+  };
+
+  return (
+    <main className="upgrade-demo-page">
+      <style>{UPGRADE_PUBLIC_CSS}</style>
+      <section className="upgrade-demo-hero">
+        <div className="upgrade-pill upgrade-pill-dark"><span /> Live intelligence demo</div>
+        <h1>See live web intelligence<br /><span>in action.</span></h1>
+        <p>Pick a scenario. WebDataOS will monitor real companies, pull live web evidence, reason over business impact, and show a decision-ready brief.</p>
+      </section>
+
+      {error && <div className="upgrade-demo-error"><span>{error}</span><button onClick={reset}>Reset demo</button></div>}
+
+      <section className="upgrade-demo-scenarios">
+        {DEMO_SCENARIOS.slice(0, 3).map(sc => (
+          <button className={`upgrade-scenario-card ${selectedId === sc.id ? "active" : ""}`} key={sc.id} onClick={() => setSelectedId(sc.id)} style={{ "--accent": sc.color }}>
+            <UpgradeScenarioIcon scenario={sc} />
+            <h3>{sc.hook}</h3>
+            <p>{sc.desc}</p>
+            <div className="upgrade-chip-row">{sc.entities.map(e => <span key={e}>{e}</span>)}</div>
+            <strong>Try this scenario</strong>
+          </button>
+        ))}
+      </section>
+
+      <section className="upgrade-demo-setup">
+        <div>
+          <span>Selected scenario</span>
+          <strong>{selected.hook}</strong>
+        </div>
+        <div>
+          <span>Companies</span>
+          <strong>{selected.entities.join(", ")}</strong>
+        </div>
+        <div>
+          <span>Signals</span>
+          <strong>{selected.signals.join(", ")}</strong>
+        </div>
+        <button onClick={run} disabled={phase === "running"}><Play size={14} /> {phase === "running" ? "Running..." : "Run demo"}</button>
+      </section>
+
+      {phase === "running" && (
+        <section className="upgrade-running">
+          <div className="upgrade-running-head"><RefreshCw size={16} className="pub-spin" /><div><strong>Running WebDataOS</strong><span>{selected.name || selected.hook}</span></div></div>
+          <div className="upgrade-run-list">
+            {steps.map((label, i) => <div key={label} className={i < step ? "done" : i === step ? "active" : ""}><span />{label}<strong>{i < step ? "done" : i === step ? "running" : "waiting"}</strong></div>)}
+          </div>
+        </section>
+      )}
+
+      {phase === "result" && brief && (
+        <section className="upgrade-brief-shell">
+          <div className="upgrade-brief-top">
+            <div><span className="upgrade-live-dot" /> <strong>{brief.headline}</strong></div>
+            <p>{evidence.length} sources cited · just now <em>Decision ready</em></p>
+          </div>
+          <div className="upgrade-brief-tabs">
+            {["brief", "evidence", "memory", "actions"].map(t => <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}
+          </div>
+
+          {tab === "brief" && (
+            <div className="upgrade-brief-grid">
+              <div>
+                <span className="upgrade-kicker">Situation</span>
+                <p>{brief.answer}</p>
+                <span className="upgrade-kicker">Key signals</span>
+                <div className="upgrade-key-list">
+                  <div><strong>CHANGE</strong><p>{brief.what_changed}</p><span>{selected.signals[0]}</span></div>
+                  <div><strong>IMPACT</strong><p>{brief.business_impact}</p><span>{evidence.length} source-backed records</span></div>
+                  <div><strong>CONFIDENCE</strong><p>{brief.confidence ? `${Math.round(brief.confidence * 100)}% confidence from available evidence.` : "Confidence appears after reasoning completes."}</p><span>run receipt</span></div>
+                </div>
+              </div>
+              <div>
+                <span className="upgrade-kicker">Recommended actions</span>
+                <div className="upgrade-action-list">
+                  {(recommendationList.length ? recommendationList : ["Review the evidence and decide the next action."]).map(action => <div key={action}><CheckCircle size={14} />{action}</div>)}
+                </div>
+                <div className="upgrade-upgrade-box">
+                  <strong>Get the full brief plus continuous monitoring</strong>
+                  <p>Create a workspace for live alerts, source documentation, team actions, and daily decision briefs.</p>
+                  <button onClick={auth}>Start free trial <ArrowRight size={12} /></button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "evidence" && (
+            <div className="upgrade-tab-body">
+              <span className="upgrade-kicker">Source evidence - {evidence.length} verified sources</span>
+              <div className="upgrade-evidence-list">
+                {evidence.map(rec => (
+                  <div key={rec.id || rec.source_url}>
+                    <div><strong>{rec.entity_name || "Source"}</strong><span>{rec.freshness_status || "retrieved"}</span></div>
+                    <p>{rec.summary || "Evidence was saved for this demo run."}</p>
+                    {rec.source_url && <SourceLink url={rec.source_url}>{toHostname(rec.source_url) || rec.source_url}</SourceLink>}
+                  </div>
+                ))}
+                {!evidence.length && <p className="upgrade-empty">No evidence returned for this run.</p>}
+              </div>
+            </div>
+          )}
+
+          {tab === "memory" && (
+            <div className="upgrade-tab-body upgrade-memory-result">
+              <div>
+                <span className="upgrade-kicker">Decision memory</span>
+                <h3>{graphCount} relationship nodes connected to this run</h3>
+                <p>{brief.graph_explanation || "The map connects companies, sources, signals, recommendations, and actions so the next run has context."}</p>
+                <div className="upgrade-memory-metrics"><span>{evidence.length} evidence</span><span>{graphCount} nodes</span><span>{graph?.relationships?.length || 0} links</span></div>
+              </div>
+              <div>{graph ? <GraphMini graph={graph} title={selected.hook} wsId={session?.session_id} latestRunId={report?.run_id} /> : <PublicMapPreview />}</div>
+            </div>
+          )}
+
+          {tab === "actions" && (
+            <div className="upgrade-tab-body">
+              <span className="upgrade-kicker">Action queue</span>
+              <div className="upgrade-action-list">
+                {(recommendationList.length ? recommendationList : [brief.recommended_action]).filter(Boolean).map(action => <div key={action}><CheckCircle size={14} />{action}</div>)}
+              </div>
+              <div className="upgrade-chat">
+                <div className="upgrade-chat-title"><Brain size={15} /> Ask Analyst</div>
+                {messages.map((m, i) => <div className={`upgrade-chat-bubble ${m.role}`} key={i}>{m.content}</div>)}
+                {chatLoading && <div className="upgrade-chat-bubble assistant">Thinking...</div>}
+                <div className="upgrade-chat-input"><input value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={e => { if (e.key === "Enter") ask(); }} placeholder="Ask about this run..." /><button onClick={ask}><Send size={14} /></button></div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+    </main>
+  );
+}
+
+function PublicSolutionPage({ nav, auth }) {
+  const rows = [
+    ["Security & Compliance", "Monitor vendors, regulators, trust pages, breach exposure, and compliance changes.", "Run a vendor-risk workspace, inspect evidence, approve review actions."],
+    ["GTM Intelligence", "Monitor competitors, pricing, positioning, product launches, hiring, and buying signals.", "Run competitor monitoring, update battlecards, brief account teams."],
+    ["Finance & Market", "Monitor filings, suppliers, market movement, pricing signals, and sector changes.", "Run market monitoring, review exposure, create board-ready notes."],
+  ];
+  return (
+    <main className="upgrade-page upgrade-light">
+      <style>{UPGRADE_PUBLIC_CSS}</style>
+      <section className="upgrade-hero-light">
+        <div className="upgrade-container">
+          <div className="upgrade-pill upgrade-pill-blue">Solution</div>
+          <h1>External intelligence that ends in a decision.</h1>
+          <p>WebDataOS is designed for teams that cannot rely on manual search, stale dashboards, or ungrounded AI answers. Each workflow produces evidence, reasoning, recommended action, and a receipt.</p>
+          <div className="upgrade-actions"><PublicButton onClick={() => nav("Demo")}>Run demo</PublicButton><PublicButton tone="ghost" onClick={auth}>Create account</PublicButton></div>
+        </div>
+      </section>
+      <section className="upgrade-white-band">
+        <div className="upgrade-container">
+          <div className="upgrade-domain-table"><div><span>Track</span><span>What it watches</span><span>How users run it</span></div>{rows.map(([track, watches, run]) => <div key={track}><strong>{track}</strong><p>{watches}</p><p>{run}</p></div>)}</div>
+        </div>
+      </section>
+      <section className="upgrade-flow-band">
+        <div className="upgrade-container">
+          <div className="upgrade-centered"><h2>Configure scope. Monitor. Prove. Act.</h2><p>The user should not have to interpret crude extracted text. The system turns records into a brief, shows sources, and explains context.</p></div>
+          <div className="upgrade-flow">{["Define entities and signals", "Collect source-backed evidence", "Compare with prior state", "Generate business impact"].map((item, i) => <div key={item}><span>{String(i + 1).padStart(2, "0")}</span><h3>{item}</h3><p>{["Choose domains, companies, vendors, accounts, and signal types.", "Retrieve public sources and save evidence with trace.", "Show what changed against the previous run.", "Recommend an action and preserve the run receipt."][i]}</p></div>)}</div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function PublicPricingPage({ nav, user, auth }) {
+  const plans = [["Core", "One focused track", "For one team proving a single workflow."], ["Pro", "Two tracks", "For teams connecting security, GTM, or finance context."], ["Enterprise", "All tracks", "For organizations standardizing external intelligence."]];
+  const start = user ? () => nav("Monitor") : auth;
+  return <main className="upgrade-page upgrade-light"><style>{UPGRADE_PUBLIC_CSS}</style><section className="upgrade-hero-light"><div className="upgrade-container"><div className="upgrade-pill upgrade-pill-blue">Pricing</div><h1>Pay for operating scope, not noise.</h1><p>Every plan uses the same operating loop: monitor, collect, reason, act, and record the outcome.</p></div></section><section className="upgrade-white-band"><div className="upgrade-container upgrade-price-grid">{plans.map(([name, scope, desc], i) => <div className={`upgrade-price-card ${i === 1 ? "featured" : ""}`} key={name}><span>{scope}</span><h2>{name}</h2><p>{desc}</p><button onClick={start}>{i === 2 ? "Contact sales" : "Start workspace"}</button></div>)}</div></section><section className="upgrade-dark-band"><div className="upgrade-centered"><div className="upgrade-pill upgrade-pill-dark">Included runtime</div><h2>Evidence, memory, reasoning, actions, and receipts.</h2><p>Pricing scales by monitoring scope and operating support, not by exposing users to more raw extraction.</p></div></section></main>;
+}
+
+function PublicDocsPage({ nav, auth }) {
+  const docs = [["1. Configure workspace", "Choose a domain, entities, signal types, cadence, and provider settings."], ["2. Run monitoring", "Collect public evidence through configured retrieval routes and save a baseline."], ["3. Inspect proof", "Open Evidence to validate source links, extracted facts, and map context."], ["4. Ask Analyst", "Use chat for follow-up questions grounded in saved evidence and run receipts."], ["5. Approve actions", "Move recommendations into review, workflow execution, and outcome tracking."]];
+  return <main className="upgrade-page upgrade-light"><style>{UPGRADE_PUBLIC_CSS}</style><section className="upgrade-hero-light"><div className="upgrade-container"><div className="upgrade-pill upgrade-pill-blue">Docs</div><h1>Understand the system in minutes.</h1><p>Start with the operating loop, then move into workspace setup, evidence records, analyst chat, actions, and deployment.</p><div className="upgrade-actions"><PublicButton onClick={() => nav("Demo")}>Try demo</PublicButton><PublicButton tone="ghost" onClick={auth}>Create account</PublicButton></div></div></section><section className="upgrade-white-band"><div className="upgrade-container upgrade-doc-list">{docs.map(([title, text]) => <div key={title}><h3>{title}</h3><p>{text}</p></div>)}</div></section></main>;
+}
+
+function PublicDeveloperPage({ nav, auth }) {
+  const endpointsList = [["Retrieval", "/gateway/fetch", "Route live web requests through configured provider adapters."], ["Evidence", "/intelligence/records", "Store and retrieve source-backed records by workspace."], ["Analyst", "/agent/research", "Run reasoning against workspace scope and evidence."], ["Map", "/graph/topics/{id}", "Read relationship context for entities, signals, evidence, actions, and outcomes."], ["Actions", "/actions/{workspace}", "Review and execute recommended workflow actions."], ["Receipts", "/runs/{id}", "Fetch run lineage, provider trace, and decision summary."]];
+  return <main className="upgrade-page upgrade-light"><style>{UPGRADE_PUBLIC_CSS}</style><section className="upgrade-hero-light"><div className="upgrade-container"><div className="upgrade-pill upgrade-pill-blue">Developer</div><h1>Use WebDataOS as live-web intelligence infrastructure.</h1><p>Integrate retrieval, evidence storage, relationship context, LLM fallback, workflow hooks, and run receipts through API endpoints.</p><div className="upgrade-actions"><PublicButton onClick={() => nav("Demo")}>Run demo</PublicButton><PublicButton tone="ghost" onClick={auth}>Get API access</PublicButton></div></div></section><section className="upgrade-white-band"><div className="upgrade-container upgrade-dev-grid">{endpointsList.map(([title, path, text]) => <div key={title}><span>{title}</span><code>{path}</code><p>{text}</p></div>)}</div></section></main>;
+}
+
 function useInView(threshold = 0.1) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -2036,12 +2488,12 @@ function LegacyHomePage({ nav, user, auth }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}` }}>
             {[
-              { icon: <Shield size={18} />, title: "SOC 2 Type II", sub: "In progress — audit scheduled Q3 2025", color: "#f59e0b", status: "in progress" },
+              { icon: <Shield size={18} />, title: "Audit-ready receipts", sub: "Run traces, evidence links, and action history", color: "#f59e0b", status: "available" },
               { icon: <Lock size={18} />, title: "SSO / SAML 2.0", sub: "Okta, Azure AD, Google Workspace", color: "#22c55e", status: "available" },
               { icon: <Users2 size={18} />, title: "Role-based access", sub: "Admin · Analyst · Viewer — enforced server-side", color: "#0ea5e9", status: "available" },
               { icon: <FileText size={18} />, title: "Audit trail", sub: "Every run, approval, and action is logged and exportable", color: "#818cf8", status: "available" },
               { icon: <Globe size={18} />, title: "Data residency", sub: "EU and US regions — data never crosses without consent", color: "#0ea5e9", status: "available" },
-              { icon: <Zap size={18} />, title: "99.9% uptime SLA", sub: "Enterprise tier with dedicated support SLA", color: "#22c55e", status: "enterprise" },
+              { icon: <Zap size={18} />, title: "Operational health", sub: "Health checks and provider status visibility", color: "#22c55e", status: "available" },
             ].map((item, i) => (
               <div key={item.title} style={{ padding: "22px 24px", background: T.bgCard, borderRight: i % 3 < 2 ? `1px solid ${T.border}` : "none", borderBottom: i < 3 ? `1px solid ${T.border}` : "none" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
@@ -6971,12 +7423,12 @@ function TeamPage({ user, nav }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0 }}>
           {[
-            { icon: <Shield size={16} />, title: "SOC 2 Type II", sub: "In progress", color: "#f59e0b" },
+            { icon: <Shield size={16} />, title: "Audit-ready receipts", sub: "Available", color: "#f59e0b" },
             { icon: <Layers size={16} />, title: "SSO / SAML ready", sub: "Okta, Azure AD", color: "#22c55e" },
             { icon: <Lock size={16} />, title: "RBAC enforced", sub: "Admin · Analyst · Viewer", color: "#0ea5e9" },
             { icon: <FileText size={16} />, title: "Audit trail", sub: "All actions logged", color: "#818cf8" },
             { icon: <Globe size={16} />, title: "Data residency", sub: "EU & US available", color: "#0ea5e9" },
-            { icon: <Zap size={16} />, title: "99.9% uptime SLA", sub: "Enterprise tier", color: "#22c55e" },
+            { icon: <Zap size={16} />, title: "Operational health", sub: "Visible in app", color: "#22c55e" },
           ].map((item, i) => (
             <div key={item.title} style={{ padding: "16px 18px", borderRight: i % 3 < 2 ? `1px solid ${T.border}` : "none", borderBottom: i < 3 ? `1px solid ${T.border}` : "none", display: "flex", alignItems: "flex-start", gap: 12 }}>
               <div style={{ width: 30, height: 30, borderRadius: 7, background: `${item.color}12`, border: `1px solid ${item.color}22`, display: "grid", placeItems: "center", color: item.color, flexShrink: 0 }}>{item.icon}</div>
@@ -8511,6 +8963,6 @@ function JB({ children }) { return <pre style={{ padding: 14, borderRadius: 10, 
 const IS = { width: "100%", marginTop: 4, padding: "7px 10px", borderRadius: 7, background: T.bgCard, border: `1px solid ${T.borderL}`, fontSize: 12, color: T.text, outline: "none" };
 
 
-const CSS = `@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}@keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes toastIn{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}*{box-sizing:border-box;margin:0;padding:0}button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}::selection{background:rgba(6,182,212,.25)}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}.au{animation:fadeUp .5s ease both}.ai{animation:fadeIn .4s ease both}.s1{animation-delay:.08s}.s2{animation-delay:.16s}.s3{animation-delay:.24s}.hl{transition:transform .22s ease,box-shadow .22s ease}.hl:hover{transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,0,0,.35)}.sr-wrap .sr{opacity:0;transform:translateY(22px);transition:opacity .55s ease,transform .55s ease}.sr-wrap.in .sr{opacity:1;transform:none}.sr-wrap.in .sr.d1{transition-delay:.07s}.sr-wrap.in .sr.d2{transition-delay:.14s}.sr-wrap.in .sr.d3{transition-delay:.21s}.sr-wrap.in .sr.d4{transition-delay:.28s}.hero-h1{background-size:200% 200%;animation:gradShift 7s ease infinite}.skel{background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 100%);background-size:200% 100%;animation:shimmer 1.5s ease infinite}.toast-in{animation:toastIn .22s ease both}`;
+const CSS = `@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}@keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}@keyframes toastIn{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}*{box-sizing:border-box;margin:0;padding:0}button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}::selection{background:rgba(6,182,212,.25)}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}.au{animation:fadeUp .5s ease both}.ai{animation:fadeIn .4s ease both}.s1{animation-delay:.08s}.s2{animation-delay:.16s}.s3{animation-delay:.24s}.hl{transition:transform .22s ease,box-shadow .22s ease}.hl:hover{transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,0,0,.35)}.sr-wrap .sr{opacity:0;transform:translateY(22px);transition:opacity .55s ease,transform .55s ease}.sr-wrap.in .sr{opacity:1;transform:none}.sr-wrap.in .sr.d1{transition-delay:.07s}.sr-wrap.in .sr.d2{transition-delay:.14s}.sr-wrap.in .sr.d3{transition-delay:.21s}.sr-wrap.in .sr.d4{transition-delay:.28s}.hero-h1{background-size:200% 200%;animation:gradShift 7s ease infinite}.skel{background:linear-gradient(90deg,rgba(255,255,255,.04) 0%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.04) 100%);background-size:200% 100%;animation:shimmer 1.5s ease infinite}.toast-in{animation:toastIn .22s ease both}.pub-page{background:#0B1426;color:#F1F5F9;min-height:calc(100vh - 56px);font-family:'DM Sans','Inter',system-ui,sans-serif}.pub-hero{max-width:1180px;margin:0 auto;padding:92px 40px 72px;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:72px;align-items:center}.pub-hero-small{grid-template-columns:minmax(0,760px);padding-bottom:42px}.pub-hero-copy h1,.pub-demo-hero h1{font-size:clamp(42px,6vw,76px);font-weight:700;line-height:1.02;letter-spacing:-.055em;color:#F1F5F9;text-wrap:balance}.pub-hero-small h1{font-size:clamp(38px,5vw,64px)}.pub-hero-copy p,.pub-demo-hero p,.pub-section-title p,.pub-split p,.pub-final p{margin-top:20px;color:#94A3B8;font-size:17px;line-height:1.75;max-width:680px}.pub-eyebrow{display:inline-flex;align-items:center;gap:8px;margin-bottom:26px;color:#60A5FA;font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:800}.pub-eyebrow span{width:7px;height:7px;border-radius:99px;background:#22C55E;box-shadow:0 0 18px rgba(34,197,94,.45)}.pub-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:34px}.pub-actions-center{justify-content:center}.pub-btn{border:none;border-radius:8px;padding:13px 24px;font-weight:800;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px}.pub-btn-primary{background:#2563EB;color:#fff;box-shadow:0 10px 30px rgba(37,99,235,.24)}.pub-btn-ghost{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#E2E8F0}.pub-brief-card,.pub-domain,.pub-partner,.pub-price,.pub-proof,.pub-demo-chat,.pub-runner{background:#131F35;border:1px solid #1E293B;border-radius:14px}.pub-brief-card{padding:28px;box-shadow:0 24px 80px rgba(0,0,0,.22)}.pub-card-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:22px;color:#64748B;font-size:11px;text-transform:uppercase;letter-spacing:.1em}.pub-card-head strong{color:#F59E0B}.pub-brief-card h2{font-size:25px;line-height:1.2;letter-spacing:-.035em;margin-bottom:20px}.pub-brief-grid{display:grid;gap:12px}.pub-brief-grid div,.pub-proof-line{border-top:1px solid rgba(255,255,255,.08);padding-top:14px}.pub-brief-grid span,.pub-decision span,.pub-demo-scope span,.pub-price span,.pub-partner span,.pub-dev-grid span{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#60A5FA;font-weight:800}.pub-brief-grid p,.pub-proof-line p,.pub-domain p,.pub-partner p,.pub-price p,.pub-doc-list p,.pub-dev-grid p,.pub-domain-table p{color:#94A3B8;font-size:13px;line-height:1.65}.pub-proof-line{display:flex;align-items:flex-start;gap:10px;margin-top:14px}.pub-proof-line svg{color:#22C55E;flex:none;margin-top:2px}.pub-mini-sources{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}.pub-mini-sources span,.pub-demo-card span{font-size:11px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);border-radius:5px;color:#94A3B8;padding:4px 8px}.pub-band{border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.025);padding:76px 40px}.pub-section{max-width:1180px;margin:0 auto;padding:86px 40px}.pub-section-title{max-width:780px;margin:0 auto 38px;text-align:center}.pub-section-title h2,.pub-split h2,.pub-final h2{font-size:clamp(30px,4vw,46px);line-height:1.12;letter-spacing:-.045em}.pub-stage-grid,.pub-domain-row,.pub-partner-grid,.pub-pricing-grid,.pub-dev-grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.pub-stage{border-left:1px solid rgba(255,255,255,.08);padding:0 24px}.pub-stage span{font-size:12px;color:#60A5FA;font-weight:900}.pub-stage h3,.pub-domain h3,.pub-partner h3,.pub-doc-list h3,.pub-dev-grid h3{font-size:15px;margin:10px 0 8px}.pub-stage p{color:#64748B;font-size:12px;line-height:1.6}.pub-domain-row{grid-template-columns:repeat(3,1fr)}.pub-domain{padding:26px}.pub-domain-icon{width:40px;height:40px;border-radius:10px;background:color-mix(in srgb,var(--accent) 14%,transparent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);margin-bottom:18px}.pub-split{display:grid;grid-template-columns:1fr 460px;gap:70px;align-items:center}.pub-map{height:340px;border-radius:16px;background:#0F1A2D;border:1px solid #1E293B;position:relative;overflow:hidden}.pub-map-node{position:absolute;border:1px solid rgba(96,165,250,.3);background:#13223A;border-radius:10px;padding:10px 12px;min-width:110px;text-align:center;z-index:2}.pub-map-node strong{display:block;font-size:12px}.pub-map-node span{display:block;margin-top:3px;font-size:10px;color:#64748B}.pub-map-workspace{left:50%;top:44%;transform:translate(-50%,-50%)}.pub-map-entity{left:8%;top:22%}.pub-map-signal{right:9%;top:18%}.pub-map-evidence{left:12%;bottom:20%}.pub-map-action{right:12%;bottom:22%}.pub-map-line{position:absolute;height:1px;background:rgba(96,165,250,.18);transform-origin:left center}.line-a{width:190px;left:134px;top:110px;transform:rotate(18deg)}.line-b{width:180px;left:250px;top:160px;transform:rotate(-22deg)}.line-c{width:170px;left:146px;top:235px;transform:rotate(-18deg)}.line-d{width:170px;left:270px;top:206px;transform:rotate(16deg)}.pub-map-caption{position:absolute;left:18px;right:18px;bottom:16px;color:#64748B;font-size:12px}.pub-final{text-align:center;max-width:760px;margin:0 auto;padding:86px 24px}.pub-demo-hero{max-width:760px;margin:0 auto;text-align:center;padding:78px 24px 36px}.pub-demo-scenarios{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:0 24px 24px}.pub-demo-card{text-align:left;background:#131F35;border:1px solid #1E293B;border-radius:14px;padding:26px;color:#F1F5F9}.pub-demo-card.is-active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,#131F35)}.pub-demo-card h3{font-size:17px;line-height:1.35;margin-bottom:12px}.pub-demo-card p{font-size:13px;color:#94A3B8;line-height:1.65;margin-bottom:18px}.pub-demo-card div:last-child{display:flex;gap:6px;flex-wrap:wrap}.pub-demo-scope,.pub-error{max-width:1080px;margin:0 auto 28px;padding:18px 24px;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;gap:18px}.pub-demo-scope strong{display:block;margin-top:5px}.pub-demo-scope p{color:#64748B;font-size:12px;margin-top:4px}.pub-error{border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.08);color:#FCA5A5;border-radius:8px}.pub-error button{background:transparent;border:1px solid rgba(239,68,68,.35);border-radius:6px;color:#FCA5A5;padding:7px 10px}.pub-runner{max-width:680px;margin:26px auto;padding:26px}.pub-runner-head{display:flex;align-items:center;gap:10px;font-weight:800;margin-bottom:18px}.pub-spin{animation:spin .9s linear infinite;color:#60A5FA}.pub-run-step{display:grid;grid-template-columns:12px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}.pub-run-step span{width:8px;height:8px;border-radius:99px;background:#334155}.pub-run-step span.active{background:#60A5FA;box-shadow:0 0 14px rgba(96,165,250,.7)}.pub-run-step span.done{background:#22C55E}.pub-run-step p{font-size:13px}.pub-run-step strong{font-size:10px;text-transform:uppercase;color:#64748B}.pub-demo-result{max-width:1180px;margin:40px auto 80px;padding:0 24px;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:24px}.pub-demo-chat{padding:22px}.pub-chat-title{display:flex;align-items:center;gap:8px;font-weight:900;margin-bottom:18px}.pub-chat-bubble{max-width:82%;padding:12px 14px;border-radius:14px;background:#0B1426;border:1px solid rgba(255,255,255,.08);color:#94A3B8;font-size:13px;line-height:1.6;margin-bottom:12px}.pub-chat-bubble.user{margin-left:auto;background:#2563EB;color:#fff;border:none}.pub-decision{border-left:3px solid #F59E0B;background:#0F1A2D;border-radius:10px;padding:18px;margin-bottom:14px}.pub-decision h2{font-size:23px;line-height:1.2;margin:8px 0 10px}.pub-decision>p,.pub-decision div p{color:#CBD5E1;font-size:13px;line-height:1.65}.pub-decision div{border-top:1px solid rgba(255,255,255,.07);padding-top:12px;margin-top:12px}.pub-decision strong{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#64748B}.pub-chat-input{display:flex;gap:8px;margin-top:18px}.pub-chat-input input{flex:1;background:#0B1426;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:11px 12px;color:#F1F5F9}.pub-chat-input button{width:44px;border:none;border-radius:8px;background:#2563EB;color:#fff}.pub-proof{padding:18px;align-self:start}.pub-proof-stats{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:14px;margin-bottom:14px}.pub-proof-stats div{text-align:center}.pub-proof-stats strong{display:block;color:#60A5FA;font-size:22px}.pub-proof-stats span{font-size:10px;color:#64748B;text-transform:uppercase}.pub-proof-block{border-top:1px solid rgba(255,255,255,.08);padding-top:16px;margin-top:16px}.pub-proof-block h3{font-size:14px;margin-bottom:10px}.pub-evidence-line{border-top:1px solid rgba(255,255,255,.06);padding:10px 0}.pub-evidence-line strong{font-size:12px}.pub-evidence-line p{font-size:11px;color:#64748B;line-height:1.55;margin:4px 0}.pub-domain-table{max-width:980px;margin:0 auto;border-top:1px solid rgba(255,255,255,.08)}.pub-domain-head,.pub-domain-table-row{display:grid;grid-template-columns:.8fr 1.2fr 1.2fr;gap:20px;padding:18px 0;border-bottom:1px solid rgba(255,255,255,.08)}.pub-domain-head{color:#64748B;text-transform:uppercase;letter-spacing:.1em;font-size:10px;font-weight:900}.pub-flow-list{display:grid;gap:10px}.pub-flow-list div{display:flex;align-items:center;gap:12px;background:#131F35;border:1px solid #1E293B;border-radius:10px;padding:13px}.pub-flow-list span{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#2563EB;color:#fff;font-size:12px;font-weight:900}.pub-pricing-grid{grid-template-columns:repeat(3,1fr);padding:0 24px 72px}.pub-price{padding:28px}.pub-price.is-featured{border-color:#2563EB;box-shadow:0 0 0 1px rgba(37,99,235,.35)}.pub-price h2{font-size:32px;margin:10px 0}.pub-price button{margin-top:22px;width:100%;border:none;border-radius:8px;background:#2563EB;color:#fff;font-weight:900;padding:12px}.pub-doc-list,.pub-dev-grid{max-width:980px;margin:0 auto;padding:0 24px 78px;display:grid;gap:12px}.pub-doc-list div,.pub-dev-grid div{background:#131F35;border:1px solid #1E293B;border-radius:12px;padding:20px}.pub-dev-grid{grid-template-columns:repeat(2,1fr)}.pub-dev-grid code{display:block;color:#F1F5F9;background:#0B1426;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;margin:10px 0;font-size:12px;overflow:auto}@media(max-width:900px){.pub-hero,.pub-split,.pub-demo-result{grid-template-columns:1fr;gap:32px}.pub-stage-grid,.pub-domain-row,.pub-partner-grid,.pub-demo-scenarios,.pub-pricing-grid,.pub-dev-grid{grid-template-columns:1fr}.pub-hero{padding:58px 24px}.pub-band,.pub-section{padding:54px 24px}.pub-demo-scope{align-items:flex-start;flex-direction:column}.pub-domain-head{display:none}.pub-domain-table-row{grid-template-columns:1fr;gap:8px}.pub-proof{order:2}}`;
 
 createRoot(document.getElementById("root")).render(<App />);
