@@ -65,10 +65,15 @@ OPENAI_API_KEY=sk-...
 
 # Required for live web retrieval (mock mode when empty)
 BRIGHTDATA_API_KEY=...
-BRIGHTDATA_SERP_ENDPOINT=...
-BRIGHTDATA_WEB_SCRAPER_ENDPOINT=...
-BRIGHTDATA_WEB_UNLOCKER_ENDPOINT=...
-BRIGHTDATA_SCRAPING_BROWSER_ENDPOINT=...
+BRIGHTDATA_SERP_ENDPOINT=https://api.brightdata.com/request
+# For JSON SERP output, include brd_json=1 in the search URL, e.g. https://www.google.com/search?q=pizza&brd_json=1
+BRIGHTDATA_WEB_SCRAPER_ENDPOINT=https://api.brightdata.com/datasets/v3/scrape?dataset_id=YOUR_DATASET_ID&format=json
+BRIGHTDATA_WEB_UNLOCKER_ENDPOINT=https://api.brightdata.com/request
+# The browser endpoint is a WebSocket URL and requires browser automation support.
+# This app currently cannot POST to wss:// Browser API endpoints.
+BRIGHTDATA_SCRAPING_BROWSER_ENDPOINT=wss://brd.superproxy.io:9222
+# MCP is an SSE/stream endpoint and is fetched via GET.
+BRIGHTDATA_MCP_ENDPOINT=https://your-mcp-server-endpoint
 
 # Cognee Cloud (optional — local mode works without these)
 COGNEE_ENDPOINT=https://your-instance.cognee.ai

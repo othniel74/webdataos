@@ -8,6 +8,7 @@ class ToolName(str, Enum):
     web_scraper_api = "web_scraper_api"
     web_unlocker = "web_unlocker"
     scraping_browser = "scraping_browser"
+    mcp_server = "mcp_server"
     scraper_studio = "scraper_studio"
     mock = "mock"
 
