@@ -48,15 +48,19 @@ async def aimlapi_models():
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(settings.aimlapi_models_url)
         response.raise_for_status()
-        models = response.json()
+        data = response.json()
 
     parsed_base = urlparse(settings.aimlapi_base_url)
+    models = data.get("data", data) if isinstance(data, dict) else data
     chat_models = [
         model
         for model in models
         if isinstance(model, dict)
-        and "/v1/chat/completions" in model.get("endpoints", [])
-        and model.get("type") == "chat-completion"
+        and (
+            model.get("type") in {"chat-completion", "openai/chat-completions"}
+            or "/v1/chat/completions" in model.get("endpoints", [])
+            or "playground:chat" in model.get("tags", [])
+        )
     ]
     return {
         "base_url": settings.aimlapi_base_url,
