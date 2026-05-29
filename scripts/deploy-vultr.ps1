@@ -64,11 +64,24 @@ docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --p
 until docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres pg_isready -U postgres -d webdata; do
   sleep 2
 done
-POSTGRES_APP_PASSWORD=`$( (grep -E '^POSTGRES_PASSWORD=' .env || true) | tail -n1 | cut -d= -f2-)
-if [ -z "`$POSTGRES_APP_PASSWORD" ]; then
-  POSTGRES_APP_PASSWORD=postgres
+DB_URL=`$( (grep -E '^DATABASE_URL=' .env || true) | tail -n1 | cut -d= -f2-)
+DB_CREDENTIALS=
+DB_APP_PASSWORD=
+if [ -n "`$DB_URL" ]; then
+  DB_CREDENTIALS=`${DB_URL#*://}
+  DB_CREDENTIALS=`${DB_CREDENTIALS%%@*}
+  DB_APP_PASSWORD=`${DB_CREDENTIALS#*:}
 fi
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres psql -U postgres -d webdata -c "ALTER USER postgres WITH PASSWORD '`$POSTGRES_APP_PASSWORD';"
+if [ -n "`$DB_APP_PASSWORD" ] && [ "`$DB_APP_PASSWORD" != "`$DB_CREDENTIALS" ]; then
+  POSTGRES_APP_PASSWORD=`$DB_APP_PASSWORD
+else
+  POSTGRES_APP_PASSWORD=`$( (grep -E '^POSTGRES_PASSWORD=' .env || true) | tail -n1 | cut -d= -f2-)
+  if [ -z "`$POSTGRES_APP_PASSWORD" ]; then
+    POSTGRES_APP_PASSWORD=postgres
+  fi
+fi
+POSTGRES_APP_PASSWORD_SQL=`$(printf "%s" "`$POSTGRES_APP_PASSWORD" | sed "s/'/''/g")
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres psql -U postgres -d webdata -c "ALTER USER postgres WITH PASSWORD '`$POSTGRES_APP_PASSWORD_SQL';"
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --profile production up -d --build
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T api alembic upgrade head || true
 "@
