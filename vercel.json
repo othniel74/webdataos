@@ -26,6 +26,14 @@
       "destination": "http://45.77.89.209/intelligence/:path*"
     },
     {
+      "source": "/demo/:path*",
+      "destination": "http://45.77.89.209/demo/:path*"
+    },
+    {
+      "source": "/graph/:path*",
+      "destination": "http://45.77.89.209/graph/:path*"
+    },
+    {
       "source": "/llm/:path*",
       "destination": "http://45.77.89.209/llm/:path*"
     },
