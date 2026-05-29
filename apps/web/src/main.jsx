@@ -35,8 +35,7 @@ const normalizeWorkspaceId = value => {
   const raw = String(value || "").trim();
   if (!raw) return "workspace_enterprise";
   const workspaceTail = raw.match(/(workspace_[a-z0-9_]+)$/i);
-  if (workspaceTail) return workspaceTail[1].toLowerCase();
-  if (raw.includes("://") || raw.startsWith("clerk_")) return "workspace_enterprise";
+  if (raw.includes("://")) return workspaceTail ? workspaceTail[1].toLowerCase() : "workspace_enterprise";
   return slug(raw);
 };
 const workspacePath = value => encodeURIComponent(normalizeWorkspaceId(value));
@@ -214,7 +213,7 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
   useEffect(() => {
     try {
       Object.keys(localStorage)
-        .filter(key => key.startsWith("webdataos.chat.") && (key.includes("://") || key.includes("clerk_org_") || key.includes("clerk_user_")))
+        .filter(key => key.startsWith("webdataos.chat.") && key.includes("://"))
         .forEach(key => localStorage.removeItem(key));
     } catch (_) {}
   }, []);
@@ -1346,13 +1345,14 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
-  const load = useCallback(async () => {
+  const load = useCallback(async (workspaceId = ws.id, showMissingAsError = false) => {
     setLoading(true);
     setError("");
     try {
-      setSummary(await endpoints.monitorSummary(ws.id));
+      setSummary(await endpoints.monitorSummary(workspaceId));
     } catch (e) {
-      setError(e.message || "Monitor is not configured yet.");
+      const message = e.message || "Monitor is not configured yet.";
+      setError(!showMissingAsError && message.includes("404") ? "" : message);
       setSummary(null);
     } finally {
       setLoading(false);
@@ -1361,18 +1361,20 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
   useEffect(() => { load(); }, [load]);
 
   const ensureWorkspace = async () => {
-    await saveWorkspace();
+    const saved = await saveWorkspace();
     await new Promise(resolve => setTimeout(resolve, 250));
+    return saved;
   };
   const runNow = async () => {
     setRunning(true);
     setError("");
     try {
-      await ensureWorkspace();
-      const result = await endpoints.runMonitor(ws.id);
+      const saved = await ensureWorkspace();
+      const workspaceId = saved?.id || ws.id;
+      const result = await endpoints.runMonitor(workspaceId);
       setReport(result);
-      try { setActions(await endpoints.listActions(ws.id)); } catch (_) {}
-      await load();
+      try { setActions(await endpoints.listActions(workspaceId)); } catch (_) {}
+      await load(workspaceId, true);
     } catch (e) {
       setError(e.message || "Monitoring run failed.");
     } finally {
@@ -1383,8 +1385,8 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
     setRunning(true);
     setError("");
     try {
-      await ensureWorkspace();
-      await load();
+      const saved = await ensureWorkspace();
+      await load(saved?.id || ws.id, true);
     } catch (e) {
       setError(e.message || "Could not save monitoring workspace.");
     } finally {

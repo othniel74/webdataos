@@ -133,6 +133,10 @@ def test_normalize_workspace_id_repairs_legacy_clerk_azp_workspace_id():
 def test_normalize_workspace_id_keeps_normal_workspace_ids():
     assert normalize_workspace_id("workspace_enterprise") == "workspace_enterprise"
     assert normalize_workspace_id("customer_vendor_risk") == "customer_vendor_risk"
+    assert (
+        normalize_workspace_id("clerk_user_user_123_workspace_enterprise")
+        == "clerk_user_user_123_workspace_enterprise"
+    )
 
 
 def test_clerk_jwks_url_can_be_derived_from_publishable_key(monkeypatch):
