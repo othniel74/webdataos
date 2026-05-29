@@ -58,8 +58,8 @@ const endpoints = {
   listRecords: () => api("GET", "/intelligence/records"),
   listTopicRecords: topicId => api("GET", `/intelligence/records?topic_id=${encodeURIComponent(topicId)}`),
   createTopic: data => api("POST", "/intelligence/topics", data),
-  discoverSources: (topicId, limit = 6) => api("POST", `/intelligence/topics/${encodeURIComponent(topicId)}/discover?limit=${limit}`, null, 45000),
-  refreshTopic: (topicId, maxSources = 4) => api("POST", `/intelligence/topics/${encodeURIComponent(topicId)}/refresh?max_sources=${maxSources}`, null, 70000),
+  discoverSources: (topicId, limit = 6, query = "") => api("POST", `/intelligence/topics/${encodeURIComponent(topicId)}/discover?limit=${limit}${query ? `&query=${encodeURIComponent(query)}` : ""}`, null, 45000),
+  refreshTopic: (topicId, maxSources = 4, query = "") => api("POST", `/intelligence/topics/${encodeURIComponent(topicId)}/refresh?max_sources=${maxSources}${query ? `&query=${encodeURIComponent(query)}` : ""}`, null, 70000),
   retrieveContext: data => api("POST", "/intelligence/retrieval/context", data),
   gatewayFetch: data => api("POST", "/gateway/fetch", data),
   graphStatus: () => api("GET", "/graph/status"),
@@ -2178,9 +2178,9 @@ function IntelPage({ ws }) {
     setErr("");
     try {
       await endpoints.createTopic({ id: ws.id, name: ws.name, description: ws.description || null, entities: entityList, watch_types: signalList, refresh_frequency_minutes: ws.refresh_frequency_minutes || 1440 });
-      if (step === "discover") setSources(await endpoints.discoverSources(ws.id, 6));
+      if (step === "discover") setSources(await endpoints.discoverSources(ws.id, 6, query));
       if (step === "refresh") {
-        await endpoints.refreshTopic(ws.id, 4);
+        await endpoints.refreshTopic(ws.id, 4, query);
         await loadRecords();
         endpoints.graphTopic(ws.id).then(setTopicGraph).catch(() => {});
       }

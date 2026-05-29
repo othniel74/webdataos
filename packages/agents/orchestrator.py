@@ -52,6 +52,7 @@ class ResearchAgentOrchestrator:
         memories = []
         workflow_events = []
         task_text = request.task
+        retrieval_query = request.task
         if request.conversation_context:
             task_text = (
                 f"Recent analyst conversation:\n{request.conversation_context.strip()}\n\n"
@@ -69,6 +70,7 @@ class ResearchAgentOrchestrator:
                     )
                 )
                 task_text = f"{request.task}\n\nTranscript:\n{transcript.text}"
+                retrieval_query = task_text
                 partner_trace.append("speechmatics.transcribe")
                 stages.append(
                     ResearchRunStage(
@@ -106,31 +108,39 @@ class ResearchAgentOrchestrator:
             retrieval = await self.intelligence.retrieve_context(
                 db,
                 RetrievalRequest(
-                    query=task_text,
+                    query=retrieval_query,
                     topic_id=topic_id,
                     freshness_required_days=request.freshness_required_days,
                     entities=topic_entities,
                     top_k=request.max_sources,
                 ),
             )
-            records = [r.record for r in retrieval if r.score > 0.25]
+            records = [
+                r.record for r in retrieval
+                if r.score >= 0.45 and "no_query_match" not in r.reasons
+            ]
             stages.append(
                 ResearchRunStage(
                     name="retrieve_context",
                     status="success",
                     provider="intelligence_records",
-                    detail=f"{len(records)} matching records",
+                    detail=f"{len(records)} query-matched records",
                 )
             )
 
-            if len(records) < 3:
+            if len(records) < 2:
                 try:
                     refresh_limit = min(request.max_sources, 3)
                     refresh_result = await asyncio.wait_for(
-                        self.intelligence.refresh_topic(db, topic_id, max_sources=refresh_limit),
+                        self.intelligence.refresh_topic(
+                            db,
+                            topic_id,
+                            max_sources=refresh_limit,
+                            query=retrieval_query,
+                        ),
                         timeout=min(40, max(15, self.settings.request_timeout_seconds + 5)),
                     )
-                    partner_trace.append(f"brightdata.gateway.refresh({refresh_limit})")
+                    partner_trace.append(f"brightdata.gateway.refresh({refresh_limit},query_specific)")
                     refresh_status = refresh_result.get("status", "success")
                     refresh_detail = (
                         f"checked={refresh_result.get('sources_checked', 0)}, "
@@ -159,14 +169,17 @@ class ResearchAgentOrchestrator:
                 retrieval = await self.intelligence.retrieve_context(
                     db,
                     RetrievalRequest(
-                        query=task_text,
+                        query=retrieval_query,
                         topic_id=topic_id,
                         freshness_required_days=request.freshness_required_days,
                         entities=topic_entities,
                         top_k=request.max_sources,
                     ),
                 )
-                records = [r.record for r in retrieval]
+                records = [
+                    r.record for r in retrieval
+                    if r.score >= 0.35 and "no_query_match" not in r.reasons
+                ]
 
             summary, findings, companies, changes, confidence = await self.synthesizer.synthesize_async(
                 task_text, records, memories

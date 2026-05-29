@@ -19,13 +19,25 @@ async def list_topics(db: AsyncSession = Depends(get_db), service: IntelligenceS
 
 
 @router.post("/topics/{topic_id}/discover", response_model=list[SourceRecord])
-async def discover(topic_id: str, limit: int = 8, db: AsyncSession = Depends(get_db), service: IntelligenceService = Depends(get_intelligence_service)):
-    return await service.discover_sources(db, topic_id, limit=limit)
+async def discover(
+    topic_id: str,
+    limit: int = 8,
+    query: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    service: IntelligenceService = Depends(get_intelligence_service),
+):
+    return await service.discover_sources(db, topic_id, limit=limit, query=query)
 
 
 @router.post("/topics/{topic_id}/refresh")
-async def refresh(topic_id: str, max_sources: int = 8, db: AsyncSession = Depends(get_db), service: IntelligenceService = Depends(get_intelligence_service)):
-    return await service.refresh_topic(db, topic_id, max_sources=max_sources)
+async def refresh(
+    topic_id: str,
+    max_sources: int = 8,
+    query: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    service: IntelligenceService = Depends(get_intelligence_service),
+):
+    return await service.refresh_topic(db, topic_id, max_sources=max_sources, query=query)
 
 
 @router.get("/records", response_model=list[IntelligenceRecordRead])

@@ -1,4 +1,5 @@
 import asyncio
+import re
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -25,6 +26,14 @@ from packages.schemas.intelligence import (
 )
 
 logger = get_logger(__name__)
+
+STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "have",
+    "how", "in", "into", "is", "it", "its", "me", "of", "on", "or", "our", "show",
+    "that", "the", "their", "this", "to", "us", "what", "when", "where", "which",
+    "who", "why", "with", "without", "about", "against", "latest", "current",
+    "tell", "find", "give", "can", "could", "should", "would",
+}
 
 
 class IntelligenceService:
@@ -53,7 +62,13 @@ class IntelligenceService:
         result = await db.execute(select(Topic).order_by(Topic.created_at.desc()))
         return [self._topic_read(t) for t in result.scalars().all()]
 
-    async def discover_sources(self, db: AsyncSession, topic_id: str, limit: int = 8) -> list[SourceRecord]:
+    async def discover_sources(
+        self,
+        db: AsyncSession,
+        topic_id: str,
+        limit: int = 8,
+        query: str | None = None,
+    ) -> list[SourceRecord]:
         topic = await db.get(Topic, topic_id)
         if not topic:
             topic = Topic(id=topic_id, name=topic_id.replace("_", " ").title(), entities=[], watch_types=[])
@@ -61,7 +76,13 @@ class IntelligenceService:
             await db.commit()
         entities = [x for x in (topic.entities or []) if x]
         signals = [x for x in (topic.watch_types or []) if x]
-        queries = [f"{entity} {' '.join(signals[:4])}".strip() for entity in entities[: max(limit, 1)]]
+        queries = []
+        if query:
+            queries.append(query.strip())
+            for entity in entities[:3]:
+                if entity and entity.lower() not in query.lower():
+                    queries.append(f"{entity} {query}".strip())
+        queries.extend(f"{entity} {' '.join(signals[:4])}".strip() for entity in entities[: max(limit, 1)])
         if not queries:
             queries = [" ".join([x for x in [topic.name, *signals] if x]) or topic_id]
         per_query_limit = max(1, (limit + len(queries) - 1) // len(queries))
@@ -106,12 +127,18 @@ class IntelligenceService:
         await db.commit()
         return records
 
-    async def refresh_topic(self, db: AsyncSession, topic_id: str, max_sources: int = 8) -> dict[str, Any]:
+    async def refresh_topic(
+        self,
+        db: AsyncSession,
+        topic_id: str,
+        max_sources: int = 8,
+        query: str | None = None,
+    ) -> dict[str, Any]:
         run_id = str(uuid.uuid4())
         run = RefreshRun(id=run_id, topic_id=topic_id, status="running")
         db.add(run)
         await db.commit()
-        discovered = await self.discover_sources(db, topic_id, limit=max_sources)
+        discovered = await self.discover_sources(db, topic_id, limit=max_sources, query=query)
         discovered_urls = [source.url for source in discovered]
         if discovered_urls:
             result = await db.execute(
@@ -353,7 +380,7 @@ class IntelligenceService:
         result = await db.execute(stmt)
         records = result.scalars().all()
         scored: list[RetrievalResult] = []
-        query_terms = set(req.query.lower().split())
+        query_terms = self._query_terms(req.query)
         for rec in records:
             if req.freshness_required_days and not self._record_is_current(rec, req.freshness_required_days):
                 continue
@@ -395,17 +422,24 @@ class IntelligenceService:
                 )
 
     def _score_record(self, rec: IntelligenceRecord, query_terms: set[str], req: RetrievalRequest) -> tuple[float, list[str]]:
-        text = " ".join([rec.entity_name or "", rec.summary or "", str(rec.facts_json or {})]).lower()
-        overlap = len(query_terms.intersection(text.split())) / max(len(query_terms), 1)
-        semantic_score = min(1.0, overlap + (0.15 if any(t in text for t in query_terms) else 0))
-        entity_match = 1.0 if any(e.lower() in text for e in req.entities) else 0.0
+        text = " ".join([rec.entity_name or "", rec.summary or "", rec.source_url or "", str(rec.facts_json or {})]).lower()
+        text_terms = self._query_terms(text)
+        overlap_terms = query_terms.intersection(text_terms)
+        overlap = len(overlap_terms) / max(len(query_terms), 1)
+        phrase_match = any(term in text for term in query_terms if len(term) >= 5)
+        semantic_score = min(1.0, overlap + (0.10 if phrase_match else 0))
+        entity_match = 1.0 if any(e and e.lower() in text for e in req.entities) else 0.0
         fresh = 1.0 if freshness_status(rec.last_checked, req.freshness_required_days) == "fresh" else 0.2
         authority = 0.9 if rec.source_type in {"pricing_page", "docs_page", "company_page"} else 0.6
         confidence = rec.confidence or 0.0
-        score = 0.35 * semantic_score + 0.20 * entity_match + 0.15 * fresh + 0.10 * authority + 0.20 * confidence
+        if query_terms and semantic_score < 0.12 and not entity_match:
+            return 0.0, ["no_query_match"]
+        score = 0.50 * semantic_score + 0.20 * entity_match + 0.10 * fresh + 0.05 * authority + 0.15 * confidence
         reasons = []
-        if semantic_score > 0.2:
+        if semantic_score >= 0.12:
             reasons.append("semantic_match")
+        if overlap_terms:
+            reasons.extend([f"term:{term}" for term in sorted(overlap_terms)[:5]])
         if entity_match:
             reasons.append("entity_match")
         if fresh >= 1.0:
@@ -413,6 +447,10 @@ class IntelligenceService:
         if confidence > 0.7:
             reasons.append("high_confidence")
         return round(score, 4), reasons
+
+    def _query_terms(self, text: str | None) -> set[str]:
+        raw_terms = re.findall(r"[a-z0-9][a-z0-9_-]{2,}", (text or "").lower())
+        return {term.strip("_-") for term in raw_terms if term not in STOPWORDS and len(term.strip("_-")) >= 3}
 
     def _record_is_current(self, rec: IntelligenceRecord, freshness_required_days: int | None = 7) -> bool:
         if rec.freshness_status == "stale":
