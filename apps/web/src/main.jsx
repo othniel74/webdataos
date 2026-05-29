@@ -71,32 +71,6 @@ const TIERS = [
   { id: "enterprise", name: "Enterprise Intelligence OS", tagline: "All 3 domains unified", description: "Security + GTM + Finance with cross-domain alerts, shared evidence, and executive briefs.", pick: 3, color: "#06b6d4", price: "Contact sales" },
 ];
 
-const MOCK_ORG = { contracts: [{ entity_name: "Okta", annual_value: 120000, renewal_date: "2026-09-15", risk_tier: "high", data_sensitivity: "pii", notes: "SSO for 2,400 employees" }, { entity_name: "Stripe", annual_value: 340000, renewal_date: "2026-07-01", risk_tier: "critical", data_sensitivity: "regulated", notes: "Primary payment processor" }, { entity_name: "HubSpot", annual_value: 48000, renewal_date: "2027-01-15", risk_tier: "medium", data_sensitivity: "standard", notes: "Marketing automation" }], risk_thresholds: { pricing_change_pct: 5.0, breach_severity_min: "medium", compliance_deadline_days: 30, financial_impact_floor: 10000 }, financial_exposure: { total_vendor_spend: 508000, revenue_at_risk: 2400000, cost_of_breach_estimate: 4200000 }, strategic_priorities: ["Reduce vendor concentration risk", "Negotiate volume discounts before Q3", "Achieve SOC2 compliance for all critical vendors"], compliance_requirements: ["SOC2 Type II", "GDPR", "EU AI Act high-risk registration"] };
-
-const MOCK_REASONING = {
-  materiality_assessments: [
-    { finding: "Stripe pricing moved from 2.9% to 2.7% for enterprise", materiality: "high", impact_description: "Contract: $340K. Savings: $6,800/yr. Renewal in 33 days.", financial_impact: 6800, affected_contracts: ["Stripe"], urgency: "urgent" },
-    { finding: "EU AI Act high-risk registration deadline approaching", materiality: "high", impact_description: "Compliance requirement. 30-day threshold breached.", financial_impact: null, affected_contracts: [], urgency: "urgent" },
-    { finding: "Okta SOC2 documentation needs proactive refresh", materiality: "medium", impact_description: "High risk tier. PII for 2,400 employees. Renewal Sep 15.", financial_impact: null, affected_contracts: ["Okta"], urgency: "standard" },
-    { finding: "HubSpot launched AI content agent", materiality: "low", impact_description: "Competitive signal. No direct financial impact.", financial_impact: null, affected_contracts: ["HubSpot"], urgency: "standard" },
-  ],
-  recommendations: [
-    { id: "r01", title: "Renegotiate Stripe — $6,800 savings opportunity", description: "Public enterprise pricing dropped from 2.9% to 2.7%. Contract renews July 1. Initiate renegotiation.", materiality: "high", confidence: 0.91, suggested_actions: ["Draft renegotiation email", "Schedule procurement review"], affected_entities: ["Stripe"], financial_impact: 6800, deadline: "2026-07-01", framework: "procurement_decision" },
-    { id: "r02", title: "File EU AI Act registration", description: "Two AI systems classified high-risk. Registration deadline within 30-day threshold.", materiality: "high", confidence: 0.86, suggested_actions: ["Submit registration", "Schedule compliance review"], affected_entities: ["EU AI Act"], financial_impact: null, deadline: null, framework: "security_risk_assessment" },
-    { id: "r03", title: "Request updated Okta SOC2 docs", description: "High risk tier vendor handling PII. Proactive documentation request before September renewal.", materiality: "medium", confidence: 0.84, suggested_actions: ["Request SOC2 Type II report"], affected_entities: ["Okta"], financial_impact: null, deadline: "2026-09-15", framework: "security_risk_assessment" },
-  ],
-  executive_summary: "Analyzed 5 evidence records against organizational context. 3 material signals: Stripe pricing creates $6,800 savings with 33-day window; EU AI Act deadline breaches threshold; Okta requires SOC2 refresh. Risk posture: monitoring.",
-  risk_posture: "monitoring", confidence: 0.87,
-  reasoning_trace: ["pricing_check: Stripe 2.9%→2.7% vs $340K contract", "renewal_check: Stripe renews 2026-07-01", "risk_tier: Okta is high tier", "compliance: EU AI Act within 30d threshold"],
-};
-
-const MOCK_ACTIONS = [
-  { id: "act_001", run_id: "run_01", action_type: "draft_email", status: "pending_approval", title: "Draft renegotiation email for Stripe", description: "Request updated enterprise terms at 2.7% rate." },
-  { id: "act_002", run_id: "run_01", action_type: "schedule_review", status: "pending_approval", title: "Schedule procurement review: Stripe", description: "Review contract before July 1 renewal." },
-  { id: "act_003", run_id: "run_01", action_type: "notify_team", status: "auto_approved", title: "Alert: EU AI Act registration deadline", description: "Compliance team notified." },
-  { id: "act_004", run_id: "run_02", action_type: "update_risk_register", status: "executed", title: "Update risk register: HubSpot", description: "Competitive signal added.", approved_by: "analyst@co.com" },
-];
-
 const packIcon = (id, size = 18) => {
   const p = { size, strokeWidth: 1.5 };
   if (id === "shield") return <Shield {...p} />;
@@ -594,6 +568,8 @@ function WsPage({ tierId, setTierId, selDomains, toggleDomain, tier, activeDomai
   // Pre-fill entities/signals from active domains when they change
   const domainEntities = activeDomains.flatMap(d => d.entities).join(", ");
   const domainSignals = activeDomains.flatMap(d => d.signals).join(", ");
+  const contextEntities = ws.entities.split(",").map(s => s.trim()).filter(Boolean).slice(0, 6);
+  const contextThresholds = { pricing_change_pct: 5, breach_severity_min: "medium", compliance_deadline_days: 30, financial_impact_floor: 10000 };
   useEffect(() => {
     if (domainEntities || domainSignals) {
       setWs(prev => ({ ...prev, entities: domainEntities, signals: domainSignals }));
@@ -686,8 +662,8 @@ function WsPage({ tierId, setTierId, selDomains, toggleDomain, tier, activeDomai
               <ChevronRight size={14} color={T.dim} style={{ transform: showCtx ? "rotate(90deg)" : "none", transition: ".2s" }} />
             </button>
             {showCtx && <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <div style={{ padding: 10, borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Risk Thresholds</div>{Object.entries(MOCK_ORG.risk_thresholds).map(([k, v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontSize: 10 }}><span style={{ color: T.dim }}>{k.replace(/_/g, " ")}</span><span style={{ fontFamily: "'JetBrains Mono'" }}>{String(v)}</span></div>)}</div>
-              <div style={{ padding: 10, borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Contracts</div>{MOCK_ORG.contracts.map((c, i) => <div key={i} style={{ fontSize: 10, color: T.muted, padding: "2px 0" }}><b>{c.entity_name}</b> — ${c.annual_value.toLocaleString()}</div>)}</div>
+              <div style={{ padding: 10, borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Risk thresholds</div>{Object.entries(contextThresholds).map(([k, v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", fontSize: 10 }}><span style={{ color: T.dim }}>{k.replace(/_/g, " ")}</span><span style={{ fontFamily: "'JetBrains Mono'" }}>{String(v)}</span></div>)}</div>
+              <div style={{ padding: 10, borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Tracked entities</div>{contextEntities.length ? contextEntities.map((entity, i) => <div key={`${entity}-${i}`} style={{ fontSize: 10, color: T.muted, padding: "2px 0" }}><b>{entity}</b> — context pending</div>) : <div style={{ fontSize: 10, color: T.dim }}>Add entities above to preview workspace context.</div>}</div>
             </div>}
           </div>
           <div style={{ display: "flex", gap: 8 }}>

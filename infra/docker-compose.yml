@@ -38,11 +38,18 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
       SYNC_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
       NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      SYSTEM_ROOT_DIRECTORY: /data/cognee/.cognee_system
+      DATA_ROOT_DIRECTORY: /data/cognee/.data_storage
+      COGNEE_LOGS_DIR: /data/cognee/logs
+      REQUIRE_AUTHENTICATION: "false"
+      ENABLE_BACKEND_ACCESS_CONTROL: "false"
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      - cognee_data:/data/cognee
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -60,6 +67,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
       SYNC_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/webdata
       NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      SYSTEM_ROOT_DIRECTORY: /data/cognee/.cognee_system
+      DATA_ROOT_DIRECTORY: /data/cognee/.data_storage
+      COGNEE_LOGS_DIR: /data/cognee/logs
+      REQUIRE_AUTHENTICATION: "false"
+      ENABLE_BACKEND_ACCESS_CONTROL: "false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,6 +104,11 @@ services:
       COGNEE_BACKEND_PORT: ${COGNEE_BACKEND_PORT:-8100}
       COGNEE_LLM_MODEL: ${COGNEE_LLM_MODEL:-openai/gpt-4o-mini}
       COGNEE_EMBEDDING_MODEL: ${COGNEE_EMBEDDING_MODEL:-openai/text-embedding-3-small}
+      SYSTEM_ROOT_DIRECTORY: /data/cognee/.cognee_system
+      DATA_ROOT_DIRECTORY: /data/cognee/.data_storage
+      COGNEE_LOGS_DIR: /data/cognee/logs
+      REQUIRE_AUTHENTICATION: "false"
+      ENABLE_BACKEND_ACCESS_CONTROL: "false"
     ports:
       - "3200:3200"
     volumes:

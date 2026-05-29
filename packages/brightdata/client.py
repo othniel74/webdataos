@@ -55,7 +55,7 @@ class BrightDataClient:
 
     # ── SERP API ──────────────────────────────────────────────────────
     # POST https://api.brightdata.com/request
-    # Body: {"zone": "serp_api1", "url": "https://www.google.com/search?q=...", "format": "raw"}
+    # Body: {"zone": "serp_api1", "url": "https://www.google.com/search?q=...", "format": "json"}
 
     async def serp_search(self, query: str, country: str | None = None) -> list[SearchResult]:
         if self.mock:
@@ -72,7 +72,10 @@ class BrightDataClient:
         payload = {
             "zone": zone,
             "url": search_url,
-            "format": "raw",
+            "format": "json",
+            "method": "GET",
+            "country": country or self.settings.default_country,
+            "data_format": "markdown",
         }
 
         logger.info("brightdata_serp", zone=zone, query=query[:50])

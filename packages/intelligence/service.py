@@ -50,7 +50,7 @@ class IntelligenceService:
             topic = Topic(id=topic_id, name=topic_id.replace("_", " ").title(), entities=[], watch_types=[])
             db.add(topic)
             await db.commit()
-        query_terms = [topic.name] + (topic.entities or []) + (topic.watch_types or [])
+        query_terms = (topic.entities or []) + (topic.watch_types or []) + [topic.name]
         query = " ".join([x for x in query_terms if x]) or topic_id
         results = await self.brightdata.serp_search(query)
         records: list[SourceRecord] = []
@@ -85,8 +85,16 @@ class IntelligenceService:
         run = RefreshRun(id=run_id, topic_id=topic_id, status="running")
         db.add(run)
         await db.commit()
-        await self.discover_sources(db, topic_id, limit=max_sources)
-        result = await db.execute(select(Source).where(Source.topic_id == topic_id).limit(max_sources))
+        discovered = await self.discover_sources(db, topic_id, limit=max_sources)
+        discovered_urls = [source.url for source in discovered]
+        if discovered_urls:
+            result = await db.execute(
+                select(Source)
+                .where(Source.topic_id == topic_id, Source.url.in_(discovered_urls))
+                .limit(max_sources)
+            )
+        else:
+            result = await db.execute(select(Source).where(Source.topic_id == topic_id).limit(max_sources))
         sources = result.scalars().all()
         created = 0
         checked = 0
