@@ -24,16 +24,26 @@ const slug = v => v.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "ws";
 const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 const KEY = import.meta.env.VITE_API_KEY || "dev-local-key-change-me";
 const headers = () => ({ "Content-Type": "application/json", "X-API-Key": KEY });
-async function api(method, path, body) {
-  const res = await fetch(`${API}${path}`, { method, headers: headers(), ...(body ? { body: JSON.stringify(body) } : {}) });
-  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
-  return res.json();
+async function api(method, path, body, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API}${path}`, { method, headers: headers(), signal: controller.signal, ...(body ? { body: JSON.stringify(body) } : {}) });
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+    return res.json();
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(`${path} timed out. The live backend did not respond fast enough.`);
+    if (error instanceof TypeError) throw new Error(`${path} failed to fetch. Check the API connection and deployment proxy.`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 const endpoints = {
   health: () => api("GET", "/health"),
   listPacks: () => api("GET", "/workspaces/packages"),
   createWorkspace: data => api("POST", "/workspaces", data),
-  research: data => api("POST", "/agent/research", data),
+  research: data => api("POST", "/agent/research", data, 70000),
   listRecords: () => api("GET", "/intelligence/records"),
   gatewayFetch: data => api("POST", "/gateway/fetch", data),
   listActions: (wsId, status) => api("GET", `/actions/${wsId}${status ? `?status=${status}` : ""}`),
@@ -121,9 +131,9 @@ export default function App() {
     endpoints.health().then(status => setBackendOk(status)).catch(() => setBackendOk(false));
   }, []);
   useEffect(() => {
-    if (!user) return;
+    if (!user || !["Agent", "Actions", "Outcomes"].includes(page)) return;
     endpoints.listActions(ws.id).then(items => { if (items.length) setActions(items); }).catch(() => {});
-  }, [user, ws.id]);
+  }, [user, page, ws.id]);
   const saveWorkspace = async () => {
     const payload = {
       id: ws.id || slug(ws.name),
@@ -146,6 +156,7 @@ export default function App() {
       input_mode: "text",
       enable_memory: true,
       enable_workflows: true,
+      max_sources: 3,
     });
     setReport(result);
     if (result.autonomous_actions?.length) setActions(result.autonomous_actions);

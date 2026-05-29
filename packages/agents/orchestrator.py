@@ -1,8 +1,10 @@
+import asyncio
 import time
 import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import AgentRun, AutonomousAction, OrganizationalContext
+from packages.common.config import get_settings
 from packages.agents.planner import ResearchPlanner
 from packages.agents.synthesizer import ReportSynthesizer
 from packages.intelligence.service import IntelligenceService
@@ -36,6 +38,7 @@ class ResearchAgentOrchestrator:
         self.llm = llm or LLMClient()
         self.planner = ResearchPlanner()
         self.synthesizer = ReportSynthesizer(llm=self.llm)
+        self.settings = get_settings()
 
     async def run(self, db: AsyncSession, request: ResearchRequest) -> ResearchReport:
         start = time.perf_counter()
@@ -82,8 +85,15 @@ class ResearchAgentOrchestrator:
             records = [r.record for r in retrieval if r.score > 0.25]
 
             if len(records) < 3:
-                await self.intelligence.refresh_topic(db, topic_id, max_sources=request.max_sources)
-                partner_trace.append("brightdata.gateway.refresh")
+                try:
+                    refresh_limit = min(request.max_sources, 3)
+                    await asyncio.wait_for(
+                        self.intelligence.refresh_topic(db, topic_id, max_sources=refresh_limit),
+                        timeout=min(40, max(15, self.settings.request_timeout_seconds + 5)),
+                    )
+                    partner_trace.append(f"brightdata.gateway.refresh({refresh_limit})")
+                except TimeoutError:
+                    partner_trace.append("brightdata.gateway.refresh_timeout")
                 retrieval = await self.intelligence.retrieve_context(
                     db,
                     RetrievalRequest(

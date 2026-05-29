@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -5,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import ChangeEvent, IntelligenceRecord, RefreshRun, Source, Topic
 from packages.brightdata.client import BrightDataClient
+from packages.common.config import get_settings
 from packages.gateway.service import GatewayService
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.common.time import utc_now
@@ -27,6 +29,7 @@ class IntelligenceService:
         self.gateway = gateway or GatewayService()
         self.brightdata = BrightDataClient()
         self.graph = Neo4jGraphClient()
+        self.settings = get_settings()
 
     async def create_topic(self, db: AsyncSession, topic: TopicCreate) -> TopicRead:
         existing = await db.get(Topic, topic.id)
@@ -90,7 +93,13 @@ class IntelligenceService:
         try:
             for source in sources:
                 checked += 1
-                record = await self.extract_and_store(db, topic_id, source)
+                try:
+                    record = await asyncio.wait_for(
+                        self.extract_and_store(db, topic_id, source),
+                        timeout=min(12, self.settings.request_timeout_seconds),
+                    )
+                except TimeoutError:
+                    continue
                 if record:
                     created += 1
                     RECORDS_REFRESHED.labels(topic_id=topic_id).inc()
@@ -119,8 +128,9 @@ class IntelligenceService:
             GatewayFetchRequest(
                 url=source.url,
                 task_type="competitive_intelligence_extraction",
-                preferred_tool=ToolName.web_scraper_api,
+                preferred_tool=ToolName.web_unlocker,
                 output_schema=schema,
+                max_attempts=1,
             )
         )
         if response.status != "success":

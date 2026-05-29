@@ -68,6 +68,12 @@ async def create_workspace(payload: WorkspaceCreate, db: AsyncSession = Depends(
     workspace_id = payload.id or _slug(payload.name)
     existing = await db.get(Topic, workspace_id)
     if existing:
+        existing.name = payload.name
+        existing.description = f"package_id={pack.id}; {payload.description or pack.description}"
+        existing.entities = payload.entities or pack.entities
+        existing.watch_types = payload.signals or pack.signals
+        existing.refresh_frequency_minutes = payload.refresh_frequency_minutes
+        await db.commit()
         return _workspace_read(existing)
     topic = Topic(
         id=workspace_id,
