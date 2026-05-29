@@ -62,6 +62,12 @@ Edit `.env` with your credentials:
 ```env
 # Required for LLM-powered synthesis, semantic memory, and Cognee
 OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+
+# Optional OpenAI-compatible fallback for LLM synthesis
+AIMLAPI_API_KEY=...
+AIMLAPI_BASE_URL=https://api.aimlapi.com/v1
+AIMLAPI_MODEL=gpt-4o
 
 # Required for live web retrieval (mock mode when empty)
 BRIGHTDATA_API_KEY=...
@@ -215,7 +221,8 @@ Neo4j Aura Free tier: up to 200K nodes, 400K relationships, auto-deleted after 3
 |-----------|---------|------------|
 | Cognee (`pip install cognee`) | Knowledge graph memory with `remember`/`recall` | Skipped, self-hosted only |
 | `COGNEE_ENDPOINT` + `COGNEE_API_KEY` | Cognee Cloud (managed) | Cognee local (self-hosted) |
-| `OPENAI_API_KEY` | LLM synthesis + semantic memory search | Rule-based synthesis + keyword search |
+| `OPENAI_API_KEY` or `AIMLAPI_API_KEY` | LLM synthesis. OpenAI is tried first; AI/ML API is the OpenAI-compatible fallback. | Rule-based synthesis |
+| `OPENAI_API_KEY` | Semantic memory embeddings | Keyword memory search |
 | `NEO4J_ENABLED=true` | Entity relationship graph | PostgreSQL-only storage |
 | `BRIGHTDATA_*` | Live web retrieval with recovery | Mock gateway responses |
 
@@ -334,7 +341,8 @@ Every layer degrades gracefully based on available credentials:
 |-----------|---------|------------|
 | `cognee` package | Knowledge graph memory via `remember`/`recall` | Self-hosted memory only |
 | `COGNEE_ENDPOINT` + `COGNEE_API_KEY` | Cognee Cloud (managed) | Cognee local |
-| `OPENAI_API_KEY` | LLM synthesis + semantic memory search | Rule-based synthesis + keyword search |
+| `OPENAI_API_KEY` or `AIMLAPI_API_KEY` | LLM synthesis. OpenAI is tried first; AI/ML API is the OpenAI-compatible fallback. | Rule-based synthesis |
+| `OPENAI_API_KEY` | Semantic memory embeddings | Keyword memory search |
 | `NEO4J_ENABLED=true` | Entity relationship graph | PostgreSQL-only storage |
 | `BRIGHTDATA_*` | Live public web retrieval with recovery routing | Mock gateway responses |
 | `DATABASE_URL` | Persistent storage | In-memory fallback |

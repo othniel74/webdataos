@@ -672,7 +672,7 @@ function WsPage({ tierId, setTierId, selDomains, toggleDomain, tier, activeDomai
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div><Lb>Workspace name</Lb><input value={ws.name} onChange={e => setWs({ ...ws, name: e.target.value, id: slug(e.target.value) })} style={IS} placeholder="e.g. Enterprise Monitoring" /></div>
               <div><Lb>Refresh cadence</Lb><select value={ws.cadence} onChange={e => setWs({ ...ws, cadence: e.target.value })} style={IS}><option>Daily</option><option>Weekly</option><option>Every 6 hours</option><option>Manual only</option></select></div>
-              <div style={{ gridColumn: "span 2" }}><Lb>Entities <span style={{ fontWeight: 400, color: T.dim }}>— pre-filled from selected domains</span></Lb><textarea value={ws.entities} onChange={e => setWs({ ...ws, entities: e.target.value })} style={{ ...IS, minHeight: 56, resize: "vertical" }} /></div>
+              <div style={{ gridColumn: "span 2" }}><Lb>Vendors / entities <span style={{ fontWeight: 400, color: T.dim }}>— pre-filled from selected domains</span></Lb><textarea value={ws.entities} onChange={e => setWs({ ...ws, entities: e.target.value })} style={{ ...IS, minHeight: 56, resize: "vertical" }} /></div>
               <div style={{ gridColumn: "span 2" }}><Lb>Signals <span style={{ fontWeight: 400, color: T.dim }}>— pre-filled from selected domains</span></Lb><textarea value={ws.signals} onChange={e => setWs({ ...ws, signals: e.target.value })} style={{ ...IS, minHeight: 56, resize: "vertical" }} /></div>
             </div>
           </div>
@@ -703,7 +703,7 @@ function WsPage({ tierId, setTierId, selDomains, toggleDomain, tier, activeDomai
               <span style={{ color: T.dim }}>Domains</span><span>{activeDomains.map(d => d.name).join(", ")}</span>
               <span style={{ color: T.dim }}>Workspace</span><span style={{ fontWeight: 500 }}>{ws.name}</span>
               <span style={{ color: T.dim }}>Cadence</span><span>{ws.cadence}</span>
-              <span style={{ color: T.dim }}>Entities</span><span style={{ color: T.muted, fontSize: 12 }}>{ws.entities}</span>
+              <span style={{ color: T.dim }}>Vendors / entities</span><span style={{ color: T.muted, fontSize: 12 }}>{ws.entities}</span>
               <span style={{ color: T.dim }}>Signals</span><span style={{ color: T.muted, fontSize: 12 }}>{ws.signals}</span>
               <span style={{ color: T.dim }}>Bright Data</span><div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>{[...new Set(activeDomains.flatMap(d => d.routes))].map(r => <span key={r} style={{ fontSize: 10, padding: "2px 5px", borderRadius: 4, background: "rgba(6,182,212,.06)", color: T.accent, fontFamily: "'JetBrains Mono'" }}>{r}</span>)}</div>
               <span style={{ color: T.dim }}>Partners</span><span style={{ color: T.muted, fontSize: 12 }}>Speechmatics, Cognee, Bright Data, TriggerWare, OpenAI</span>

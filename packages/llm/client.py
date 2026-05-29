@@ -1,7 +1,7 @@
-"""Thin async OpenAI client using httpx.
+"""Thin async OpenAI-compatible LLM client using httpx.
 
 Falls back gracefully when no API key is configured.
-Supports gpt-4o, gpt-4o-mini, or any OpenAI-compatible endpoint.
+Supports OpenAI first, then AI/ML API as an OpenAI-compatible fallback.
 """
 from __future__ import annotations
 
@@ -15,23 +15,45 @@ from packages.common.logging import get_logger
 
 logger = get_logger(__name__)
 
-OPENAI_BASE = "https://api.openai.com/v1"
-DEFAULT_MODEL = "gpt-4o-mini"
 MAX_TOKENS = 4096
 TEMPERATURE = 0.3
 
 
 class LLMClient:
-    """Async OpenAI chat completions client.
+    """Async OpenAI-compatible chat completions client.
 
-    When no API key is set, ``available`` returns False and callers
+    When no LLM API key is set, ``available`` returns False and callers
     should fall back to rule-based logic.
     """
 
-    def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        provider: str | None = None,
+    ) -> None:
         settings = get_settings()
-        self.api_key = api_key or settings.openai_api_key
-        self.model = model or DEFAULT_MODEL
+        if api_key:
+            self.api_key = api_key
+            self.base_url = base_url or "https://api.openai.com/v1"
+            self.model = model or settings.openai_model
+            self.provider = provider or "custom"
+        elif settings.openai_api_key:
+            self.api_key = settings.openai_api_key
+            self.base_url = base_url or "https://api.openai.com/v1"
+            self.model = model or settings.openai_model
+            self.provider = provider or "openai"
+        elif settings.aimlapi_api_key:
+            self.api_key = settings.aimlapi_api_key
+            self.base_url = base_url or settings.aimlapi_base_url
+            self.model = model or settings.aimlapi_model
+            self.provider = provider or "aimlapi"
+        else:
+            self.api_key = None
+            self.base_url = base_url or "https://api.openai.com/v1"
+            self.model = model or settings.openai_model
+            self.provider = provider
         self._client: httpx.AsyncClient | None = None
 
     @property
@@ -41,7 +63,7 @@ class LLMClient:
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
-                base_url=OPENAI_BASE,
+                base_url=self.base_url,
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
