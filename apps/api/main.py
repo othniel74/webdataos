@@ -14,6 +14,7 @@ from apps.api.routes.runs import router as runs_router
 from apps.api.routes.partners import router as partners_router
 from apps.api.routes.workspaces import router as workspaces_router
 from apps.api.routes.analyst import router as analyst_router
+from apps.api.routes.llm import router as llm_router
 from packages.enterprise.packs import list_packs
 from packages.common.config import get_settings
 from packages.common.logging import configure_logging, get_logger
@@ -93,6 +94,7 @@ app.include_router(agent_router)
 app.include_router(partners_router)
 app.include_router(runs_router)
 app.include_router(analyst_router)
+app.include_router(llm_router)
 
 
 @app.get("/health")
@@ -118,6 +120,16 @@ async def health():
             if enabled
         )
         or None,
+        "llm_models": {
+            "openai": settings.openai_model if settings.openai_api_key else None,
+            "aimlapi": settings.aimlapi_model if settings.aimlapi_api_key else None,
+        },
+        "partner_apis": {
+            "speechmatics": bool(settings.speechmatics_api_key),
+            "triggerware": bool(settings.triggerware_endpoint),
+            "cognee_local": True,
+            "cognee_cloud": bool(settings.cognee_endpoint and settings.cognee_api_key),
+        },
         "auth_enabled": settings.api_auth_enabled,
         "version": "0.5.0",
     }

@@ -80,6 +80,25 @@ services:
         condition: service_healthy
 
   # ── Reverse proxy (production) ──
+  cognee-ui:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.cognee-ui
+    env_file:
+      - ../.env
+    environment:
+      COGNEE_UI_PORT: ${COGNEE_UI_PORT:-3200}
+      COGNEE_UI_INTERNAL_PORT: ${COGNEE_UI_INTERNAL_PORT:-3201}
+      COGNEE_BACKEND_PORT: ${COGNEE_BACKEND_PORT:-8100}
+      COGNEE_LLM_MODEL: ${COGNEE_LLM_MODEL:-openai/gpt-4o-mini}
+      COGNEE_EMBEDDING_MODEL: ${COGNEE_EMBEDDING_MODEL:-openai/text-embedding-3-small}
+    ports:
+      - "3200:3200"
+    volumes:
+      - cognee_data:/data/cognee
+    profiles:
+      - production
+
   nginx:
     image: nginx:alpine
     ports:
@@ -89,6 +108,7 @@ services:
     depends_on:
       - api
       - web
+      - cognee-ui
     profiles:
       - production
 
@@ -120,3 +140,4 @@ volumes:
   postgres_data:
   neo4j_data:
   grafana_data:
+  cognee_data:

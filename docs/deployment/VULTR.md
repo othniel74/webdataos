@@ -49,9 +49,15 @@ BRIGHTDATA_MCP_ENDPOINT=...
 OPENAI_API_KEY=...
 AIMLAPI_API_KEY=
 AIMLAPI_BASE_URL=https://api.aimlapi.com/v1
+AIMLAPI_MODELS_URL=https://api.aimlapi.com/models
 AIMLAPI_MODEL=gpt-4o
 COGNEE_ENDPOINT=
 COGNEE_API_KEY=
+COGNEE_UI_PORT=3200
+COGNEE_LLM_MODEL=openai/gpt-4o-mini
+COGNEE_EMBEDDING_MODEL=openai/text-embedding-3-small
+SPEECHMATICS_ENDPOINT=https://asr.api.speechmatics.com/v2/jobs
+TRIGGERWARE_ENDPOINT=
 NEO4J_ENABLED=false
 ```
 

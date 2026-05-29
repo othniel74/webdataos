@@ -40,10 +40,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     aimlapi_api_key: str | None = None
     aimlapi_base_url: str = "https://api.aimlapi.com/v1"
+    aimlapi_models_url: str = "https://api.aimlapi.com/models"
     aimlapi_model: str = "gpt-4o"
 
     speechmatics_api_key: str | None = None
-    speechmatics_endpoint: str | None = None
+    speechmatics_endpoint: str | None = "https://asr.api.speechmatics.com/v2/jobs"
+    speechmatics_poll_attempts: int = Field(default=60, ge=1, le=240)
+    speechmatics_poll_interval_seconds: float = Field(default=5.0, ge=0.5, le=30.0)
     cognee_api_key: str | None = None
     cognee_endpoint: str | None = None
     triggerware_api_key: str | None = None

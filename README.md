@@ -67,6 +67,7 @@ OPENAI_MODEL=gpt-4o-mini
 # Optional OpenAI-compatible fallback for LLM synthesis
 AIMLAPI_API_KEY=...
 AIMLAPI_BASE_URL=https://api.aimlapi.com/v1
+AIMLAPI_MODELS_URL=https://api.aimlapi.com/models
 AIMLAPI_MODEL=gpt-4o
 
 # Required for live web retrieval (mock mode when empty)
@@ -84,6 +85,15 @@ BRIGHTDATA_MCP_ENDPOINT=https://mcp.brightdata.com/sse?token=YOUR_TOKEN&groups=a
 # Cognee Cloud (optional — local mode works without these)
 COGNEE_ENDPOINT=https://your-instance.cognee.ai
 COGNEE_API_KEY=ck_...
+COGNEE_UI_PORT=3200
+COGNEE_LLM_MODEL=openai/gpt-4o-mini
+COGNEE_EMBEDDING_MODEL=openai/text-embedding-3-small
+
+# Partner workflow/runtime APIs
+SPEECHMATICS_API_KEY=...
+SPEECHMATICS_ENDPOINT=https://asr.api.speechmatics.com/v2/jobs
+TRIGGERWARE_API_KEY=...
+TRIGGERWARE_ENDPOINT=https://your-triggerware-workflow-endpoint
 
 # Neo4j (optional — free tier: neo4j.com/cloud/aura-free)
 NEO4J_ENABLED=true
@@ -221,10 +231,14 @@ Neo4j Aura Free tier: up to 200K nodes, 400K relationships, auto-deleted after 3
 |-----------|---------|------------|
 | Cognee (`pip install cognee`) | Knowledge graph memory with `remember`/`recall` | Skipped, self-hosted only |
 | `COGNEE_ENDPOINT` + `COGNEE_API_KEY` | Cognee Cloud (managed) | Cognee local (self-hosted) |
-| `OPENAI_API_KEY` or `AIMLAPI_API_KEY` | LLM synthesis. OpenAI is tried first; AI/ML API is the OpenAI-compatible fallback. | Rule-based synthesis |
+| `OPENAI_API_KEY` + `AIMLAPI_API_KEY` | Mutual LLM fallback. OpenAI is tried first, then AI/ML API. `AIMLAPI_MODEL` can be any supported AI/ML API chat model/vendor. | Rule-based synthesis |
+| `SPEECHMATICS_API_KEY` | Live Speechmatics batch transcription for `audio_url` requests | Mock-safe transcript text |
+| `TRIGGERWARE_ENDPOINT` + optional `TRIGGERWARE_API_KEY` | POST workflow events to the configured workflow endpoint | Local action proposal event |
 | `OPENAI_API_KEY` | Semantic memory embeddings | Keyword memory search |
 | `NEO4J_ENABLED=true` | Entity relationship graph | PostgreSQL-only storage |
 | `BRIGHTDATA_*` | Live web retrieval with recovery | Mock gateway responses |
+
+Cognee Local UI runs in the production Docker profile and is available on port `3200` by default. It uses local Cognee storage and the configured LLM/embedding provider; Cognee Cloud credentials are only needed for managed Cognee Cloud.
 
 ---
 
@@ -341,7 +355,9 @@ Every layer degrades gracefully based on available credentials:
 |-----------|---------|------------|
 | `cognee` package | Knowledge graph memory via `remember`/`recall` | Self-hosted memory only |
 | `COGNEE_ENDPOINT` + `COGNEE_API_KEY` | Cognee Cloud (managed) | Cognee local |
-| `OPENAI_API_KEY` or `AIMLAPI_API_KEY` | LLM synthesis. OpenAI is tried first; AI/ML API is the OpenAI-compatible fallback. | Rule-based synthesis |
+| `OPENAI_API_KEY` + `AIMLAPI_API_KEY` | Mutual LLM fallback. OpenAI is tried first, then AI/ML API. `AIMLAPI_MODEL` can be any supported AI/ML API chat model/vendor. | Rule-based synthesis |
+| `SPEECHMATICS_API_KEY` | Live Speechmatics batch transcription for `audio_url` requests | Mock-safe transcript text |
+| `TRIGGERWARE_ENDPOINT` + optional `TRIGGERWARE_API_KEY` | POST workflow events to the configured workflow endpoint | Local action proposal event |
 | `OPENAI_API_KEY` | Semantic memory embeddings | Keyword memory search |
 | `NEO4J_ENABLED=true` | Entity relationship graph | PostgreSQL-only storage |
 | `BRIGHTDATA_*` | Live public web retrieval with recovery routing | Mock gateway responses |

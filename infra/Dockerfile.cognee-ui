@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential curl nodejs npm socat \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml README.md ./
+COPY apps ./apps
+COPY packages ./packages
+COPY scripts ./scripts
+
+RUN pip install --no-cache-dir -e .
+
+EXPOSE 3200
+
+CMD ["python", "scripts/cognee_ui.py"]
