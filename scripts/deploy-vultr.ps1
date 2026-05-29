@@ -60,6 +60,15 @@ WEB_DATA_OS_ENV
 chmod 600 /opt/webdataos/.env
 
 cd /opt/webdataos
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --profile production up -d postgres
+until docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres pg_isready -U postgres -d webdata; do
+  sleep 2
+done
+POSTGRES_APP_PASSWORD=`$(grep -E '^POSTGRES_PASSWORD=' .env | tail -n1 | cut -d= -f2-)
+if [ -z "`$POSTGRES_APP_PASSWORD" ]; then
+  POSTGRES_APP_PASSWORD=postgres
+fi
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres psql -U postgres -d webdata -c "ALTER USER postgres WITH PASSWORD '`$POSTGRES_APP_PASSWORD';"
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --profile production up -d --build
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T api alembic upgrade head || true
 "@

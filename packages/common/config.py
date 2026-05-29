@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/webdata"
     sync_database_url: str = "postgresql://postgres:postgres@localhost:5432/webdata"
+    database_pool_timeout_seconds: int = Field(default=5, ge=1, le=60)
 
     neo4j_enabled: bool = False
     neo4j_uri: str = "bolt://localhost:7687"
