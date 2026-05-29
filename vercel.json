@@ -46,6 +46,10 @@
       "destination": "http://45.77.89.209/intelligence/:path*"
     },
     {
+      "source": "/demo",
+      "destination": "/index.html"
+    },
+    {
       "source": "/demo/:path*",
       "destination": "http://45.77.89.209/demo/:path*"
     },

@@ -187,6 +187,11 @@ const packIcon = (id, size = 18) => {
    ═══════════════════════════════════════════════════════════════════════ */
 const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
 const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Settings"];
+const initialPageFromPath = () => {
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+  const publicMatch = PUB.find(page => page.toLowerCase() === path);
+  return publicMatch || "Home";
+};
 const toAppUser = account => {
   const email = account?.email || "";
   const name = account?.name || email || "Analyst";
@@ -201,7 +206,7 @@ const toAppUser = account => {
 };
 
 export default function App() {
-  const [page, setPage] = useState("Home");
+  const [page, setPage] = useState(initialPageFromPath);
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [packId, setPackId] = useState("enterprise");
