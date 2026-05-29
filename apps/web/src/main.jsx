@@ -1516,6 +1516,208 @@ function HomeFAQ() {
 
 function HomePage({ nav, user, auth }) {
   const go = user ? () => nav("Monitor") : auth;
+  const label = user ? "Open workspace" : "Create account";
+  const stages = [
+    ["Monitor", "Watch vendors, competitors, regulations, markets, and public web changes against a defined workspace scope."],
+    ["Prove", "Capture source URLs, extracted evidence, timestamps, and relationship links so every claim can be checked."],
+    ["Reason", "Compare new evidence with prior state, evaluate materiality, and explain business impact in plain language."],
+    ["Act", "Create recommended next steps, approval tasks, TriggerWare workflow events, and a receipt for the decision trail."],
+  ];
+  const outputs = [
+    ["Signal feed", "Ranked changes by entity, severity, freshness, and domain."],
+    ["Decision brief", "What changed, why it matters, what to do next, and confidence."],
+    ["Evidence room", "Source-backed records with links, summaries, map context, and retrieval metadata."],
+    ["Action receipt", "Who approved, what workflow fired, what happened, and what should be checked next."],
+  ];
+  const domains = [
+    ["Security & Compliance", "Vendor posture, breach exposure, regulator updates, policy pages.", "Which supplier or vendor needs review now?", "Escalate questionnaire, renewal hold, risk owner review."],
+    ["GTM Intelligence", "Competitor pages, pricing changes, messaging, hiring, account signals.", "What changed in the market that sales should act on?", "Update battlecard, brief account team, open sales task."],
+    ["Finance & Market", "Filings, supplier signals, sector movement, market pages, alternative data.", "What external signal changes exposure or forecast assumptions?", "Prepare board note, analyst review, supplier exposure check."],
+  ];
+  const governance = [
+    "Tenant-isolated workspaces",
+    "Server-side auth and roles",
+    "Auditable run receipts",
+    "Evidence-linked recommendations",
+    "LLM provider fallback",
+    "Intelligence-map memory with local fallback",
+  ];
+
+  return (
+    <div className="enterprise-home">
+      <section className="eh-hero">
+        <div className="eh-hero-copy">
+          <Eye>Enterprise external intelligence</Eye>
+          <h1>Turn web change into governed business action.</h1>
+          <p>
+            WebDataOS monitors the external signals your teams depend on, proves what changed with source evidence, reasons over business impact, and turns the result into accountable action.
+          </p>
+          <div className="eh-hero-actions">
+            <button className="btn btn-primary btn-lg" onClick={go}>{label} <ArrowRight size={15} /></button>
+            <button className="btn btn-ghost btn-lg" onClick={() => nav("Demo")}>Try the live demo</button>
+          </div>
+          <div className="eh-proof-strip" aria-label="Product guarantees">
+            <span>Source-linked evidence</span>
+            <span>Tenant-isolated workspaces</span>
+            <span>Run receipts</span>
+          </div>
+        </div>
+
+        <div className="eh-brief-preview" aria-label="Example WebDataOS decision brief">
+          <div className="eh-preview-top">
+            <span>Daily intelligence brief</span>
+            <strong>Requires review</strong>
+          </div>
+          <div className="eh-preview-headline">Vendor compliance posture changed before renewal window</div>
+          <div className="eh-preview-grid">
+            <div>
+              <label>What changed</label>
+              <p>New security disclosure and processor update detected across monitored vendor pages.</p>
+            </div>
+            <div>
+              <label>Why it matters</label>
+              <p>Contract terms require review before renewal. Risk owner approval is needed.</p>
+            </div>
+          </div>
+          <div className="eh-preview-action">
+            <CheckCircle size={15} />
+            <span>Recommended action: open vendor review and request updated compliance evidence.</span>
+          </div>
+          <div className="eh-source-row">
+            <a href="https://www.sec.gov" target="_blank" rel="noreferrer">sec.gov</a>
+            <a href="https://www.okta.com" target="_blank" rel="noreferrer">vendor page</a>
+            <a href="https://www.reuters.com" target="_blank" rel="noreferrer">news source</a>
+          </div>
+        </div>
+      </section>
+
+      <section className="eh-section eh-loop">
+        <div className="eh-section-head">
+          <Eye>Operating loop</Eye>
+          <h2>Not a chatbot. A decision system.</h2>
+          <p>Chat is only one surface. The product value is the repeatable loop: monitor, prove, reason, act, and remember.</p>
+        </div>
+        <div className="eh-stage-line">
+          {stages.map(([title, text], index) => (
+            <div className="eh-stage" key={title}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="eh-section eh-compare">
+        <div className="eh-section-head">
+          <Eye>What changes for the user</Eye>
+          <h2>From manual search to operational intelligence.</h2>
+        </div>
+        {[
+          ["Before", "Analysts search the web, paste links into documents, summarize manually, and lose context between cycles."],
+          ["With WebDataOS", "The system watches defined entities continuously, stores evidence, compares against history, and creates a decision-ready brief."],
+          ["Result", "Teams see what changed, why it matters, what action is recommended, and which sources support the decision."],
+        ].map(([labelText, body]) => (
+          <div className="eh-compare-row" key={labelText}>
+            <strong>{labelText}</strong>
+            <p>{body}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="eh-section">
+        <div className="eh-section-head">
+          <Eye>Product outputs</Eye>
+          <h2>The system produces work your teams can use.</h2>
+          <p>Every run should leave behind usable artifacts, not raw scraped text.</p>
+        </div>
+        <div className="eh-output-grid">
+          {outputs.map(([title, text], index) => (
+            <div className="eh-output" key={title}>
+              <span>{index + 1}</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="eh-section">
+        <div className="eh-section-head">
+          <Eye>Domains</Eye>
+          <h2>Three enterprise tracks with clear jobs.</h2>
+          <p>Each domain is framed around a business question, not a generic search task.</p>
+        </div>
+        <div className="eh-domain-table">
+          <div className="eh-domain-head">
+            <span>Domain</span>
+            <span>Monitors</span>
+            <span>Answers</span>
+            <span>Typical action</span>
+          </div>
+          {domains.map(([name, monitors, answers, action]) => (
+            <div className="eh-domain-row" key={name}>
+              <strong>{name}</strong>
+              <p>{monitors}</p>
+              <p>{answers}</p>
+              <p>{action}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="eh-section eh-graph-band">
+        <div>
+          <Eye>Intelligence map</Eye>
+          <h2>Context should compound, not reset every run.</h2>
+          <p>
+            WebDataOS turns entities, signals, evidence, recommended actions, and outcomes into a decision context map. Teams can see why a recommendation exists, which source supports it, and how it connects to business action.
+          </p>
+          <button className="btn btn-outline btn-md" onClick={() => nav("Demo")}>See intelligence map <ArrowRight size={14} /></button>
+        </div>
+        <div className="eh-graph-preview" aria-label="Intelligence map preview">
+          <div className="eh-map-link eh-link-vendor" />
+          <div className="eh-map-link eh-link-signal" />
+          <div className="eh-map-link eh-link-evidence" />
+          <div className="eh-map-link eh-link-action" />
+          <div className="eh-map-link eh-link-outcome" />
+          <div className="eh-node eh-node-main"><span>Workspace</span><small>scope</small></div>
+          <div className="eh-node eh-node-vendor"><span>Vendor</span><small>entity</small></div>
+          <div className="eh-node eh-node-signal"><span>Risk signal</span><small>change</small></div>
+          <div className="eh-node eh-node-evidence"><span>Evidence</span><small>source URL</small></div>
+          <div className="eh-node eh-node-action"><span>Action</span><small>workflow</small></div>
+          <div className="eh-node eh-node-outcome"><span>Outcome</span><small>receipt</small></div>
+          <div className="eh-map-caption">The map explains relationships behind every brief.</div>
+        </div>
+      </section>
+
+      <section className="eh-section eh-governance">
+        <div className="eh-section-head">
+          <Eye>Enterprise controls</Eye>
+          <h2>Built as production infrastructure, not a showcase script.</h2>
+        </div>
+        <div className="eh-governance-list">
+          {governance.map(item => (
+            <div key={item}><CheckCircle size={14} /><span>{item}</span></div>
+          ))}
+        </div>
+      </section>
+
+      <section className="eh-final">
+        <Eye>Ready state</Eye>
+        <h2>Give every team a living external intelligence layer.</h2>
+        <p>Start with a monitored workspace, prove every signal, and make each recommendation accountable.</p>
+        <div className="eh-hero-actions">
+          <button className="btn btn-primary btn-lg" onClick={go}>{label} <ArrowRight size={15} /></button>
+          <button className="btn btn-ghost btn-lg" onClick={() => nav("Pricing")}>View plans</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function LegacyHomePage({ nav, user, auth }) {
+  const go = user ? () => nav("Monitor") : auth;
   const label = user ? "Open dashboard" : "Start free";
 
   const heroRef = useRef(null);
@@ -2030,6 +2232,17 @@ const DEMO_PIPELINE_STEPS = [
   { id: "brief", label: "Building brief", detail: "Assembling decision brief and run receipt" },
 ];
 
+const DEMO_PIPELINE_STEPS_SAFE = [
+  { id: "session", label: "Creating sandbox", detail: "Starting an isolated public demo session" },
+  { id: "scope", label: "Applying scope", detail: "Saving entities and signals for this demo run" },
+  { id: "evidence", label: "Loading safe evidence", detail: "Using controlled public sources for a reliable trial" },
+  { id: "structure", label: "Structuring records", detail: "Normalizing evidence into decision-ready records" },
+  { id: "reason", label: "Reasoning", detail: "Assessing materiality and business impact" },
+  { id: "actions", label: "Proposing actions", detail: "Drafting approval-ready next steps" },
+  { id: "map", label: "Building Intelligence Map", detail: "Connecting workspace, evidence, signals, and actions" },
+  { id: "brief", label: "Building receipt", detail: "Assembling decision brief and run receipt" },
+];
+
 function DemoPage({ nav }) {
   const [phase, setPhase] = useState("pick"); // "pick" | "running" | "result"
   const [scenario, setScenario] = useState(null);
@@ -2046,6 +2259,9 @@ function DemoPage({ nav }) {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [ttsBusy, setTtsBusy] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [draftMission, setDraftMission] = useState("");
+  const [entityInput, setEntityInput] = useState(DEMO_SCENARIOS[0].entities.join(", "));
+  const [signalInput, setSignalInput] = useState(DEMO_SCENARIOS[0].signals.join(", "));
   const recorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const currentAudioRef = useRef(null);
@@ -2059,6 +2275,34 @@ function DemoPage({ nav }) {
   const brief = decisionFromReport(report);
   const evidenceCount = evidence.length;
   const graphCount = graph?.counts?.nodes || graph?.nodes?.length || 0;
+  const draftScenario = useMemo(() => DEMO_SCENARIOS.find(s => s.id === draftMission) || DEMO_SCENARIOS[0], [draftMission]);
+  const parseScopeList = (value, fallback, max) => {
+    const items = String(value || "")
+      .split(",")
+      .map(item => item.trim())
+      .filter(Boolean);
+    return (items.length ? items : fallback).slice(0, max);
+  };
+  const scopedScenario = () => ({
+    ...draftScenario,
+    entities: parseScopeList(entityInput, draftScenario.entities, 5),
+    signals: parseScopeList(signalInput, draftScenario.signals, 6),
+  });
+  const selectScenario = (sc) => {
+    setDraftMission(sc.id);
+    setScenario(sc);
+    setEntityInput(sc.entities.join(", "));
+    setSignalInput(sc.signals.join(", "));
+    setError("");
+  };
+  const demoErrorMessage = (err) => {
+    const message = err?.message || "";
+    if (message.includes("429") || message.toLowerCase().includes("limit")) {
+      return "This browser has reached the public demo run limit. Start a new scenario or sign in to run a full workspace.";
+    }
+    if (message.includes("[object Object]")) return "The demo backend rejected the request. Please check the scope fields and retry.";
+    return message || "Demo run failed.";
+  };
 
   useEffect(() => {
     endpoints.demoCatalog().then(() => setApiLive(true)).catch(() => setApiLive(false));
@@ -2068,6 +2312,9 @@ function DemoPage({ nav }) {
         setSession(active);
         const sc = DEMO_SCENARIOS.find(s => s.id === active.mission) || DEMO_SCENARIOS[0];
         setScenario(sc);
+        setDraftMission(sc.id);
+        setEntityInput((active.entities?.length ? active.entities : sc.entities).join(", "));
+        setSignalInput((active.signals?.length ? active.signals : sc.signals).join(", "));
         return Promise.all([
           endpoints.demoEvidence(active.session_id).catch(() => ({ records: [] })),
           endpoints.demoGraph(active.session_id).catch(() => null),
@@ -2101,7 +2348,7 @@ function DemoPage({ nav }) {
     const tick = setInterval(() => {
       stepIdx++;
       setPipelineStep(stepIdx);
-      if (stepIdx >= DEMO_PIPELINE_STEPS.length - 1) clearInterval(tick);
+      if (stepIdx >= DEMO_PIPELINE_STEPS_SAFE.length - 1) clearInterval(tick);
     }, 1100);
 
     try {
@@ -2124,7 +2371,7 @@ function DemoPage({ nav }) {
       // Run intelligence
       const result = await endpoints.demoRun(updated.session_id || active.session_id);
       clearInterval(tick);
-      setPipelineStep(DEMO_PIPELINE_STEPS.length);
+      setPipelineStep(DEMO_PIPELINE_STEPS_SAFE.length);
       setReport(result);
 
       // Load evidence + graph
@@ -2148,16 +2395,23 @@ function DemoPage({ nav }) {
           setSession(fresh);
           const upd = await endpoints.demoWorkspace(fresh.session_id, { mission: sc.id, entities: sc.entities, signals: sc.signals }).catch(() => fresh);
           const result = await endpoints.demoRun(upd.session_id || fresh.session_id);
-          setPipelineStep(DEMO_PIPELINE_STEPS.length);
+          setPipelineStep(DEMO_PIPELINE_STEPS_SAFE.length);
           setReport(result);
+          const sid = upd.session_id || fresh.session_id;
+          const [ev, gr] = await Promise.all([
+            endpoints.demoEvidence(sid).catch(() => ({ records: [] })),
+            endpoints.demoGraph(sid).catch(() => null),
+          ]);
+          setEvidence(ev.records || []);
+          setGraph(gr);
           setTimeout(() => setPhase("result"), 600);
         } catch (e2) {
-          setError(e2.message || "Demo run failed.");
+          setError(demoErrorMessage(e2));
           setPhase("pick");
         }
       } else {
-        // API unavailable — show a preview layout but clearly label it as offline
-        setError("Live API is currently unavailable. Showing a preview of what this analysis would look like.");
+        // Demo API unavailable - keep the public experience explicit.
+        setError("Demo backend is currently unavailable. Please retry in a moment.");
         setPhase("pick");
       }
     }
@@ -2263,6 +2517,9 @@ function DemoPage({ nav }) {
     localStorage.removeItem("webdataos_demo_messages");
     setSession(null); setReport(null); setEvidence([]); setGraph(null);
     setMessages([]); setPhase("pick"); setScenario(null); setError("");
+    setDraftMission("");
+    setEntityInput(DEMO_SCENARIOS[0].entities.join(", "));
+    setSignalInput(DEMO_SCENARIOS[0].signals.join(", "));
   };
 
   /* ── Act 1: Pick scenario ── */
@@ -2273,24 +2530,27 @@ function DemoPage({ nav }) {
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-60%)", width: 500, height: 300, borderRadius: "50%", background: `radial-gradient(circle,${T.glow},transparent 70%)`, pointerEvents: "none" }} />
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 14px", borderRadius: 999, background: "rgba(18,181,203,.08)", border: `1px solid rgba(18,181,203,.2)`, marginBottom: 20 }}>
           <div style={{ width: 6, height: 6, borderRadius: 99, background: T.accent, animation: "pulse 2s ease infinite" }} />
-          <span style={{ fontSize: 11, color: T.accent, fontWeight: 800 }}>Live intelligence demo</span>
+          <span style={{ fontSize: 11, color: T.accent, fontWeight: 800 }}>Guided sandbox demo</span>
         </div>
         <h1 style={{ fontSize: "clamp(28px,4vw,52px)", fontWeight: 700, letterSpacing: "-.04em", lineHeight: 1.1, background: "linear-gradient(180deg,#f1f5f9 30%,#64748b)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", maxWidth: 700, margin: "0 auto" }}>
-          See live web intelligence in action
+          Try WebDataOS with a safe enterprise sandbox
         </h1>
-        <p style={{ color: T.muted, fontSize: 15, marginTop: 14, lineHeight: 1.65, maxWidth: 520, margin: "14px auto 0" }}>
+        <p style={{ display: "none", color: T.muted, fontSize: 15, marginTop: 14, lineHeight: 1.65, maxWidth: 520, margin: "14px auto 0" }}>
           Pick a scenario. We'll monitor real companies, pull live web evidence, reason over business impact, and show you a decision-ready brief — in under 2 minutes.
         </p>
       </div>
 
+        <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.65, maxWidth: 560, margin: "0 auto 22px", textAlign: "center" }}>
+          Choose a business scenario, adjust the demo scope, and run a controlled public-evidence brief. No customer data, no private tenant data, and no uncontrolled live claims.
+        </p>
       {/* Scenario cards */}
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "0 24px 64px", width: "100%" }}>
         {error && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", color: "#fca5a5", fontSize: 12 }}>{error}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
           {DEMO_SCENARIOS.map((sc, i) => (
-            <button key={sc.id} onClick={() => startRun(sc)} className="au" style={{ animationDelay: `${i * .08}s`, textAlign: "left", padding: "28px 26px", borderRadius: 16, border: `1px solid ${T.border}`, background: T.bgCard, cursor: "pointer", display: "flex", flexDirection: "column", gap: 0, transition: "border-color .15s, box-shadow .15s" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = sc.color; e.currentTarget.style.boxShadow = `0 0 0 1px ${sc.color}22, 0 12px 40px rgba(0,0,0,.3)`; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.boxShadow = "none"; }}>
+            <button key={sc.id} onClick={() => selectScenario(sc)} style={{ textAlign: "left", padding: "28px 26px", borderRadius: 16, border: `1px solid ${draftMission === sc.id ? sc.color : T.border}`, outline: "none", boxShadow: draftMission === sc.id ? `0 0 0 1px ${sc.color}26` : "none", background: draftMission === sc.id ? `${sc.color}08` : T.bgCard, cursor: "pointer", display: "flex", flexDirection: "column", gap: 0, transition: "border-color .15s, box-shadow .15s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = draftMission === sc.id ? sc.color : "rgba(148,163,184,.28)"; e.currentTarget.style.boxShadow = draftMission === sc.id ? `0 0 0 1px ${sc.color}26` : "0 10px 34px rgba(0,0,0,.22)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = draftMission === sc.id ? sc.color : T.border; e.currentTarget.style.boxShadow = "none"; }}>
               {/* Domain icon */}
               <div style={{ width: 44, height: 44, borderRadius: 12, background: `${sc.color}12`, border: `1px solid ${sc.color}30`, display: "grid", placeItems: "center", color: sc.color, marginBottom: 18 }}>
                 {packIcon(sc.icon, 20)}
@@ -2306,16 +2566,34 @@ function DemoPage({ nav }) {
                 ))}
               </div>
               {/* CTA */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, background: sc.color, color: "#000", fontWeight: 900, fontSize: 13 }}>
-                <Play size={14} />
-                Run this scenario
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: draftMission === sc.id ? "none" : `1px solid ${T.border}`, background: draftMission === sc.id ? sc.color : T.bgSub, color: draftMission === sc.id ? "#000" : T.muted, fontWeight: 900, fontSize: 13 }}>
+                {draftMission === sc.id ? <CheckCircle size={14} /> : <Play size={14} />}
+                {draftMission === sc.id ? "Selected" : "Choose scenario"}
                 <ArrowRight size={14} style={{ marginLeft: "auto" }} />
               </div>
             </button>
           ))}
         </div>
+        <div style={{ marginTop: 18, padding: 18, borderRadius: 14, border: `1px solid ${draftScenario.color}30`, background: T.bgCard }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, alignItems: "end" }}>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", fontWeight: 800 }}>Entities to monitor</span>
+              <input value={entityInput} onChange={e => setEntityInput(e.target.value)} placeholder="Okta, Stripe, Microsoft" style={{ ...IS, marginTop: 0 }} />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", fontWeight: 800 }}>Signals to watch</span>
+              <input value={signalInput} onChange={e => setSignalInput(e.target.value)} placeholder="vendor risk, breach exposure" style={{ ...IS, marginTop: 0 }} />
+            </label>
+            <button onClick={() => startRun(scopedScenario())} style={{ height: 40, padding: "0 18px", borderRadius: 8, border: "none", background: draftScenario.color, color: "#000", fontWeight: 900, fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, whiteSpace: "nowrap" }}>
+              <Play size={14} /> Run sandbox
+            </button>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: T.dim, lineHeight: 1.5 }}>
+            Demo runs use safe public baseline evidence to show the product loop. A signed-in workspace can run live monitoring against your own scope and provider limits.
+          </div>
+        </div>
         <div style={{ textAlign: "center", marginTop: 24, color: T.dim, fontSize: 12 }}>
-          No account needed &middot; Results in ~60 seconds &middot;{" "}
+          No account needed &middot; Isolated demo session &middot;{" "}
           <button onClick={() => nav("Home")} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, cursor: "pointer" }}>Learn how it works</button>
         </div>
       </div>
@@ -2331,16 +2609,16 @@ function DemoPage({ nav }) {
           <span style={{ color: scenario?.color }}>{packIcon(scenario?.icon, 14)}</span>
           <span style={{ fontSize: 12, color: scenario?.color, fontWeight: 800 }}>{DEMO_SCENARIOS.find(s => s.id === scenario?.id)?.hook}</span>
         </div>
-        <h2 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6, letterSpacing: "-.03em" }}>Running intelligence</h2>
-        <p style={{ color: T.muted, fontSize: 14, marginBottom: 40 }}>Monitoring {scenario?.entities?.join(", ")} — pulling live web evidence and reasoning over business impact.</p>
+        <h2 style={{ fontSize: 26, fontWeight: 700, marginBottom: 6, letterSpacing: "-.03em" }}>Running sandbox brief</h2>
+        <p style={{ color: T.muted, fontSize: 14, marginBottom: 40 }}>Monitoring {scenario?.entities?.join(", ")} with safe public evidence, then producing impact, action, and receipt.</p>
 
         {/* Pipeline steps */}
         <div style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
-          {DEMO_PIPELINE_STEPS.map((step, i) => {
+          {DEMO_PIPELINE_STEPS_SAFE.map((step, i) => {
             const done = i < pipelineStep;
             const active = i === pipelineStep;
             return (
-              <div key={step.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderBottom: i < DEMO_PIPELINE_STEPS.length - 1 ? `1px solid ${T.border}` : "none", background: active ? "rgba(18,181,203,.04)" : "transparent", transition: "background .3s" }}>
+              <div key={step.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderBottom: i < DEMO_PIPELINE_STEPS_SAFE.length - 1 ? `1px solid ${T.border}` : "none", background: active ? "rgba(18,181,203,.04)" : "transparent", transition: "background .3s" }}>
                 {/* Status icon */}
                 <div style={{ width: 22, height: 22, borderRadius: 99, flexShrink: 0, display: "grid", placeItems: "center", background: done ? "#22c55e" : active ? T.accent : T.bgSub, border: `1px solid ${done ? "#22c55e" : active ? T.accent : T.border}`, transition: "all .3s" }}>
                   {done ? <CheckCircle size={12} color="#000" /> : active ? <div style={{ width: 8, height: 8, borderRadius: 99, border: `2px solid #000`, borderTopColor: "transparent", animation: "spin .7s linear infinite" }} /> : <div style={{ width: 6, height: 6, borderRadius: 99, background: T.dim }} />}
@@ -2387,14 +2665,33 @@ function DemoPage({ nav }) {
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           <button onClick={reset} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, fontSize: 12, fontWeight: 700 }}>New scenario</button>
-          <button onClick={() => nav("Home")} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 900 }}>Get started</button>
+          <button onClick={() => nav("Home")} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 900 }}>Create trial workspace</button>
         </div>
+      </div>
+
+      <div style={{ marginBottom: 18, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(18,181,203,.18)", background: "rgba(18,181,203,.055)", color: T.muted, fontSize: 12, lineHeight: 1.6 }}>
+        <strong style={{ color: T.text }}>Sandbox result:</strong> This demo uses controlled public evidence to show the product loop safely. A signed-in workspace runs live monitoring against your own scope, provider limits, tenant history, and approval policies.
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.4fr) minmax(0,.6fr)", gap: 22, alignItems: "start" }}>
 
         {/* LEFT — Decision brief + chat */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+            {[
+              ["Scope", `${scenario?.entities?.length || 0} entities`, "What the run watched"],
+              ["Evidence", `${evidenceCount} records`, "Sources used in the brief"],
+              ["Map", `${graphCount} nodes`, "How evidence connects"],
+              ["Next step", brief.recommended_action ? "Ready" : "Pending", "Action for the team"],
+            ].map(([label, value, help]) => (
+              <div key={label} style={{ padding: "11px 12px", borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em" }}>{label}</div>
+                <div style={{ fontSize: 14, color: T.text, fontWeight: 900, marginTop: 4 }}>{value}</div>
+                <div style={{ fontSize: 10, color: T.dim, marginTop: 4, lineHeight: 1.35 }}>{help}</div>
+              </div>
+            ))}
+          </div>
 
           {/* Decision brief card */}
           <div style={{ borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}`, borderLeft: `4px solid ${scenario?.color || T.accent}`, overflow: "hidden" }}>
@@ -2421,15 +2718,27 @@ function DemoPage({ nav }) {
             </div>
           </div>
 
-          {/* Graph */}
+          {/* Intelligence Map */}
           {(graph?.nodes?.length > 0 || evidenceCount > 0) && (
             <div style={{ borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}`, padding: "16px 18px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <GitBranch size={14} color={T.accent} />
-                <span style={{ fontSize: 13, fontWeight: 800 }}>Relationship graph</span>
+                <span style={{ fontSize: 13, fontWeight: 800 }}>Intelligence Map</span>
                 <span style={{ fontSize: 10, color: T.dim, marginLeft: "auto" }}>{graphCount} nodes</span>
               </div>
-              <GraphMini graph={graph} title={scenario?.hook || "Demo graph"} wsId={session?.workspace_id} />
+              <GraphMini graph={graph} title={scenario?.hook || "Demo intelligence map"} wsId={session?.workspace_id} />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 12 }}>
+                {[
+                  ["Decision trace", "Source -> signal -> action"],
+                  ["Context memory", "Entity links persist across runs"],
+                  ["Validation", "Teams can inspect why the brief exists"],
+                ].map(([label, text]) => (
+                  <div key={label} style={{ borderTop: `1px solid ${T.border}`, paddingTop: 9 }}>
+                    <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</div>
+                    <div style={{ marginTop: 4, fontSize: 11, color: T.muted, lineHeight: 1.45 }}>{text}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2438,21 +2747,21 @@ function DemoPage({ nav }) {
             <div style={{ padding: "14px 18px 10px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8 }}>
               <Brain size={14} color={T.accent} />
               <span style={{ fontSize: 13, fontWeight: 800 }}>Ask the Analyst</span>
-              <span style={{ fontSize: 10, color: T.dim, marginLeft: "auto" }}>text or voice · grounded in evidence</span>
+              <span style={{ fontSize: 10, color: T.dim, marginLeft: "auto" }}>text or voice | grounded in evidence</span>
             </div>
             <div style={{ maxHeight: 300, overflowY: "auto", padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {!messages.length && <div style={{ color: T.dim, fontSize: 13 }}>Try: <strong style={{ color: T.text }}>What changed?</strong> — or tap the mic to ask by voice.</div>}
+              {!messages.length && <div style={{ color: T.dim, fontSize: 13 }}>Try: <strong style={{ color: T.text }}>What changed?</strong> or tap the mic to ask by voice.</div>}
               {messages.map((m, i) => (
                 <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "14px 14px 3px 14px" : "14px 14px 14px 3px", background: m.role === "user" ? T.accent : m.role === "error" ? "rgba(239,68,68,.08)" : T.bgSub, border: m.role === "user" ? "none" : m.role === "error" ? "1px solid rgba(239,68,68,.2)" : `1px solid ${T.border}`, color: m.role === "user" ? "#000" : m.role === "error" ? "#fca5a5" : T.muted, fontSize: 13, lineHeight: 1.55 }}>
                   {m.content}
                 </div>
               ))}
-              {chatLoading && <div style={{ alignSelf: "flex-start", padding: "10px 14px", borderRadius: "14px 14px 14px 3px", background: T.bgSub, border: `1px solid ${T.border}`, color: T.dim, fontSize: 12 }}>Thinking…</div>}
+              {chatLoading && <div style={{ alignSelf: "flex-start", padding: "10px 14px", borderRadius: "14px 14px 14px 3px", background: T.bgSub, border: `1px solid ${T.border}`, color: T.dim, fontSize: 12 }}>Thinking...</div>}
               <div ref={messagesEndRef} />
             </div>
             <div style={{ padding: "10px 14px", borderTop: `1px solid ${T.border}` }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <input value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askAnalyst(); } }} placeholder="Ask about this brief…" style={{ ...IS, marginTop: 0, flex: 1, height: 40 }} />
+                <input value={question} onChange={e => setQuestion(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askAnalyst(); } }} placeholder="Ask about this brief..." style={{ ...IS, marginTop: 0, flex: 1, height: 40 }} />
                 <button
                   onClick={recording ? stopVoice : startVoice}
                   disabled={voiceBusy || chatLoading}
@@ -2485,12 +2794,15 @@ function DemoPage({ nav }) {
           <div style={{ borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
             <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".07em", color: T.dim }}>Run receipt</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)" }}>
-              {[["Evidence", evidenceCount, T.accent], ["Graph", graphCount, "#22c55e"], ["Confidence", brief.confidence ? `${Math.round(brief.confidence * 100)}%` : "—", "#818cf8"]].map(([l, v, c], i) => (
+              {[["Evidence", evidenceCount, T.accent], ["Map", graphCount, "#22c55e"], ["Confidence", brief.confidence ? `${Math.round(brief.confidence * 100)}%` : "-", "#818cf8"]].map(([l, v, c], i) => (
                 <div key={l} style={{ padding: "14px 14px", borderLeft: i ? `1px solid ${T.border}` : "none", textAlign: "center" }}>
                   <div style={{ fontSize: 20, fontWeight: 900, color: c }}>{v}</div>
                   <div style={{ fontSize: 10, color: T.dim, marginTop: 3 }}>{l}</div>
                 </div>
               ))}
+            </div>
+            <div style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}`, color: T.dim, fontSize: 11, lineHeight: 1.45 }}>
+              Proof of what was monitored, which records were used, and how the recommendation was produced.
             </div>
           </div>
 
@@ -2517,10 +2829,10 @@ function DemoPage({ nav }) {
                 <div key={rec.id} style={{ padding: "12px 16px", borderBottom: i < Math.min(evidence.length, 4) - 1 ? `1px solid ${T.border}` : "none" }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: T.text, marginBottom: 4 }}>{rec.entity_name || "Evidence"}</div>
                   <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.5, marginBottom: 6 }}>{(rec.summary || "").slice(0, 120)}</div>
-                  {rec.source_url && <SourceLink url={rec.source_url}><span style={{ fontSize: 10 }}>{toHostname(rec.source_url) || "source"} ↗</span></SourceLink>}
+                  {rec.source_url && <SourceLink url={rec.source_url}><span style={{ fontSize: 10 }}>{toHostname(rec.source_url) || "source"} open</span></SourceLink>}
                 </div>
               ))}
-              {!evidence.length && <div style={{ padding: "14px 16px", color: T.dim, fontSize: 12 }}>Evidence appears after a live API run.</div>}
+              {!evidence.length && <div style={{ padding: "14px 16px", color: T.dim, fontSize: 12 }}>Evidence appears after a sandbox run.</div>}
             </div>
           </div>
 
@@ -2534,9 +2846,9 @@ function DemoPage({ nav }) {
 
           {/* CTA */}
           <div style={{ borderRadius: 12, background: `linear-gradient(135deg,rgba(18,181,203,.08),rgba(8,145,178,.04))`, border: `1px solid rgba(18,181,203,.2)`, padding: "18px 16px", textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Keep this running</div>
-            <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.55, marginBottom: 14 }}>Get alerts when signals change. Review evidence. Approve actions.</div>
-            <button onClick={() => nav("Home")} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", background: T.accent, color: "#000", fontSize: 13, fontWeight: 900 }}>Create free account</button>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>Move from sandbox to live monitoring</div>
+            <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.55, marginBottom: 14 }}>Create a workspace, connect providers, set cadence, and turn these briefs into reviewable actions.</div>
+            <button onClick={() => nav("Home")} style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", background: T.accent, color: "#000", fontSize: 13, fontWeight: 900 }}>Create trial workspace</button>
           </div>
         </div>
       </div>
@@ -7784,7 +8096,7 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
     return (
       <div style={{ marginTop: 10, padding: "14px 0", borderTop: `1px solid ${T.border}` }}>
         <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.6 }}>
-          Graph populates after the first intelligence run. Run monitoring to build the relationship graph.
+          Intelligence Map appears after the first intelligence run. Run monitoring to connect evidence, entities, and actions.
         </div>
         {wsId && (
           <button onClick={triggerBackfill} disabled={backfilling} style={{
@@ -7792,7 +8104,7 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
             background: "transparent", color: T.accent, fontSize: 11, fontWeight: 700,
             opacity: backfilling ? 0.5 : 1,
           }}>
-            {backfilling ? "Building graph…" : "Build from existing evidence"}
+            {backfilling ? "Building map..." : "Build from existing evidence"}
           </button>
         )}
       </div>
@@ -7872,7 +8184,7 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
           {shortLabel(title, 36)} · <span style={{ color: T.dim, fontWeight: 400 }}>{allNodes.length} nodes · {allEdges.length} links</span>
         </span>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-          <button onClick={refresh} disabled={loading} style={{ border: "none", background: "transparent", color: T.dim, fontSize: 12, lineHeight: 1 }} title="Refresh graph">↺</button>
+          <button onClick={refresh} disabled={loading} style={{ border: "none", background: "transparent", color: T.dim, fontSize: 12, lineHeight: 1 }} title="Refresh Intelligence Map">↺</button>
           <button onClick={() => setExpanded(true)} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 10, fontWeight: 800 }}>Expand ↗</button>
         </div>
       </div>
@@ -7979,7 +8291,7 @@ function GraphFullView({ graph, title, wsId, latestRunId, onClose }) {
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <GitBranch size={15} color={T.accent} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 900, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title} — Relationship Intelligence Graph</div>
+            <div style={{ fontSize: 14, fontWeight: 900, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title} — Intelligence Map</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
               {typeStats.map(([type, count]) => (
                 <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: nodeColor(type), fontWeight: 700 }}>
