@@ -385,6 +385,8 @@ class IntelligenceService:
             if req.freshness_required_days and not self._record_is_current(rec, req.freshness_required_days):
                 continue
             score, reasons = self._score_record(rec, query_terms, req)
+            if "no_query_match" in reasons:
+                continue
             scored.append(RetrievalResult(record=self._record_read(rec), score=score, reasons=reasons))
         scored.sort(key=lambda x: x.score, reverse=True)
         return scored[: req.top_k]
