@@ -75,6 +75,53 @@ async def test_mixed_auth_accepts_verified_clerk_session(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_mixed_auth_does_not_use_clerk_azp_as_tenant(monkeypatch):
+    monkeypatch.setenv("AUTH_MODE", "mixed")
+    monkeypatch.setenv("API_AUTH_ENABLED", "false")
+    get_settings.cache_clear()
+
+    def fake_verify(token, settings):
+        return {
+            "sub": "user_123",
+            "azp": "http://45.77.89.209",
+        }
+
+    monkeypatch.setattr("packages.common.security.verify_clerk_token", fake_verify)
+
+    auth = await require_api_key(
+        request=None,
+        authorization="Bearer session-token",
+        x_api_key=None,
+    )
+
+    assert auth.auth_type == "clerk"
+    assert auth.org_id is None
+    assert auth.tenant_id == "clerk_user_user_123"
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_mixed_auth_sanitizes_clerk_org_tenant(monkeypatch):
+    monkeypatch.setenv("AUTH_MODE", "mixed")
+    monkeypatch.setenv("API_AUTH_ENABLED", "false")
+    get_settings.cache_clear()
+
+    def fake_verify(token, settings):
+        return {"sub": "user_123", "org_id": "org:abc/demo"}
+
+    monkeypatch.setattr("packages.common.security.verify_clerk_token", fake_verify)
+
+    auth = await require_api_key(
+        request=None,
+        authorization="Bearer session-token",
+        x_api_key=None,
+    )
+
+    assert auth.tenant_id == "clerk_org_org_abc_demo"
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
 async def test_mixed_auth_rejects_anonymous_protected_route(monkeypatch):
     monkeypatch.setenv("AUTH_MODE", "mixed")
     monkeypatch.setenv("API_AUTH_ENABLED", "false")
@@ -100,4 +147,3 @@ async def test_mixed_auth_allows_configured_api_key(monkeypatch):
     assert auth.auth_type == "api_key"
     assert auth.principal == "api-key"
     get_settings.cache_clear()
-

@@ -2192,6 +2192,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
   useEffect(() => {
     const run = runs.find(item => item.id === selectedRunId);
     if (!run || run.report || run.status === "running") return;
+    if (String(run.id).startsWith("run-")) return;
     let cancelled = false;
     endpoints.getRun(run.id)
       .then(detail => {
@@ -2199,7 +2200,13 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
         setRuns(prev => prev.map(item => item.id === run.id ? mapRun({ ...detail, report: detail.report }) : item));
       })
       .catch(e => {
-        if (!cancelled) setError(e.message || "Could not load run detail.");
+        if (cancelled) return;
+        if ((e.message || "").includes("Run not found")) {
+          setRuns(prev => prev.filter(item => item.id !== run.id));
+          setSelectedRunId(prev => prev === run.id ? null : prev);
+          return;
+        }
+        setError(e.message || "Could not load run detail.");
       });
     return () => { cancelled = true; };
   }, [selectedRunId, runs, mapRun]);

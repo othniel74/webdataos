@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import re
 from dataclasses import dataclass
 from fastapi import Header, HTTPException, Request, status
 from jwt import PyJWTError
@@ -33,6 +34,11 @@ def _extract_bearer(authorization: str | None) -> str | None:
     return None
 
 
+def _tenant_component(value: str | None, fallback: str = "unknown") -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]+", "_", value or "").strip("_")
+    return cleaned[:80] or fallback
+
+
 async def require_api_key(
     request: Request,
     authorization: str | None = Header(default=None),
@@ -51,8 +57,12 @@ async def require_api_key(
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Clerk session") from exc
         else:
             user_id = claims.get("sub")
-            org_id = claims.get("org_id") or claims.get("orgid") or claims.get("azp")
-            tenant_id = f"clerk_org_{org_id}" if org_id else f"clerk_user_{user_id}"
+            org_id = claims.get("org_id") or claims.get("orgid")
+            tenant_id = (
+                f"clerk_org_{_tenant_component(org_id)}"
+                if org_id
+                else f"clerk_user_{_tenant_component(user_id)}"
+            )
             role = claims.get("org_role") or claims.get("role") or "analyst"
             return AuthContext(
                 principal=user_id or "clerk-user",
