@@ -303,7 +303,8 @@ const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
   const publicMatch = PUB.find(page => page.toLowerCase() === path);
-  return publicMatch || "Home";
+  const privateMatch = PRIV.find(page => page.toLowerCase() === path);
+  return publicMatch || privateMatch || "Home";
 };
 const toAppUser = account => {
   const email = account?.email || "";
@@ -8091,6 +8092,7 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
     if (!selectedId) return [];
     return allEdges.filter(e => e.source === selectedId || e.target === selectedId);
   }, [selectedId, allEdges]);
+  const presentNodeTypes = useMemo(() => [...new Set(allNodes.map(n => n.type))].filter(t => GRAPH_NODE_COLORS[t]).slice(0, 8), [allNodes]);
 
   if (!allNodes.length && !allEdges.length) {
     return (
@@ -8174,8 +8176,6 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
       )}
     </div>
   );
-
-  const presentNodeTypes = useMemo(() => [...new Set(allNodes.map(n => n.type))].filter(t => GRAPH_NODE_COLORS[t]).slice(0, 8), [allNodes]);
 
   return (
     <div style={{ marginTop: 10 }}>
