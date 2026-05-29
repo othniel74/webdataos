@@ -954,12 +954,12 @@ function PublicHomePage({ nav, user, auth }) {
   ];
 
   const compliance = [
-    { title: "SOC 2 Type II", status: "Certified", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Annual third-party audit. Security, availability, and confidentiality trust service criteria verified." },
-    { title: "ISO 27001", status: "Certified", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "International information security management standard. Continuous compliance cycle maintained." },
-    { title: "Web Notarization", status: "Enabled", color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", desc: "Every source cryptographically notarized at capture time. Court-admissible provenance chain." },
+    { title: "Run Receipts", status: "Available", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Every monitoring run records sources, reasoning, actions, and outcome history for review." },
+    { title: "Role-Based Access", status: "Available", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Workspace access can be separated across admin, analyst, and viewer roles." },
+    { title: "Source Evidence", status: "Available", color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", desc: "Each brief keeps source links and extracted evidence so users can validate findings." },
     { title: "Audit Trail", status: "Available", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Full immutable log for every action, query, and output — exportable for compliance review and audits." },
-    { title: "Data Archiving", status: "Available", color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", desc: "Configurable retention with AES-256 encrypted archival. WORM-compliant storage for regulated industries." },
-    { title: "99.9% Uptime SLA", status: "Guaranteed", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Financially-backed SLA with dedicated CSM, priority incident response, and live status page." },
+    { title: "Data Retention", status: "Configurable", color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", desc: "Workspace retention and export behavior can be configured for operating needs." },
+    { title: "Operational Health", status: "Visible", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Provider and backend status are surfaced so teams can see when integrations are healthy." },
   ];
 
   const faqs = [
@@ -967,12 +967,12 @@ function PublicHomePage({ nav, user, auth }) {
     { q: "What does it actually monitor?", a: "WebDataOS monitors the live web: news, regulatory filings, job postings, pricing pages, competitor sites, vendor disclosures, SEC filings, earnings call transcripts, and more. You define what matters; the platform watches continuously and prioritizes by relevance to your context." },
     { q: "Does it train on my data?", a: "No. Your data is never used to train models. All processing is isolated per organization in a tenant-isolated environment. Outputs are stored only in your encrypted workspace and are never shared with other customers or used to improve models." },
     { q: "How quickly does it produce the first brief?", a: "Most teams see their first actionable brief within 24 hours of onboarding. Setup is guided, and pre-built intelligence templates across 30+ use cases get you live in minutes without any prompt engineering or configuration expertise required." },
-    { q: "Is my workspace data private?", a: "Yes. WebDataOS is SOC 2 Type II certified and ISO 27001 compliant. All workspace data is encrypted at rest (AES-256) and in transit (TLS 1.3). A complete, immutable audit trail is available for export at any time." },
+    { q: "Is my workspace data private?", a: "Workspace data is tenant-scoped in the application and operational history is kept with the workspace. Security posture should be reviewed against your deployment configuration before production use." },
     { q: "Does it require a dedicated analyst to operate?", a: "No. WebDataOS is designed to augment your existing team — not require a new hire. Briefings are self-contained with sourcing, reasoning, and recommended actions included. Most users interact with outputs directly in Slack, email, or their existing workflows." },
   ];
 
   const memoryEntities = [
-    { name: "Vendor A", badge: "HIGH RISK · 14 signals", nameColor: "#FCA5A5", accent: "#EF4444", rgb: "239,68,68", last: "Last: SOC 2 renewal delayed 60 days" },
+    { name: "Vendor A", badge: "HIGH RISK · 14 signals", nameColor: "#FCA5A5", accent: "#EF4444", rgb: "239,68,68", last: "Last: security review delayed 60 days" },
     { name: "Competitor X", badge: "WATCH · 8 signals", nameColor: "#FCD34D", accent: "#F59E0B", rgb: "245,158,11", last: "Last: Hired 12 enterprise sales reps in EMEA" },
     { name: "Target Acct B", badge: "OPPORTUNITY · 5 signals", nameColor: "#86EFAC", accent: "#22C55E", rgb: "34,197,94", last: "Last: Posted VP of Data — strong buying signal" },
     { name: "Regulatory Body", badge: "ACTIVE · 3 signals", nameColor: "#93C5FD", accent: "#3B82F6", rgb: "59,130,246", last: "Last: AI disclosure guidance — 3 vendors affected" },
@@ -997,7 +997,7 @@ function PublicHomePage({ nav, user, auth }) {
             <div><span>Business</span><strong>Reasoning</strong></div>
             <div><span>Monitoring</span><strong>24 / 7</strong></div>
           </div>
-          <p className="upgrade-hero-note">3 out of 4 users change a business decision within 7 days of first use</p>
+          <p className="upgrade-hero-note">Source-backed monitoring, reasoning, and run receipts for enterprise workflows.</p>
         </div>
       </section>
 
@@ -1056,7 +1056,7 @@ function PublicHomePage({ nav, user, auth }) {
               <div style={{ padding: "18px 20px" }}>
                 <div style={{ marginBottom: 14 }}>
                   <p style={{ fontSize: 9.5, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 5, fontFamily: "'DM Mono',monospace" }}>Situation</p>
-                  <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.55, margin: 0 }}>Vendor A's breach triggers your SOC 2 contingency clause §12.3. Contract exit window: 30 days. Legal review required before Monday.</p>
+                  <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.55, margin: 0 }}>Vendor A's breach may trigger a contract review clause. Contract exit window: 30 days. Legal review required before Monday.</p>
                 </div>
                 <div style={{ marginBottom: 14 }}>
                   <p style={{ fontSize: 9.5, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 7, fontFamily: "'DM Mono',monospace" }}>Approved Actions</p>
@@ -1283,7 +1283,7 @@ function PublicHomePage({ nav, user, auth }) {
               Talk to sales
             </button>
           </div>
-          <p style={{ fontSize: 12.5, color: "#475569" }}>No credit card required · SOC 2 Type II · Enterprise security review available</p>
+          <p style={{ fontSize: 12.5, color: "#475569" }}>No account needed for demo · Enterprise security review available</p>
         </div>
       </section>
 
