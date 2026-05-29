@@ -1,5 +1,5 @@
 import hashlib
-from datetime import timedelta
+from datetime import timedelta, timezone
 from packages.common.time import utc_now
 
 
@@ -10,6 +10,8 @@ def stable_id(*parts: str) -> str:
 def freshness_status(last_checked, required_days: int | None = None) -> str:
     if not last_checked:
         return "unknown"
+    if last_checked.tzinfo is None:
+        last_checked = last_checked.replace(tzinfo=timezone.utc)
     days = required_days or 7
     if utc_now() - last_checked <= timedelta(days=days):
         return "fresh"

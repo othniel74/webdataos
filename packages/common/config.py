@@ -47,12 +47,17 @@ class Settings(BaseSettings):
 
     speechmatics_api_key: str | None = None
     speechmatics_endpoint: str | None = "https://asr.api.speechmatics.com/v2/jobs"
+    speechmatics_tts_endpoint: str = "https://preview.tts.speechmatics.com"
+    speechmatics_tts_voice: str = "sarah"
     speechmatics_poll_attempts: int = Field(default=60, ge=1, le=240)
     speechmatics_poll_interval_seconds: float = Field(default=5.0, ge=0.5, le=30.0)
     cognee_api_key: str | None = None
     cognee_endpoint: str | None = None
+    cognee_llm_model: str | None = None
+    cognee_embedding_model: str = "openai/text-embedding-3-small"
     triggerware_api_key: str | None = None
     triggerware_endpoint: str | None = None
+    triggerware_webhook_secret: str | None = None
 
     refresh_interval_minutes: int = 1440
     default_country: str = "us"

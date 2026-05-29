@@ -23,9 +23,19 @@ def _configure_cognee_env() -> None:
         os.environ.setdefault("EMBEDDING_API_KEY", openai_key)
     elif aimlapi_key:
         os.environ.setdefault("LLM_PROVIDER", "custom")
-        os.environ.setdefault("LLM_MODEL", os.getenv("AIMLAPI_MODEL", "gpt-4o"))
+        aimlapi_model = os.getenv("COGNEE_LLM_MODEL") or os.getenv("AIMLAPI_MODEL", "gpt-4o")
+        if "/" not in aimlapi_model:
+            aimlapi_model = f"openai/{aimlapi_model}"
+        os.environ.setdefault("LLM_MODEL", aimlapi_model)
         os.environ.setdefault("LLM_API_KEY", aimlapi_key)
         os.environ.setdefault("LLM_ENDPOINT", os.getenv("AIMLAPI_BASE_URL", "https://api.aimlapi.com/v1"))
+        os.environ.setdefault("EMBEDDING_PROVIDER", "custom")
+        os.environ.setdefault(
+            "EMBEDDING_MODEL",
+            os.getenv("COGNEE_EMBEDDING_MODEL", "openai/text-embedding-3-small"),
+        )
+        os.environ.setdefault("EMBEDDING_API_KEY", aimlapi_key)
+        os.environ.setdefault("EMBEDDING_ENDPOINT", os.getenv("AIMLAPI_BASE_URL", "https://api.aimlapi.com/v1"))
 
     os.environ.setdefault("DATA_ROOT_DIRECTORY", "/data/cognee/data")
     os.environ.setdefault("SYSTEM_ROOT_DIRECTORY", "/data/cognee/system")

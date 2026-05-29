@@ -51,3 +51,33 @@ class RetrievalResult(BaseModel):
     record: IntelligenceRecordRead
     score: float
     reasons: list[str] = Field(default_factory=list)
+
+
+class GraphNode(BaseModel):
+    id: str
+    label: str
+    type: str
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class GraphRelationship(BaseModel):
+    source: str
+    target: str
+    type: str
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class GraphSnapshot(BaseModel):
+    status: str = "disabled"
+    nodes: list[GraphNode] = Field(default_factory=list)
+    relationships: list[GraphRelationship] = Field(default_factory=list)
+    counts: dict[str, int] = Field(default_factory=dict)
+    message: str | None = None
+
+
+class GraphStatus(BaseModel):
+    status: str
+    enabled: bool = False
+    counts: dict[str, int] = Field(default_factory=dict)
+    top_entities: list[dict[str, Any]] = Field(default_factory=list)
+    message: str | None = None

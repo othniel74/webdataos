@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import uuid
+import hashlib
+import hmac
+import json
 from typing import Any
 
 import httpx
@@ -24,33 +27,52 @@ class TriggerWareService:
 
         action = self._action_for(request.event_type, request.severity)
         return WorkflowEvent(
-            event_id=f"tw_{uuid.uuid4().hex[:12]}",
+            event_id=request.event_id or f"tw_{uuid.uuid4().hex[:12]}",
             workspace_id=request.workspace_id,
             event_type=request.event_type,
             status="triggered",
-            action=action,
+            action=request.recommended_action or action,
             severity=request.severity,
             summary=request.summary,
         )
 
     async def _trigger_remote(self, request: WorkflowTriggerRequest) -> WorkflowEvent:
         payload: dict[str, Any] = {
+            "event_id": request.event_id or f"wdo_{uuid.uuid4().hex[:12]}",
             "workspace_id": request.workspace_id,
+            "run_id": request.run_id,
+            "domain": request.domain or request.package_id or "enterprise",
+            "package_id": request.package_id,
             "event_type": request.event_type,
+            "signal_type": request.signal_type or request.event_type,
+            "entity_id": request.entity_id,
+            "entity_name": request.entity_name,
             "summary": request.summary,
             "severity": request.severity,
+            "recommended_action": request.recommended_action,
+            "action": request.recommended_action,
+            "evidence_urls": request.evidence_urls,
+            "source_system": request.source_system,
             "payload": request.payload,
         }
         headers = {"Content-Type": "application/json"}
         if self.settings.triggerware_api_key:
             headers["Authorization"] = f"Bearer {self.settings.triggerware_api_key}"
             headers["X-API-Key"] = self.settings.triggerware_api_key
+        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        if self.settings.triggerware_webhook_secret:
+            digest = hmac.new(
+                self.settings.triggerware_webhook_secret.encode("utf-8"),
+                body,
+                hashlib.sha256,
+            ).hexdigest()
+            headers["X-WebDataOS-Signature"] = f"sha256={digest}"
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 self.settings.triggerware_endpoint,
                 headers=headers,
-                json=payload,
+                content=body,
             )
             response.raise_for_status()
             data = self._json_or_empty(response)
@@ -64,6 +86,7 @@ class TriggerWareService:
         )
         status = data.get("status") or data.get("state") or "triggered"
         action = data.get("action") or self._action_for(request.event_type, request.severity)
+        action_id = data.get("action_id")
         logger.info("triggerware_remote_triggered", event_id=event_id, status=status)
         return WorkflowEvent(
             event_id=str(event_id),
@@ -73,6 +96,7 @@ class TriggerWareService:
             action=str(action),
             severity=request.severity,
             summary=request.summary,
+            action_id=str(action_id) if action_id else None,
         )
 
     def _json_or_empty(self, response: httpx.Response) -> dict[str, Any]:

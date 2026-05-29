@@ -20,7 +20,7 @@ WebDataOS turns public web signals into sourced intelligence briefs, reusable me
 | --- | --- |
 | Frontend | React/Vite UI deployed on Vercel and Vultr. |
 | Backend | FastAPI API deployed on Vultr behind Nginx. |
-| Bright Data | Live credentials configured for SERP, Web Scraper, Web Unlocker, and Scraping Browser. MCP is optional and only used when an endpoint is configured. |
+| Bright Data | Live credentials configured for SERP, Web Scraper, Web Unlocker, and Scraping Browser. |
 | LLM routing | OpenAI primary with AI/ML API fallback. AI/ML API model listing is exposed through the API. |
 | Memory | Cognee local is deployed; self-hosted PostgreSQL memory remains available as fallback. |
 | Speechmatics | API key configured; endpoint defaults to the Speechmatics batch transcription API. |
@@ -34,7 +34,7 @@ User request or audio upload
   -> Speechmatics transcription, when audio is supplied
   -> Memory recall through Cognee local/cloud plus self-hosted fallback search
   -> Intelligence engine checks freshness and retrieves evidence
-  -> Bright Data gateway routes across SERP, Web Scraper, Scraping Browser, Web Unlocker, and optional MCP fallback
+  -> Bright Data gateway routes across SERP, Web Scraper, Scraping Browser, and Web Unlocker
   -> LLM synthesizer uses OpenAI with AI/ML API fallback
   -> Reasoning engine applies workspace context and materiality rules
   -> Autonomous action proposals are generated behind approval gates
@@ -60,7 +60,7 @@ User request or audio upload
 
 | Partner | Responsibility | Notes |
 | --- | --- | --- |
-| Bright Data | Public web evidence retrieval | Used for SERP, scraping, browser automation, unlocker recovery, and optional MCP fallback. |
+| Bright Data | Public web evidence retrieval | Used for SERP, scraping, browser automation, and unlocker recovery. |
 | OpenAI | Primary chat and embedding provider | Used for LLM synthesis and semantic memory when configured. |
 | AI/ML API | OpenAI-compatible fallback LLM provider | Supports multiple model vendors through the configured AI/ML API model. |
 | Cognee | Knowledge graph memory | Runs locally in the Vultr deployment; Cloud credentials are optional. |
@@ -89,7 +89,7 @@ Important variables:
 | `COGNEE_ENDPOINT`, `COGNEE_API_KEY` | Optional Cognee Cloud configuration. Leave empty for local Cognee. |
 | `COGNEE_UI_PORT`, `COGNEE_LLM_MODEL`, `COGNEE_EMBEDDING_MODEL` | Local Cognee UI and model settings. |
 | `SPEECHMATICS_API_KEY`, `SPEECHMATICS_ENDPOINT` | Speechmatics transcription configuration. |
-| `TRIGGERWARE_API_KEY`, `TRIGGERWARE_ENDPOINT` | TriggerWare workflow delivery configuration. |
+| `TRIGGERWARE_API_KEY`, `TRIGGERWARE_ENDPOINT`, `TRIGGERWARE_WEBHOOK_SECRET` | TriggerWare workflow delivery, optional API key, and optional HMAC signature secret. |
 | `NEO4J_ENABLED`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Optional graph database configuration. |
 | `VITE_API_BASE_URL`, `VITE_API_KEY` | Frontend build-time API connection settings. |
 

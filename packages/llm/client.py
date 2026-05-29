@@ -75,10 +75,11 @@ class LLMClient:
         self.provider = "+".join(p.name for p in self.providers) or provider
         self.last_provider: str | None = None
         self._clients: dict[str, httpx.AsyncClient] = {}
+        self._disabled: set[str] = set()
 
     @property
     def available(self) -> bool:
-        return bool(self.providers)
+        return any(provider.name not in self._disabled for provider in self.providers)
 
     async def _get_client(self, provider: LLMProvider) -> httpx.AsyncClient:
         client = self._clients.get(provider.name)
@@ -108,6 +109,8 @@ class LLMClient:
 
         last_error: Exception | None = None
         for provider in self.providers:
+            if provider.name in self._disabled:
+                continue
             client = await self._get_client(provider)
             payload: dict[str, Any] = {
                 "model": provider.model,
@@ -130,6 +133,8 @@ class LLMClient:
                 return data["choices"][0]["message"]["content"]
             except httpx.HTTPStatusError as exc:
                 last_error = exc
+                if exc.response.status_code in {401, 403}:
+                    self._disabled.add(provider.name)
                 logger.warning(
                     "llm_provider_failed",
                     provider=provider.name,

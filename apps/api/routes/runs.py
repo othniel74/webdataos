@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.session import get_db
@@ -9,13 +9,36 @@ router = APIRouter(prefix="/runs", tags=["Runs"], dependencies=[Depends(authenti
 
 
 @router.get("")
-async def list_runs(limit: int = 25, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AgentRun).order_by(desc(AgentRun.created_at)).limit(limit))
+async def list_runs(
+    topic_id: str | None = Query(default=None),
+    limit: int = Query(default=25, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(AgentRun).order_by(desc(AgentRun.created_at)).limit(limit)
+    if topic_id:
+        stmt = stmt.where(AgentRun.topic_id == topic_id)
+    result = await db.execute(stmt)
     runs = result.scalars().all()
-    return [
-        {"id": run.id, "topic_id": run.topic_id, "task": run.task, "status": run.status, "created_at": str(run.created_at)}
-        for run in runs
-    ]
+    payload = []
+    for run in runs:
+        report = run.report_json or {}
+        receipt = report.get("run_receipt") or {}
+        counts = receipt.get("counts") or {}
+        providers = receipt.get("providers") or {}
+        payload.append(
+            {
+                "id": run.id,
+                "topic_id": run.topic_id,
+                "task": run.task,
+                "status": run.status,
+                "summary": report.get("summary"),
+                "created_at": str(run.created_at),
+                "input_mode": receipt.get("input_mode"),
+                "counts": counts,
+                "providers": providers,
+            }
+        )
+    return payload
 
 
 @router.get("/{run_id}")

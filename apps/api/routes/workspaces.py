@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
-from packages.enterprise.packs import get_pack, list_packs
+from packages.enterprise.packs import get_pack, list_packs, package_id_from_description
 from packages.schemas.workspace import IntelligencePackRead, WorkspaceCreate, WorkspaceRead
 
 router = APIRouter(prefix="/workspaces", tags=["Enterprise Workspaces"], dependencies=[Depends(authenticated_context)])
@@ -38,9 +38,7 @@ def _pack_payload(pack_id: str) -> dict:
 
 
 def _workspace_read(topic: Topic) -> WorkspaceRead:
-    package_id = "enterprise"
-    if topic.description and topic.description.startswith("package_id="):
-        package_id = topic.description.split(";", 1)[0].replace("package_id=", "")
+    package_id = package_id_from_description(topic.description)
     pack = get_pack(package_id)
     return WorkspaceRead(
         id=topic.id,

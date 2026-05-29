@@ -87,19 +87,53 @@ class ReasoningEngine:
                     "Review security, compliance, and vendor-risk posture before the next decision cycle."
                 )
                 reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as {signal_type}")
+            elif signal_type in {"competitor_move", "account_intent"}:
+                materiality = "medium"
+                urgency = "standard"
+                impact_desc = (
+                    f"GTM signal detected for {rec.entity_name}. "
+                    "Review positioning, affected accounts, competitive response, and sales enablement impact."
+                )
+                reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as {signal_type}")
+            elif signal_type in {"filing", "supplier_risk", "market_movement"}:
+                materiality = "medium"
+                urgency = "urgent" if signal_type == "filing" else "standard"
+                impact_desc = (
+                    f"Finance or procurement signal detected for {rec.entity_name}. "
+                    "Review supplier exposure, budget impact, filings, renewal timing, and forecast implications."
+                )
+                reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as {signal_type}")
             elif signal_type == "pricing":
                 materiality = "medium"
-                impact_desc = (
-                    f"Pricing or commercial-change signal detected for {rec.entity_name}. "
-                    "Review commercial exposure, renewal terms, and budget impact."
-                )
+                if framework.domain == "gtm":
+                    impact_desc = (
+                        f"Competitive pricing signal detected for {rec.entity_name}. "
+                        "Review win-rate exposure, packaging response, battlecards, and customer messaging."
+                    )
+                elif framework.domain == "finance":
+                    impact_desc = (
+                        f"Supplier or market pricing signal detected for {rec.entity_name}. "
+                        "Review spend exposure, renewal terms, savings opportunity, and budget impact."
+                    )
+                else:
+                    impact_desc = (
+                        f"Pricing or commercial-change signal detected for {rec.entity_name}. "
+                        "Review commercial exposure, renewal terms, and budget impact."
+                    )
                 reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as pricing")
             elif signal_type == "model_release":
                 materiality = "low"
-                impact_desc = (
-                    f"Product or model-release signal detected for {rec.entity_name}. "
-                    "Track whether this changes capability, adoption, or competitive positioning."
-                )
+                if framework.domain == "gtm":
+                    materiality = "medium"
+                    impact_desc = (
+                        f"Competitor product-release signal detected for {rec.entity_name}. "
+                        "Review feature parity, positioning, customer objections, and sales enablement updates."
+                    )
+                else:
+                    impact_desc = (
+                        f"Product or model-release signal detected for {rec.entity_name}. "
+                        "Track whether this changes capability, adoption, or competitive positioning."
+                    )
                 reasoning_trace.append(f"signal_classification: {rec.entity_name} classified as model_release")
 
             # Check for pricing changes against contract
@@ -164,7 +198,7 @@ class ReasoningEngine:
             else:
                 title = f"Review {entity_names[0]} - {assessment.materiality} materiality signal"
                 description = assessment.impact_description
-                suggested = self._suggest_actions(assessment.impact_description)
+                suggested = self._suggest_actions(assessment.impact_description, framework.domain)
 
             recommendations.append(Recommendation(
                 id=rec_id,
@@ -231,18 +265,46 @@ class ReasoningEngine:
     def _classify_signal(self, text: str) -> str:
         if any(term in text for term in ["breach", "incident", "vulnerability", "exploit", "leak", "ransomware"]):
             return "breach"
-        if any(term in text for term in ["security", "threat", "risk", "soc2", "soc 2", "trust", "governance"]):
+        if any(term in text for term in ["supplier", "supply chain", "procurement", "vendor spend", "supplier risk"]):
+            return "supplier_risk"
+        if any(term in text for term in ["security", "threat", "vendor risk", "soc2", "soc 2", "trust", "governance"]):
             return "security_risk"
         if any(term in text for term in ["compliance", "regulation", "regulatory", "audit", "gdpr", "eu ai act", "policy"]):
             return "compliance"
+        if any(term in text for term in ["competitor", "competitive", "positioning", "messaging", "battlecard", "win rate", "launches"]):
+            return "competitor_move"
+        if any(term in text for term in ["intent", "rfp", "pipeline", "account", "buying signal", "hiring"]):
+            return "account_intent"
+        if any(term in text for term in ["filing", "10-k", "10q", "10-q", "annual report", "disclosure", "sec "]):
+            return "filing"
+        if any(term in text for term in ["market movement", "market signal", "sector", "commodity", "forecast", "inflation"]):
+            return "market_movement"
         if any(term in text for term in ["pricing", "price", "cost", "plan", "subscription", "renewal"]):
             return "pricing"
         if any(term in text for term in ["launch", "release", "model", "integration", "enterprise", "feature"]):
             return "model_release"
         return "informational"
 
-    def _suggest_actions(self, impact_description: str) -> list[str]:
+    def _suggest_actions(self, impact_description: str, domain: str = "enterprise") -> list[str]:
         text = impact_description.lower()
+        if domain == "gtm":
+            return [
+                "Update competitive battlecards and sales talking points",
+                "Brief sales and product marketing owners",
+                "Assess account or pipeline exposure",
+            ]
+        if domain == "finance":
+            return [
+                "Open a procurement or finance review",
+                "Estimate budget, renewal, or supplier exposure",
+                "Compare alternatives and update forecast assumptions",
+            ]
+        if domain == "security":
+            return [
+                "Open a vendor-risk review",
+                "Request updated security or compliance evidence",
+                "Notify security and procurement owners",
+            ]
         if "breach" in text or "security" in text or "risk" in text:
             return [
                 "Open a vendor-risk review",
@@ -281,6 +343,36 @@ class ReasoningEngine:
         proposals = []
         seen_actions: set[tuple[str, str]] = set()
         for rec in reasoning.recommendations:
+            framework_id = rec.framework_used or ""
+            entity = rec.affected_entities[0] if rec.affected_entities else "entity"
+            if "competitive" in framework_id:
+                action_key = ("update_competitive_brief", entity)
+                if action_key not in seen_actions:
+                    seen_actions.add(action_key)
+                    proposals.append(ActionProposal(
+                        action_type="update_competitive_brief",
+                        title=f"Update competitive brief: {entity}",
+                        description="Translate this GTM signal into battlecard, messaging, and account-response updates.",
+                        payload={"recommendation_id": rec.id, "entities": rec.affected_entities},
+                        recommendation_id=rec.id,
+                        requires_approval=rec.materiality in {"critical", "high"},
+                        urgency="standard",
+                    ))
+                continue
+            if "procurement" in framework_id:
+                action_key = ("schedule_procurement_review", entity)
+                if action_key not in seen_actions:
+                    seen_actions.add(action_key)
+                    proposals.append(ActionProposal(
+                        action_type="schedule_procurement_review",
+                        title=f"Review finance exposure: {entity}",
+                        description="Assess supplier, spend, renewal, filing, or market exposure tied to this signal.",
+                        payload={"recommendation_id": rec.id, "entities": rec.affected_entities, "financial_impact": rec.financial_impact},
+                        recommendation_id=rec.id,
+                        requires_approval=rec.materiality in {"critical", "high"},
+                        urgency="urgent" if rec.materiality in {"critical", "high"} else "standard",
+                    ))
+                continue
             if rec.materiality in {"critical", "high"}:
                 # High materiality → propose concrete actions
                 if rec.financial_impact and rec.financial_impact > 0:
@@ -314,7 +406,6 @@ class ReasoningEngine:
                     ))
 
             elif rec.materiality == "medium":
-                entity = rec.affected_entities[0] if rec.affected_entities else "entity"
                 action_key = ("update_risk_register", entity)
                 if action_key in seen_actions:
                     continue

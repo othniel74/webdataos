@@ -15,15 +15,13 @@ class RecoveryRouter:
         if failure == FailureType.none:
             return None
         if failure in {FailureType.blocked, FailureType.captcha, FailureType.geo_blocked, FailureType.rate_limited}:
-            return self._next_in_sequence(current, [ToolName.web_unlocker, ToolName.scraping_browser, ToolName.mcp_server])
+            return self._next_in_sequence(current, [ToolName.web_unlocker, ToolName.scraping_browser])
         if failure in {FailureType.javascript_required, FailureType.empty_response, FailureType.selector_failed}:
-            return self._next_in_sequence(current, [ToolName.scraping_browser, ToolName.web_unlocker, ToolName.mcp_server])
+            return self._next_in_sequence(current, [ToolName.scraping_browser, ToolName.web_unlocker])
         if current == ToolName.web_scraper_api:
             return ToolName.scraping_browser
         if current == ToolName.scraping_browser:
             return ToolName.web_unlocker
-        if current == ToolName.web_unlocker:
-            return ToolName.mcp_server
         return None
 
     def _next_in_sequence(self, current: ToolName, sequence: list[ToolName]) -> ToolName | None:

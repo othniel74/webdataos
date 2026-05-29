@@ -40,7 +40,7 @@ INTELLIGENCE_PACKS: dict[str, IntelligencePack] = {
         description="Track competitors, pricing, messaging, hiring signals, account enrichment, and buying intent.",
         entities=["competitors", "accounts", "products", "markets"],
         signals=["competitor_move", "pricing_change", "messaging_shift", "buying_signal"],
-        brightdata_routes=["serp_api", "web_scraper_api", "scraping_browser", "mcp_server"],
+        brightdata_routes=["serp_api", "web_scraper_api", "scraping_browser", "web_unlocker"],
         output_focus=["market_brief", "account_intelligence", "competitive_change", "workflow_action"],
         input_channels=COMMON_INPUTS,
         partner_routes=COMMON_PARTNERS,
@@ -52,7 +52,7 @@ INTELLIGENCE_PACKS: dict[str, IntelligencePack] = {
         description="Monitor filings, supplier signals, pricing movements, sector changes, and alternative market data.",
         entities=["companies", "suppliers", "sectors", "market_pages"],
         signals=["filing", "supplier_signal", "market_movement", "alternative_data"],
-        brightdata_routes=["serp_api", "web_scraper_api", "scraping_browser", "mcp_server"],
+        brightdata_routes=["serp_api", "web_scraper_api", "scraping_browser", "web_unlocker"],
         output_focus=["market_signal", "company_brief", "supplier_risk", "workflow_action"],
         input_channels=COMMON_INPUTS,
         partner_routes=COMMON_PARTNERS,
@@ -64,7 +64,7 @@ INTELLIGENCE_PACKS: dict[str, IntelligencePack] = {
         description="Combine Security, GTM, Finance, voice input, Cognee evidence memory, Bright Data retrieval, TriggerWare automations, and agent-ready JSON.",
         entities=["vendors", "competitors", "accounts", "companies"],
         signals=["vendor_risk", "competitor_move", "pricing_change", "market_movement", "regulatory_change", "workflow_trigger"],
-        brightdata_routes=["serp_api", "web_unlocker", "scraping_browser", "web_scraper_api", "mcp_server"],
+        brightdata_routes=["serp_api", "web_unlocker", "scraping_browser", "web_scraper_api"],
         output_focus=["executive_brief", "cross_track_alert", "shared_evidence", "workflow_action"],
         input_channels=COMMON_INPUTS,
         partner_routes=COMMON_PARTNERS,
@@ -76,6 +76,14 @@ def get_pack(pack_id: str | None) -> IntelligencePack:
     if not pack_id:
         return INTELLIGENCE_PACKS["enterprise"]
     return INTELLIGENCE_PACKS.get(pack_id, INTELLIGENCE_PACKS["enterprise"])
+
+
+def package_id_from_description(description: str | None) -> str:
+    if description and description.startswith("package_id="):
+        package_id = description.split(";", 1)[0].replace("package_id=", "").strip()
+        if package_id in INTELLIGENCE_PACKS:
+            return package_id
+    return "enterprise"
 
 
 def list_packs() -> list[IntelligencePack]:

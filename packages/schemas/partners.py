@@ -19,6 +19,11 @@ class TranscriptionResult(BaseModel):
     speaker_labels: list[str] = Field(default_factory=list)
 
 
+class TextToSpeechRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
+    voice: str | None = None
+
+
 class MemoryUpsertRequest(BaseModel):
     workspace_id: str
     entity: str
@@ -49,6 +54,16 @@ class WorkflowTriggerRequest(BaseModel):
     event_type: str
     summary: str
     severity: str = "medium"
+    event_id: str | None = None
+    run_id: str | None = None
+    domain: str | None = None
+    package_id: str | None = None
+    signal_type: str | None = None
+    entity_id: str | None = None
+    entity_name: str | None = None
+    recommended_action: str | None = None
+    evidence_urls: list[str] = Field(default_factory=list)
+    source_system: str = "webdataos"
     payload: dict = Field(default_factory=dict)
 
 
@@ -61,3 +76,4 @@ class WorkflowEvent(BaseModel):
     action: str
     severity: str
     summary: str
+    action_id: str | None = None

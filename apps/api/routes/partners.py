@@ -1,7 +1,8 @@
 """Partner runtime routes — Speechmatics, Memory (Cognee + self-hosted), TriggerWare."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
+from starlette.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.session import get_db
@@ -13,6 +14,7 @@ from packages.schemas.partners import (
     MemoryRecord,
     MemorySearchRequest,
     MemoryUpsertRequest,
+    TextToSpeechRequest,
     TranscriptionRequest,
     TranscriptionResult,
     WorkflowEvent,
@@ -25,6 +27,34 @@ router = APIRouter(tags=["Partner Runtime"], dependencies=[Depends(authenticated
 @router.post("/transcriptions", response_model=TranscriptionResult)
 async def transcribe(payload: TranscriptionRequest, speechmatics: SpeechmaticsService = Depends(get_speechmatics_service)) -> TranscriptionResult:
     return await speechmatics.transcribe(payload)
+
+
+@router.post("/transcriptions/upload", response_model=TranscriptionResult)
+async def transcribe_upload(
+    audio: UploadFile = File(...),
+    language: str = Form("en"),
+    speechmatics: SpeechmaticsService = Depends(get_speechmatics_service),
+) -> TranscriptionResult:
+    content = await audio.read()
+    return await speechmatics.transcribe_audio_file(
+        content,
+        filename=audio.filename or "recording.webm",
+        content_type=audio.content_type,
+        language=language,
+    )
+
+
+@router.post("/speech/synthesize")
+async def synthesize_speech(
+    payload: TextToSpeechRequest,
+    speechmatics: SpeechmaticsService = Depends(get_speechmatics_service),
+) -> Response:
+    audio = await speechmatics.synthesize(payload)
+    return Response(
+        content=audio,
+        media_type="audio/wav",
+        headers={"Content-Disposition": 'inline; filename="speechmatics.wav"'},
+    )
 
 
 @router.post("/memory/upsert", response_model=MemoryRecord)

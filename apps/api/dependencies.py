@@ -5,6 +5,7 @@ from packages.agents.orchestrator import ResearchAgentOrchestrator
 from packages.common.rate_limit import enforce_rate_limit
 from packages.common.security import AuthContext, require_api_key
 from packages.llm.client import LLMClient
+from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.memory.embeddings import EmbeddingClient
 from packages.memory.provider import MemoryProvider
 from packages.memory.service import MemoryService
@@ -23,6 +24,7 @@ _memory = MemoryProvider(cognee=_cognee, self_hosted=_self_hosted_memory)
 _triggerware = TriggerWareService()
 _reasoning = ReasoningEngine()
 _llm = LLMClient()
+_graph = Neo4jGraphClient()
 _agent = ResearchAgentOrchestrator(_intelligence, _speechmatics, _memory, _triggerware, _reasoning, _llm)
 
 
@@ -64,3 +66,7 @@ def get_memory_provider() -> MemoryProvider:
 
 def get_triggerware_service() -> TriggerWareService:
     return _triggerware
+
+
+def get_graph_service() -> Neo4jGraphClient:
+    return _graph

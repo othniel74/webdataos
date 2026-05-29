@@ -147,7 +147,14 @@ class IntelligenceService:
             run.error = str(exc)
             run.completed_at = utc_now()
             await db.commit()
-        return {"run_id": run_id, "topic_id": topic_id, "sources_checked": checked, "records_created": created, "status": run.status}
+        return {
+            "run_id": run_id,
+            "topic_id": topic_id,
+            "sources_checked": checked,
+            "records_created": created,
+            "status": run.status,
+            "error": run.error,
+        }
 
     async def extract_and_store(self, db: AsyncSession, topic_id: str, source: Source) -> IntelligenceRecordRead | None:
         topic = await db.get(Topic, topic_id)
@@ -207,16 +214,7 @@ class IntelligenceService:
         source.next_refresh_due = now + timedelta(minutes=1440)
         await db.commit()
         payload = self._record_read(model)
-        try:
-            self.graph.upsert_intelligence_record({
-                "entity_name": payload.entity_name,
-                "source_url": payload.source_url,
-                "source_type": payload.source_type,
-                "facts": payload.facts,
-                "last_checked": payload.last_checked,
-            })
-        except Exception as exc:
-            logger.warning("neo4j_mirror_failed", error=str(exc)[:300], topic_id=topic_id, source_url=source.url)
+        self._mirror_graph(payload)
         return payload
 
     async def _store_source_metadata_record(
@@ -267,7 +265,27 @@ class IntelligenceService:
         source.last_checked = now
         source.next_refresh_due = now + timedelta(minutes=1440)
         await db.commit()
-        return self._record_read(model)
+        payload = self._record_read(model)
+        self._mirror_graph(payload)
+        return payload
+
+    def _mirror_graph(self, payload: IntelligenceRecordRead) -> None:
+        try:
+            self.graph.upsert_intelligence_record({
+                "id": payload.id,
+                "topic_id": payload.topic_id,
+                "entity_name": payload.entity_name,
+                "entity_type": payload.entity_type,
+                "source_url": payload.source_url,
+                "source_type": payload.source_type,
+                "facts": payload.facts,
+                "summary": payload.summary,
+                "confidence": payload.confidence,
+                "freshness_status": payload.freshness_status,
+                "last_checked": payload.last_checked,
+            })
+        except Exception as exc:
+            logger.warning("neo4j_mirror_failed", error=str(exc)[:300], topic_id=payload.topic_id, source_url=payload.source_url)
 
     def _infer_entity_name(self, topic: Topic | None, source: Source) -> str | None:
         haystack = " ".join([source.title or "", source.snippet or "", source.url or ""]).lower()

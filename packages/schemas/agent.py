@@ -5,6 +5,7 @@ from packages.schemas.partners import MemoryRecord, TranscriptionResult, Workflo
 
 class ResearchRequest(BaseModel):
     task: str
+    conversation_context: str | None = None
     topic_id: str = "workspace_enterprise"
     workspace_id: str | None = None
     package_id: str = "enterprise"
@@ -22,6 +23,24 @@ class ResearchPlanStep(BaseModel):
     action: str
     purpose: str
     tool_hint: str | None = None
+
+
+class ResearchRunStage(BaseModel):
+    name: str
+    status: str
+    provider: str | None = None
+    detail: str | None = None
+
+
+class ResearchRunReceipt(BaseModel):
+    run_id: str
+    status: str
+    input_mode: str
+    stages: list[ResearchRunStage] = Field(default_factory=list)
+    providers: dict[str, str | None] = Field(default_factory=dict)
+    counts: dict[str, int] = Field(default_factory=dict)
+    fallbacks_used: list[str] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
 
 
 class ResearchReport(BaseModel):
@@ -45,3 +64,4 @@ class ResearchReport(BaseModel):
     reasoning: dict | None = Field(default=None, description="ReasoningOutput from the LLM-backed reasoning engine")
     autonomous_actions: list[dict] = Field(default_factory=list, description="Proposed actions with approval status")
     org_context_used: bool = Field(default=False, description="Whether organizational context was applied")
+    run_receipt: ResearchRunReceipt | None = None

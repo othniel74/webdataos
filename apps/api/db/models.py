@@ -1,6 +1,8 @@
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+JSONType = JSON().with_variant(JSONB, "postgresql")
 
 
 class Base(DeclarativeBase):
@@ -12,8 +14,8 @@ class Topic(Base):
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    entities: Mapped[list] = mapped_column(JSONB, default=list)
-    watch_types: Mapped[list] = mapped_column(JSONB, default=list)
+    entities: Mapped[list] = mapped_column(JSONType, default=list)
+    watch_types: Mapped[list] = mapped_column(JSONType, default=list)
     refresh_frequency_minutes: Mapped[int] = mapped_column(Integer, default=1440)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -46,7 +48,7 @@ class IntelligenceRecord(Base):
     entity_type: Mapped[str | None] = mapped_column(String(80))
     source_url: Mapped[str] = mapped_column(Text)
     source_type: Mapped[str] = mapped_column(String(80), default="unknown")
-    facts_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    facts_json: Mapped[dict] = mapped_column(JSONType, default=dict)
     summary: Mapped[str | None] = mapped_column(Text)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     freshness_status: Mapped[str] = mapped_column(String(50), default="unknown")
@@ -62,8 +64,8 @@ class ChangeEvent(Base):
     record_id: Mapped[str] = mapped_column(String(64), index=True)
     change_type: Mapped[str] = mapped_column(String(80))
     field: Mapped[str | None] = mapped_column(String(120))
-    old_value: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    new_value: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    old_value: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    new_value: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     detected_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -85,11 +87,27 @@ class AgentRun(Base):
     topic_id: Mapped[str] = mapped_column(String(120), index=True)
     task: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50))
-    report_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    report_json: Mapped[dict] = mapped_column(JSONType, default=dict)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 # ── Self-hosted Memory (fallback/merge layer for Cognee) ─────────────
+
+class ChatMessage(Base):
+    """Durable analyst chat message for a workspace.
+
+    Agent runs are immutable receipts; chat messages preserve the working
+    conversation that produced those runs.
+    """
+    __tablename__ = "chat_messages"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String(120), index=True)
+    role: Mapped[str] = mapped_column(String(24))
+    content: Mapped[str] = mapped_column(Text)
+    run_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
+    metadata_json: Mapped[dict] = mapped_column(JSONType, default=dict)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 class MemoryEntry(Base):
     """Persistent memory record with optional embedding vector.
@@ -103,9 +121,9 @@ class MemoryEntry(Base):
     workspace_id: Mapped[str] = mapped_column(String(120), index=True)
     entity: Mapped[str] = mapped_column(String(255), index=True)
     content: Mapped[str] = mapped_column(Text)
-    evidence_urls: Mapped[list] = mapped_column(JSONB, default=list)
-    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
-    embedding: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    evidence_urls: Mapped[list] = mapped_column(JSONType, default=list)
+    metadata_json: Mapped[dict] = mapped_column(JSONType, default=dict)
+    embedding: Mapped[list | None] = mapped_column(JSONType, nullable=True)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -117,12 +135,12 @@ class OrganizationalContext(Base):
     __tablename__ = "organizational_contexts"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     workspace_id: Mapped[str] = mapped_column(String(120), index=True, unique=True)
-    contracts: Mapped[list] = mapped_column(JSONB, default=list)
-    risk_thresholds: Mapped[dict] = mapped_column(JSONB, default=dict)
-    financial_exposure: Mapped[dict] = mapped_column(JSONB, default=dict)
-    renewal_calendar: Mapped[list] = mapped_column(JSONB, default=list)
-    strategic_priorities: Mapped[list] = mapped_column(JSONB, default=list)
-    compliance_requirements: Mapped[list] = mapped_column(JSONB, default=list)
+    contracts: Mapped[list] = mapped_column(JSONType, default=list)
+    risk_thresholds: Mapped[dict] = mapped_column(JSONType, default=dict)
+    financial_exposure: Mapped[dict] = mapped_column(JSONType, default=dict)
+    renewal_calendar: Mapped[list] = mapped_column(JSONType, default=list)
+    strategic_priorities: Mapped[list] = mapped_column(JSONType, default=list)
+    compliance_requirements: Mapped[list] = mapped_column(JSONType, default=list)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -140,7 +158,7 @@ class AutonomousAction(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending_approval")  # pending_approval, approved, executed, rejected, expired
     title: Mapped[str] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
-    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    payload: Mapped[dict] = mapped_column(JSONType, default=dict)
     approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     executed_at = mapped_column(DateTime(timezone=True), nullable=True)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -159,7 +177,7 @@ class Outcome(Base):
     entity_name: Mapped[str | None] = mapped_column(String(255))
     signal_type: Mapped[str | None] = mapped_column(String(80))
     outcome_type: Mapped[str] = mapped_column(String(80))  # acted, dismissed, deferred, false_alarm, confirmed_useful
-    outcome_value: Mapped[dict] = mapped_column(JSONB, default=dict)  # e.g. {"savings": 47000, "risk_mitigated": true}
+    outcome_value: Mapped[dict] = mapped_column(JSONType, default=dict)  # e.g. {"savings": 47000, "risk_mitigated": true}
     feedback_text: Mapped[str | None] = mapped_column(Text)
     recorded_by: Mapped[str | None] = mapped_column(String(255))
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())

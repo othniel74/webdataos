@@ -1,11 +1,7 @@
-"""Thin async OpenAI embeddings client.
-
-Uses text-embedding-3-small (1536 dimensions, $0.02/1M tokens).
-Falls back gracefully when no API key is set — callers use keyword
-matching instead of semantic search.
-"""
+"""OpenAI-compatible embeddings client with provider fallback."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Sequence
 
 import httpx
@@ -20,69 +16,91 @@ MODEL = "text-embedding-3-small"
 DIMENSIONS = 1536
 
 
-class EmbeddingClient:
+@dataclass(frozen=True)
+class EmbeddingProvider:
+    name: str
+    api_key: str
+    base_url: str
+    model: str = MODEL
 
+
+class EmbeddingClient:
     def __init__(self, api_key: str | None = None) -> None:
         settings = get_settings()
-        self.api_key = api_key or settings.openai_api_key
-        self._client: httpx.AsyncClient | None = None
+        self.providers: list[EmbeddingProvider] = []
+        if api_key:
+            self.providers.append(EmbeddingProvider("custom", api_key, OPENAI_BASE))
+        else:
+            if settings.openai_api_key:
+                self.providers.append(EmbeddingProvider("openai", settings.openai_api_key, OPENAI_BASE))
+            if settings.aimlapi_api_key:
+                self.providers.append(EmbeddingProvider("aimlapi", settings.aimlapi_api_key, settings.aimlapi_base_url))
+        self._clients: dict[str, httpx.AsyncClient] = {}
+        self._disabled: set[str] = set()
 
     @property
     def available(self) -> bool:
-        return bool(self.api_key)
+        return any(provider.name not in self._disabled for provider in self.providers)
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=OPENAI_BASE,
+    async def _get_client(self, provider: EmbeddingProvider) -> httpx.AsyncClient:
+        client = self._clients.get(provider.name)
+        if client is None or client.is_closed:
+            client = httpx.AsyncClient(
+                base_url=provider.base_url,
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
+                    "Authorization": f"Bearer {provider.api_key}",
                     "Content-Type": "application/json",
                 },
                 timeout=30.0,
             )
-        return self._client
+            self._clients[provider.name] = client
+        return client
 
     async def embed(self, text: str) -> list[float]:
-        """Embed a single text string. Returns a vector of floats."""
         if not self.available:
             raise RuntimeError("Embedding client has no API key")
-        client = await self._get_client()
-        try:
-            response = await client.post("/embeddings", json={
-                "model": MODEL,
-                "input": text,
-                "dimensions": DIMENSIONS,
-            })
-            response.raise_for_status()
-            data = response.json()
-            return data["data"][0]["embedding"]
-        except Exception as exc:
-            logger.error("embedding_failed", error=str(exc))
-            raise
+        data = await self._post_embeddings(text)
+        return data["data"][0]["embedding"]
 
     async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
-        """Embed multiple texts in a single API call."""
         if not self.available:
             raise RuntimeError("Embedding client has no API key")
         if not texts:
             return []
-        client = await self._get_client()
-        try:
-            response = await client.post("/embeddings", json={
-                "model": MODEL,
-                "input": list(texts),
-                "dimensions": DIMENSIONS,
-            })
-            response.raise_for_status()
-            data = response.json()
-            # Sort by index to maintain order
-            sorted_data = sorted(data["data"], key=lambda x: x["index"])
-            return [item["embedding"] for item in sorted_data]
-        except Exception as exc:
-            logger.error("batch_embedding_failed", error=str(exc))
-            raise
+        data = await self._post_embeddings(list(texts))
+        sorted_data = sorted(data["data"], key=lambda x: x["index"])
+        return [item["embedding"] for item in sorted_data]
+
+    async def _post_embeddings(self, input_value: str | list[str]) -> dict:
+        last_error: Exception | None = None
+        for provider in self.providers:
+            if provider.name in self._disabled:
+                continue
+            client = await self._get_client(provider)
+            try:
+                response = await client.post(
+                    "/embeddings",
+                    json={
+                        "model": provider.model,
+                        "input": input_value,
+                        "dimensions": DIMENSIONS,
+                    },
+                )
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as exc:
+                last_error = exc
+                if exc.response.status_code in {401, 403}:
+                    self._disabled.add(provider.name)
+                logger.warning("embedding_provider_failed", provider=provider.name, status=exc.response.status_code)
+            except Exception as exc:
+                last_error = exc
+                logger.warning("embedding_provider_failed", provider=provider.name, error=str(exc))
+        if last_error:
+            raise last_error
+        raise RuntimeError("Embedding client has no active providers")
 
     async def close(self) -> None:
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+        for client in self._clients.values():
+            if not client.is_closed:
+                await client.aclose()

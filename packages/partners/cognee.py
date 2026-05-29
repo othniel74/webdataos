@@ -13,6 +13,8 @@ Requires: LLM_API_KEY env var for the underlying LLM.
 from __future__ import annotations
 
 import os
+import asyncio
+from pathlib import Path
 import uuid
 
 from packages.common.config import get_settings
@@ -25,13 +27,20 @@ logger = get_logger(__name__)
 class CogneeMemoryService:
     """Cognee SDK adapter matching the WebDataOS memory interface."""
 
+    _io_lock = asyncio.Lock()
+
     def __init__(self) -> None:
+        self.settings = get_settings()
         self._initialized = False
         self._available = False
         self._check_availability()
 
     def _check_availability(self) -> None:
         """Check if cognee is installed and configurable."""
+        if not self._has_runtime_config:
+            logger.info("cognee_not_configured", reason="missing_llm_or_cloud_configuration")
+            return
+        self._configure_process_env()
         try:
             import cognee  # noqa: F401
             self._available = True
@@ -44,25 +53,101 @@ class CogneeMemoryService:
     def available(self) -> bool:
         return self._available
 
+    @property
+    def _has_runtime_config(self) -> bool:
+        return bool(
+            (self.settings.cognee_endpoint and self.settings.cognee_api_key)
+            or self.settings.openai_api_key
+            or self.settings.aimlapi_api_key
+            or os.getenv("LLM_API_KEY")
+        )
+
+    def _cognee_llm_model(self) -> str:
+        if self.settings.cognee_llm_model:
+            return self.settings.cognee_llm_model
+        if "/" in self.settings.aimlapi_model:
+            return self.settings.aimlapi_model
+        if self.settings.aimlapi_api_key:
+            return f"openai/{self.settings.aimlapi_model}"
+        return self.settings.openai_model
+
+    @property
+    def _prefer_aimlapi(self) -> bool:
+        if not self.settings.aimlapi_api_key:
+            return False
+        return os.getenv("COGNEE_PREFER_AIMLAPI", "true").lower() in {"1", "true", "yes"}
+
+    def _configure_process_env(self) -> None:
+        """Configure Cognee before import so local mode matches our app runtime."""
+        runtime_root = Path(os.getenv("WEBDATAOS_RUNTIME_DIR", ".runtime")).resolve()
+        cognee_root = runtime_root / "cognee"
+        cognee_root.mkdir(parents=True, exist_ok=True)
+        for child in ("data", "system", "cache", "logs"):
+            (cognee_root / child).mkdir(parents=True, exist_ok=True)
+
+        os.environ["DATA_ROOT_DIRECTORY"] = str(cognee_root / "data")
+        os.environ["SYSTEM_ROOT_DIRECTORY"] = str(cognee_root / "system")
+        os.environ["CACHE_ROOT_DIRECTORY"] = str(cognee_root / "cache")
+        os.environ["COGNEE_LOGS_DIR"] = str(cognee_root / "logs")
+        os.environ.setdefault("REQUIRE_AUTHENTICATION", "false")
+        os.environ.setdefault("ENABLE_BACKEND_ACCESS_CONTROL", "false")
+        os.environ.setdefault("TELEMETRY_DISABLED", "true")
+        os.environ.setdefault("COGNEE_SKIP_CONNECTION_TEST", "true")
+
+        if self._prefer_aimlapi:
+            os.environ["LLM_PROVIDER"] = "custom"
+            os.environ["LLM_MODEL"] = self._cognee_llm_model()
+            os.environ["LLM_ENDPOINT"] = self.settings.aimlapi_base_url
+            os.environ["LLM_API_KEY"] = self.settings.aimlapi_api_key
+            os.environ["EMBEDDING_PROVIDER"] = "custom"
+            os.environ["EMBEDDING_MODEL"] = self.settings.cognee_embedding_model
+            os.environ["EMBEDDING_ENDPOINT"] = self.settings.aimlapi_base_url
+            os.environ["EMBEDDING_API_KEY"] = self.settings.aimlapi_api_key
+        elif self.settings.openai_api_key:
+            os.environ["OPENAI_API_KEY"] = self.settings.openai_api_key
+            os.environ["LLM_PROVIDER"] = "openai"
+            os.environ["LLM_MODEL"] = self._cognee_llm_model()
+            os.environ["LLM_API_KEY"] = self.settings.openai_api_key
+            os.environ["EMBEDDING_PROVIDER"] = "openai"
+            os.environ["EMBEDDING_MODEL"] = self.settings.cognee_embedding_model
+            os.environ["EMBEDDING_API_KEY"] = self.settings.openai_api_key
+
     async def _ensure_init(self) -> None:
         """Initialize Cognee on first use — set LLM key and optional cloud connection."""
         if self._initialized:
             return
 
-        settings = get_settings()
+        self._configure_process_env()
 
-        # Set the LLM API key Cognee needs
-        if settings.openai_api_key:
-            os.environ.setdefault("LLM_API_KEY", settings.openai_api_key)
+        if self._prefer_aimlapi:
+            import cognee
+
+            cognee.config.set_llm_provider("custom")
+            cognee.config.set_llm_model(self._cognee_llm_model())
+            cognee.config.set_llm_endpoint(self.settings.aimlapi_base_url)
+            cognee.config.set_llm_api_key(self.settings.aimlapi_api_key)
+            cognee.config.set_embedding_provider("custom")
+            cognee.config.set_embedding_model(self.settings.cognee_embedding_model)
+            cognee.config.set_embedding_endpoint(self.settings.aimlapi_base_url)
+            cognee.config.set_embedding_api_key(self.settings.aimlapi_api_key)
+        elif self.settings.openai_api_key:
+            import cognee
+
+            cognee.config.set_llm_provider("openai")
+            cognee.config.set_llm_model(self._cognee_llm_model())
+            cognee.config.set_llm_api_key(self.settings.openai_api_key)
+            cognee.config.set_embedding_provider("openai")
+            cognee.config.set_embedding_model(self.settings.cognee_embedding_model)
+            cognee.config.set_embedding_api_key(self.settings.openai_api_key)
 
         # Connect to Cognee Cloud if endpoint is configured
-        if settings.cognee_endpoint and settings.cognee_api_key:
+        if self.settings.cognee_endpoint and self.settings.cognee_api_key:
             import cognee
             await cognee.serve(
-                url=settings.cognee_endpoint,
-                api_key=settings.cognee_api_key,
+                url=self.settings.cognee_endpoint,
+                api_key=self.settings.cognee_api_key,
             )
-            logger.info("cognee_cloud_connected", endpoint=settings.cognee_endpoint)
+            logger.info("cognee_cloud_connected", endpoint=self.settings.cognee_endpoint)
 
         self._initialized = True
 
@@ -85,10 +170,12 @@ class CogneeMemoryService:
             content += f"\nSources: {', '.join(request.evidence_urls[:5])}"
 
         try:
-            await cognee.remember(content)
+            async with self._io_lock:
+                await cognee.remember(content)
             logger.info("cognee_remember", entity=request.entity, workspace=request.workspace_id)
         except Exception as exc:
             logger.error("cognee_remember_failed", error=str(exc))
+            raise
 
         return MemoryRecord(
             memory_id=f"cog_{uuid.uuid4().hex[:12]}",
@@ -114,7 +201,8 @@ class CogneeMemoryService:
             query += f" entities: {', '.join(request.entities)}"
 
         try:
-            results = await cognee.recall(query)
+            async with self._io_lock:
+                results = await cognee.recall(query)
             records = []
             for i, result in enumerate(results or []):
                 text = str(result) if not isinstance(result, str) else result

@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -15,6 +16,9 @@ from apps.api.routes.partners import router as partners_router
 from apps.api.routes.workspaces import router as workspaces_router
 from apps.api.routes.analyst import router as analyst_router
 from apps.api.routes.llm import router as llm_router
+from apps.api.routes.graph import router as graph_router
+from apps.api.routes.monitor import router as monitor_router
+from apps.api.routes.chat import router as chat_router
 from packages.enterprise.packs import list_packs
 from packages.common.config import get_settings
 from packages.common.logging import configure_logging, get_logger
@@ -70,7 +74,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list or ["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-API-Key"],
 )
 
@@ -96,6 +100,9 @@ app.include_router(partners_router)
 app.include_router(runs_router)
 app.include_router(analyst_router)
 app.include_router(llm_router)
+app.include_router(graph_router)
+app.include_router(monitor_router)
+app.include_router(chat_router)
 
 
 @app.get("/health")
@@ -130,7 +137,7 @@ async def health():
         "partner_apis": {
             "speechmatics": bool(settings.speechmatics_api_key),
             "triggerware": bool(settings.triggerware_endpoint),
-            "cognee_local": True,
+            "cognee_local": bool(settings.openai_api_key or settings.aimlapi_api_key or os.getenv("LLM_API_KEY")),
             "cognee_cloud": bool(settings.cognee_endpoint and settings.cognee_api_key),
         },
         "auth_enabled": settings.api_auth_enabled,

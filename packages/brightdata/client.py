@@ -81,11 +81,9 @@ class BrightDataClient:
 
         try:
             data = await self._post_json(endpoint, payload, "serp_api")
-        except BrightDataError:
-            # If JSON parsing fails, the response might be raw HTML
-            # Try extracting search results from raw response
-            logger.warning("serp_json_parse_failed, returning mock results")
-            return self._mock_serp(query)
+        except BrightDataError as exc:
+            logger.warning("brightdata_serp_failed", error=str(exc)[:300])
+            raise
 
         data = self._unwrap_brightdata_body(data)
 
