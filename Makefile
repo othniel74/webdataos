@@ -42,11 +42,11 @@ migrate-local: ## Run migrations locally
 
 # ── Production (Vultr) ──
 
-deploy: ## Deploy with nginx reverse proxy + monitoring
-	docker compose -f infra/docker-compose.yml --profile production --profile monitoring up -d --build
+deploy: ## Deploy on Vultr with nginx reverse proxy + monitoring
+	docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --profile production --profile monitoring up -d --build
 
-deploy-minimal: ## Deploy without monitoring stack
-	docker compose -f infra/docker-compose.yml --profile production up -d --build
+deploy-minimal: ## Deploy on Vultr without monitoring stack
+	docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --profile production up -d --build
 
 # ── Utilities ──
 

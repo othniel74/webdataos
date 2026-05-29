@@ -10,7 +10,7 @@ make docker-up
 Open:
 
 - API: http://localhost:8000/docs
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:3000
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3001
 
@@ -26,3 +26,8 @@ Open:
 8. Use HTTPS at the edge.
 9. Enable OTEL exporter and Prometheus scraping.
 10. Configure backups for Postgres and Neo4j if enabled.
+
+## Deployment targets
+
+- Full-stack Vultr deployment: see `docs/deployment/VULTR.md`.
+- Vercel frontend deployment: see `docs/deployment/VERCEL.md`.

@@ -159,6 +159,11 @@ npm run dev
 
 The live frontend is the polished v3 Vite app in `apps/web/src/main.jsx`. It talks to the FastAPI backend through `VITE_API_BASE_URL` and sends `VITE_API_KEY` as the `X-API-Key` header when API auth is enabled. Docker Compose passes both values into the web image at build time.
 
+### Deployment
+
+- Full stack on Vultr: `docs/deployment/VULTR.md`
+- Frontend on Vercel with Vultr backend: `docs/deployment/VERCEL.md`
+
 ---
 
 ## Intelligence Packages

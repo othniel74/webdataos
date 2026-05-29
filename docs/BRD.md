@@ -171,7 +171,7 @@ This is the highest-tier package and the strongest enterprise adoption path.
 ### Bright Data Gateway
 
 - Route retrieval tasks to Bright Data products
-- Support SERP API, Web Unlocker, Scraping Browser, Web Scraper API, MCP Server, and proxies where relevant
+- Support SERP API, Web Unlocker, Scraping Browser, Web Scraper API, and MCP Server where relevant
 - Detect failure modes
 - Retry and recover using alternative routes
 - Normalize outputs into clean JSON
