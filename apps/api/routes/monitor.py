@@ -1,13 +1,13 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, IntelligenceRecord, Outcome, RefreshRun
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context, get_agent_orchestrator
-from apps.api.workspace_resolution import resolve_workspace
+from apps.api.workspace_resolution import ensure_workspace, resolve_workspace
 from packages.common.security import AuthContext
 from packages.enterprise.packs import get_pack, package_id_from_description
 from packages.agents.orchestrator import ResearchAgentOrchestrator
@@ -55,7 +55,7 @@ async def monitor_summary(
 ):
     topic = await resolve_workspace(db, workspace_id, auth)
     if not topic:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        topic = await ensure_workspace(db, workspace_id, auth, package_id="enterprise")
     workspace_id = topic.id
 
     runs_result = await db.execute(
@@ -212,7 +212,7 @@ async def run_monitoring(
 ):
     topic = await resolve_workspace(db, workspace_id, auth)
     if not topic:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+        topic = await ensure_workspace(db, workspace_id, auth, package_id="enterprise")
     workspace_id = topic.id
 
     entities = ", ".join(topic.entities or []) or topic.name
