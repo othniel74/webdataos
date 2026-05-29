@@ -32,12 +32,11 @@ Every successful run produces a **decision brief**: a concise answer, what chang
 | Surface | URL |
 |---|---|
 | Production frontend | https://webdataos.vercel.app |
-| Full-stack Vultr deployment | http://45.77.89.209 |
-| API health | http://45.77.89.209/health |
-| API readiness | http://45.77.89.209/ready |
-| Public demo catalog | http://45.77.89.209/demo/catalog |
-| Cognee local UI | http://45.77.89.209:3200 |
-| Cognee reverse proxy | http://45.77.89.209/cognee/ |
+| Full-stack Vultr deployment | https://webdataos.nov-tia.com |
+| API health | https://webdataos.nov-tia.com/health |
+| API readiness | https://webdataos.nov-tia.com/ready |
+| Public demo catalog | https://webdataos.nov-tia.com/demo/catalog |
+| Cognee reverse proxy | https://webdataos.nov-tia.com/cognee/ |
 
 ---
 

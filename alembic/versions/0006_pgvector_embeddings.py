@@ -4,7 +4,6 @@ Revision ID: 0006
 Revises: 0005_custom_auth
 """
 from alembic import op
-import sqlalchemy as sa
 
 revision = "0006"
 down_revision = "0005_custom_auth"

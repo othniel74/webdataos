@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from apps.api.db.models import (
     AgentRun, AutonomousAction, ChangeEvent, ChatMessage, IntelligenceRecord,
     ManagedAPIKey, MemoryEntry, OrganizationalContext, Outcome, RefreshRun,
-    Source, Tenant, Topic, UserAccount,
+    Tenant, Topic, UserAccount,
 )
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context, require_admin

@@ -1,19 +1,21 @@
 """Partner runtime routes — Speechmatics, Memory (Cognee + self-hosted), TriggerWare."""
 from __future__ import annotations
 
-import os
-from pydantic import BaseModel
-from packages.common.config import get_settings
-from packages.common.logging import get_logger
-from packages.partners.slack import SlackService
-logger = get_logger(__name__)
-
+import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from starlette.responses import Response
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import Response
 
 from apps.api.db.session import get_db
-from apps.api.dependencies import authenticated_context, get_memory_provider, get_speechmatics_service, get_triggerware_service
+from apps.api.dependencies import (
+    authenticated_context,
+    get_memory_provider,
+    get_speechmatics_service,
+    get_triggerware_service,
+)
+from packages.common.config import get_settings
+from packages.common.logging import get_logger
 from packages.memory.provider import MemoryProvider
 from packages.partners.speechmatics import SpeechmaticsService
 from packages.partners.triggerware import TriggerWareService
@@ -27,6 +29,8 @@ from packages.schemas.partners import (
     WorkflowEvent,
     WorkflowTriggerRequest,
 )
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["Partner Runtime"], dependencies=[Depends(authenticated_context)])
 

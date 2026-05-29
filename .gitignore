@@ -15,3 +15,9 @@ dist/
 node_modules/
 
 .vercel
+
+# Local working notes and deployment credentials
+agent dilution.txt
+forge.txt
+forge-deo=ploy-ssh.txt
+stress testing airg.txt

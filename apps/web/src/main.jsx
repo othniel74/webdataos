@@ -13,9 +13,9 @@ import {
    THEME
    ═══════════════════════════════════════════════════════════════════════ */
 const T = {
-  bg: "#08090c", bgSub: "#0c0d12", bgCard: "#0f1018", bgInset: "#060709",
-  border: "rgba(255,255,255,0.06)", borderL: "rgba(255,255,255,0.10)",
-  text: "#dde4ee", muted: "#7a8899", dim: "#3d4a5a",
+  bg: "#070B14", bgSub: "#0A0F1C", bgCard: "#0D1424", bgInset: "#050912",
+  border: "rgba(255,255,255,0.07)", borderL: "rgba(255,255,255,0.11)",
+  text: "#dde4ee", muted: "#7a8fa8", dim: "#3d4f66",
   accent: "#0ea5e9", glow: "rgba(14,165,233,0.08)",
 };
 const matC = m => m === "critical" ? "#dc2626" : m === "high" ? "#ef4444" : m === "medium" ? "#f59e0b" : m === "low" ? "#22c55e" : "#64748b";
@@ -770,7 +770,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
     position: "sticky", top: 0, zIndex: 50,
     height: 56, padding: "0 28px",
     display: "flex", alignItems: "center", justifyContent: "space-between",
-    background: "rgba(8,9,12,.96)",
+    background: "rgba(7,11,20,.97)",
     borderBottom: "1px solid rgba(255,255,255,.07)",
     backdropFilter: "blur(20px)",
     WebkitBackdropFilter: "blur(20px)",
@@ -1197,8 +1197,8 @@ function SignalTicker() {
   return (
     <div style={{ position: "relative", overflow: "hidden", padding: "10px 0", borderTop: "1px solid rgba(255,255,255,.05)", borderBottom: "1px solid rgba(255,255,255,.05)", background: "rgba(0,0,0,.3)" }}>
       {/* fade edges */}
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 80, background: "linear-gradient(to right, #08090c, transparent)", zIndex: 2, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: "linear-gradient(to left, #08090c, transparent)", zIndex: 2, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 80, background: "linear-gradient(to right, #070B14, transparent)", zIndex: 2, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: "linear-gradient(to left, #070B14, transparent)", zIndex: 2, pointerEvents: "none" }} />
       <div style={{ display: "flex", gap: 32, animation: "tickerScroll 40s linear infinite", width: "max-content" }}>
         {doubled.map((s, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
@@ -1503,14 +1503,7 @@ function HomePage({ nav, user, auth }) {
   const go = user ? () => nav("Monitor") : auth;
   const label = user ? "Open dashboard" : "Start free";
 
-  // Mouse parallax for hero glow
   const heroRef = useRef(null);
-  const [mouse, setMouse] = useState({ x: 50, y: 40 });
-  const onHeroMove = (e) => {
-    const r = heroRef.current?.getBoundingClientRect();
-    if (!r) return;
-    setMouse({ x: (e.clientX - r.left) / r.width * 100, y: (e.clientY - r.top) / r.height * 100 });
-  };
 
   // Scroll-reveal refs for each section
   const [statsRef, statsVisible] = useInView(0.2);
@@ -1526,13 +1519,11 @@ function HomePage({ nav, user, auth }) {
     <div>
       {/* ── HERO ── */}
       <section
-        ref={heroRef} onMouseMove={onHeroMove}
+        ref={heroRef}
         style={{ maxWidth: 1100, margin: "0 auto", padding: "72px 24px 56px", textAlign: "center", position: "relative", overflow: "hidden" }}
       >
-        {/* Dot grid texture */}
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(14,165,233,0.04) 1px, transparent 1px)", backgroundSize: "32px 32px", pointerEvents: "none" }} />
-        {/* Mouse-tracked glow */}
-        <div style={{ position: "absolute", top: `${15 + mouse.y * 0.45}%`, left: `${mouse.x}%`, transform: "translate(-50%,-50%)", width: 640, height: 640, borderRadius: "50%", background: `radial-gradient(circle,rgba(14,165,233,0.05),transparent 70%)`, pointerEvents: "none", transition: "top .35s ease, left .35s ease" }} />
+        {/* Subtle ambient glow — no texture */}
+        <div style={{ position: "absolute", top: "20%", left: "50%", transform: "translate(-50%,-50%)", width: 700, height: 500, borderRadius: "50%", background: "radial-gradient(ellipse,rgba(14,165,233,0.04),transparent 70%)", pointerEvents: "none" }} />
 
         {/* WebDataOS brand wordmark — the visual anchor */}
         <div className="au" style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 0, marginBottom: 36, position: "relative" }}>

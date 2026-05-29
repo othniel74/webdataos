@@ -7,43 +7,43 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "http://45.77.89.209/health"
+      "destination": "https://webdataos.nov-tia.com/health"
     },
     {
       "source": "/ready",
-      "destination": "http://45.77.89.209/ready"
+      "destination": "https://webdataos.nov-tia.com/ready"
     },
     {
       "source": "/workspaces",
-      "destination": "http://45.77.89.209/workspaces"
+      "destination": "https://webdataos.nov-tia.com/workspaces"
     },
     {
       "source": "/workspaces/:path*",
-      "destination": "http://45.77.89.209/workspaces/:path*"
+      "destination": "https://webdataos.nov-tia.com/workspaces/:path*"
     },
     {
       "source": "/auth/:path*",
-      "destination": "http://45.77.89.209/auth/:path*"
+      "destination": "https://webdataos.nov-tia.com/auth/:path*"
     },
     {
       "source": "/agent/:path*",
-      "destination": "http://45.77.89.209/agent/:path*"
+      "destination": "https://webdataos.nov-tia.com/agent/:path*"
     },
     {
       "source": "/monitor/:path*",
-      "destination": "http://45.77.89.209/monitor/:path*"
+      "destination": "https://webdataos.nov-tia.com/monitor/:path*"
     },
     {
       "source": "/chat/:path*",
-      "destination": "http://45.77.89.209/chat/:path*"
+      "destination": "https://webdataos.nov-tia.com/chat/:path*"
     },
     {
       "source": "/gateway/:path*",
-      "destination": "http://45.77.89.209/gateway/:path*"
+      "destination": "https://webdataos.nov-tia.com/gateway/:path*"
     },
     {
       "source": "/intelligence/:path*",
-      "destination": "http://45.77.89.209/intelligence/:path*"
+      "destination": "https://webdataos.nov-tia.com/intelligence/:path*"
     },
     {
       "source": "/demo",
@@ -51,55 +51,55 @@
     },
     {
       "source": "/demo/:path*",
-      "destination": "http://45.77.89.209/demo/:path*"
+      "destination": "https://webdataos.nov-tia.com/demo/:path*"
     },
     {
       "source": "/graph/:path*",
-      "destination": "http://45.77.89.209/graph/:path*"
+      "destination": "https://webdataos.nov-tia.com/graph/:path*"
     },
     {
       "source": "/llm/:path*",
-      "destination": "http://45.77.89.209/llm/:path*"
+      "destination": "https://webdataos.nov-tia.com/llm/:path*"
     },
     {
       "source": "/transcriptions/:path*",
-      "destination": "http://45.77.89.209/transcriptions/:path*"
+      "destination": "https://webdataos.nov-tia.com/transcriptions/:path*"
     },
     {
       "source": "/memory/:path*",
-      "destination": "http://45.77.89.209/memory/:path*"
+      "destination": "https://webdataos.nov-tia.com/memory/:path*"
     },
     {
       "source": "/workflows/:path*",
-      "destination": "http://45.77.89.209/workflows/:path*"
+      "destination": "https://webdataos.nov-tia.com/workflows/:path*"
     },
     {
       "source": "/triggerware/:path*",
-      "destination": "http://45.77.89.209/triggerware/:path*"
+      "destination": "https://webdataos.nov-tia.com/triggerware/:path*"
     },
     {
       "source": "/context/:path*",
-      "destination": "http://45.77.89.209/context/:path*"
+      "destination": "https://webdataos.nov-tia.com/context/:path*"
     },
     {
       "source": "/actions/:path*",
-      "destination": "http://45.77.89.209/actions/:path*"
+      "destination": "https://webdataos.nov-tia.com/actions/:path*"
     },
     {
       "source": "/outcomes/:path*",
-      "destination": "http://45.77.89.209/outcomes/:path*"
+      "destination": "https://webdataos.nov-tia.com/outcomes/:path*"
     },
     {
       "source": "/runs",
-      "destination": "http://45.77.89.209/runs"
+      "destination": "https://webdataos.nov-tia.com/runs"
     },
     {
       "source": "/runs/:path*",
-      "destination": "http://45.77.89.209/runs/:path*"
+      "destination": "https://webdataos.nov-tia.com/runs/:path*"
     },
     {
       "source": "/metrics",
-      "destination": "http://45.77.89.209/metrics"
+      "destination": "https://webdataos.nov-tia.com/metrics"
     },
     {
       "source": "/(.*)",
