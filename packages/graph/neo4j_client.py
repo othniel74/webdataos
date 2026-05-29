@@ -206,8 +206,8 @@ class Neo4jGraphClient:
         confidence = run_data.get("confidence", 0.0)
 
         # Workspace node — store display_name stripped of tenant/workspace prefixes
-        _ws_display = re.sub(r"^[a-f0-9\-]+_workspace_", "", topic_id)
-        _ws_display = re.sub(r"^workspace_", "", _ws_display)
+        _ws_display = re.sub(r"^[a-z0-9_-]+_workspace_", "", topic_id, flags=re.IGNORECASE)
+        _ws_display = re.sub(r"^workspace_", "", _ws_display, flags=re.IGNORECASE)
         _ws_display = _ws_display.replace("_", " ").title() or topic_id
         tx.run(
             "MERGE (w:Workspace {id: $id}) SET w.tenant_id=$tid, w.package_id=$pkg, w.name=$dname, w.topic_id=$id",
@@ -511,8 +511,8 @@ class Neo4jGraphClient:
         label = ENTITY_LABEL_MAP.get(entity_type.lower(), "Company")
         company_scoped_id = f"{tenant_id}:{entity_name}"
         workspace_scoped_id = f"{tenant_id}:{topic_id}"
-        _ws_d = re.sub(r"^[a-f0-9\-]+_workspace_", "", topic_id)
-        _ws_d = re.sub(r"^workspace_", "", _ws_d)
+        _ws_d = re.sub(r"^[a-z0-9_-]+_workspace_", "", topic_id, flags=re.IGNORECASE)
+        _ws_d = re.sub(r"^workspace_", "", _ws_d, flags=re.IGNORECASE)
         ws_display = _ws_d.replace("_", " ").title() or topic_id
 
         tx.run(
@@ -665,8 +665,9 @@ class Neo4jGraphClient:
     ) -> GraphSnapshot:
         rows = tx.run(
             """
-            MATCH (e:Entity {name: $entity})
-            WHERE $tenant_id IS NULL OR e.tenant_id = $tenant_id
+            MATCH (e:Entity)
+            WHERE toLower(e.name) = toLower($entity)
+              AND ($tenant_id IS NULL OR e.tenant_id = $tenant_id)
             OPTIONAL MATCH (e)-[r1]-(n)
             WHERE n IS NULL OR $tenant_id IS NULL OR n.tenant_id = $tenant_id
             OPTIONAL MATCH (n)-[r2]-(m)
@@ -676,7 +677,23 @@ class Neo4jGraphClient:
             """,
             entity=entity, tenant_id=tenant_id, limit=limit,
         )
-        return cls._snapshot_from_rows(rows, "ok")
+        snap = cls._snapshot_from_rows(rows, "ok")
+        if snap.nodes:
+            return snap
+        # Fuzzy fallback: partial name match
+        rows2 = tx.run(
+            """
+            MATCH (e:Entity)
+            WHERE toLower(e.name) CONTAINS toLower($entity)
+              AND ($tenant_id IS NULL OR e.tenant_id = $tenant_id)
+            OPTIONAL MATCH (e)-[r1]-(n)
+            WHERE n IS NULL OR $tenant_id IS NULL OR n.tenant_id = $tenant_id
+            RETURN e, r1, n
+            LIMIT $limit
+            """,
+            entity=entity, tenant_id=tenant_id, limit=limit,
+        )
+        return cls._snapshot_from_rows(rows2, "ok")
 
     @classmethod
     def _signal_graph_tx(
@@ -704,21 +721,37 @@ class Neo4jGraphClient:
     def _cross_entity_tx(
         cls, tx, tenant_id: str | None, min_co: int, limit: int
     ) -> GraphSnapshot:
-        rows = tx.run(
+        # Try CO_OCCURS_WITH edges (created when entities co-appear in a run)
+        co_rows = list(tx.run(
             """
             MATCH (ea:Entity)-[r:CO_OCCURS_WITH]-(eb:Entity)
             WHERE r.count >= $min_co
               AND ($tenant_id IS NULL OR ea.tenant_id = $tenant_id)
               AND ($tenant_id IS NULL OR eb.tenant_id = $tenant_id)
-            OPTIONAL MATCH (ea)-[r2:HAS_RECORD|MONITORS]-(n)
-            WHERE n IS NULL OR $tenant_id IS NULL OR n.tenant_id = $tenant_id
-            RETURN ea, r, eb, r2, n
+            RETURN ea, r, eb
             ORDER BY r.count DESC
             LIMIT $limit
             """,
             tenant_id=tenant_id, min_co=min_co, limit=limit,
+        ))
+        if co_rows:
+            return cls._snapshot_from_rows(iter(co_rows), "ok")
+
+        # Fallback: entities co-monitored in the same workspace
+        ws_rows = tx.run(
+            """
+            MATCH (w:Workspace)-[:MONITORS]->(ea:Entity)
+            MATCH (w)-[:MONITORS]->(eb:Entity)
+            WHERE ea <> eb
+              AND ($tenant_id IS NULL OR w.tenant_id = $tenant_id)
+            OPTIONAL MATCH (ea)-[ra:HAS_RECORD]->(rec_a:IntelligenceRecord)
+            OPTIONAL MATCH (eb)-[rb:HAS_RECORD]->(rec_b:IntelligenceRecord)
+            RETURN ea, eb, w, rec_a, rec_b
+            LIMIT $limit
+            """,
+            tenant_id=tenant_id, limit=limit,
         )
-        return cls._snapshot_from_rows(rows, "ok")
+        return cls._snapshot_from_rows(ws_rows, "ok")
 
     @classmethod
     def _run_lineage_tx(
@@ -825,10 +858,31 @@ class Neo4jGraphClient:
                 stable_id = raw_id  # stable dedup key
             elif node_type == "Workspace":
                 raw = props.get("name") or props.get("id") or str(node.element_id)
-                clean = re.sub(r"^[a-f0-9\-]+_workspace_", "", raw)
-                clean = re.sub(r"^workspace_", "", clean)
+                clean = re.sub(r"^[a-z0-9_-]+_workspace_", "", raw, flags=re.IGNORECASE)
+                clean = re.sub(r"^workspace_", "", clean, flags=re.IGNORECASE)
                 display_label = clean.replace("_", " ").title() or raw
                 stable_id = raw
+            elif node_type == "Signal":
+                finding = props.get("finding") or ""
+                sig_type = props.get("signal_type") or ""
+                mat = props.get("materiality") or ""
+                if finding:
+                    prefix = f"[{sig_type}] " if sig_type else ""
+                    display_label = prefix + finding[:55]
+                else:
+                    display_label = props.get("id") or str(node.element_id)
+                stable_id = props.get("id") or str(node.element_id)
+            elif node_type == "Risk":
+                posture = props.get("risk_posture") or "unknown"
+                topic = props.get("topic_id") or ""
+                clean_topic = re.sub(r"^[a-z0-9_-]+_workspace_", "", topic, flags=re.IGNORECASE)
+                clean_topic = re.sub(r"^workspace_", "", clean_topic, flags=re.IGNORECASE)
+                display_label = f"{posture.title()} risk — {clean_topic.replace('_',' ').title()}"
+                stable_id = props.get("id") or str(node.element_id)
+            elif node_type == "Recommendation":
+                title = props.get("title") or ""
+                display_label = title[:60] if title else "Recommendation"
+                stable_id = props.get("id") or str(node.element_id)
             elif node_type == "IntelligenceRun":
                 task = props.get("task") or ""
                 run_id = props.get("run_id") or str(node.element_id)
