@@ -142,7 +142,17 @@ class ReasoningEngine:
 
         # Generate recommendations from material findings
         material = [a for a in assessments if a.materiality in {"critical", "high", "medium"}]
-        for i, assessment in enumerate(material[:5]):
+        seen_recommendations: set[tuple[str, str]] = set()
+        recommendation_inputs = []
+        for assessment in material:
+            entity_names = assessment.affected_contracts or ["Unknown"]
+            key = (entity_names[0], assessment.materiality)
+            if key in seen_recommendations:
+                continue
+            seen_recommendations.add(key)
+            recommendation_inputs.append(assessment)
+
+        for i, assessment in enumerate(recommendation_inputs[:5]):
             rec_id = f"rec_{uuid.uuid4().hex[:8]}"
             entity_names = assessment.affected_contracts or ["Unknown"]
 
@@ -152,7 +162,7 @@ class ReasoningEngine:
                               f"Given the contract value and renewal timeline, a procurement review is recommended."
                 suggested = ["Initiate renegotiation", "Request updated terms", "Evaluate alternatives"]
             else:
-                title = f"Monitor {entity_names[0]} — {assessment.materiality} materiality signal"
+                title = f"Review {entity_names[0]} - {assessment.materiality} materiality signal"
                 description = assessment.impact_description
                 suggested = self._suggest_actions(assessment.impact_description)
 
@@ -174,7 +184,13 @@ class ReasoningEngine:
         # Risk posture
         critical_count = len([a for a in assessments if a.materiality == "critical"])
         high_count = len([a for a in assessments if a.materiality == "high"])
-        risk_posture = "critical" if critical_count > 0 else "degrading" if high_count > 2 else "stable" if high_count <= 1 else "monitoring"
+        medium_count = len([a for a in assessments if a.materiality == "medium"])
+        risk_posture = (
+            "critical" if critical_count > 0
+            else "degrading" if high_count > 1
+            else "monitoring" if high_count or medium_count
+            else "stable"
+        )
 
         if recommendations:
             confidence = round(sum(r.confidence for r in recommendations) / len(recommendations), 3)
@@ -263,6 +279,7 @@ class ReasoningEngine:
     ) -> list[ActionProposal]:
         """Generate autonomous action proposals from recommendations."""
         proposals = []
+        seen_actions: set[tuple[str, str]] = set()
         for rec in reasoning.recommendations:
             if rec.materiality in {"critical", "high"}:
                 # High materiality → propose concrete actions
@@ -297,9 +314,14 @@ class ReasoningEngine:
                     ))
 
             elif rec.materiality == "medium":
+                entity = rec.affected_entities[0] if rec.affected_entities else "entity"
+                action_key = ("update_risk_register", entity)
+                if action_key in seen_actions:
+                    continue
+                seen_actions.add(action_key)
                 proposals.append(ActionProposal(
                     action_type="update_risk_register",
-                    title=f"Update risk register: {rec.affected_entities[0] if rec.affected_entities else 'entity'}",
+                    title=f"Update risk register: {entity}",
                     description=f"Add finding to risk register for next review cycle.",
                     payload={"recommendation_id": rec.id, "entities": rec.affected_entities},
                     recommendation_id=rec.id,
