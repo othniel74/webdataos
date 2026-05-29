@@ -150,6 +150,7 @@ class IntelligenceService:
         return {"run_id": run_id, "topic_id": topic_id, "sources_checked": checked, "records_created": created, "status": run.status}
 
     async def extract_and_store(self, db: AsyncSession, topic_id: str, source: Source) -> IntelligenceRecordRead | None:
+        topic = await db.get(Topic, topic_id)
         schema = {
             "company": "string",
             "pricing_model": "string",
@@ -168,9 +169,9 @@ class IntelligenceService:
             )
         )
         if response.status != "success":
-            return None
+            return await self._store_source_metadata_record(db, topic, topic_id, source)
         facts = response.data
-        entity_name = facts.get("company") or source.title or "Unknown"
+        entity_name = facts.get("company") or self._infer_entity_name(topic, source) or source.title or "Unknown"
         summary = self._summarize_record(entity_name, facts, source.url)
         record_id = stable_id(topic_id, source.url, entity_name)
         existing = await db.get(IntelligenceRecord, record_id)
@@ -217,6 +218,64 @@ class IntelligenceService:
         except Exception as exc:
             logger.warning("neo4j_mirror_failed", error=str(exc)[:300], topic_id=topic_id, source_url=source.url)
         return payload
+
+    async def _store_source_metadata_record(
+        self,
+        db: AsyncSession,
+        topic: Topic | None,
+        topic_id: str,
+        source: Source,
+    ) -> IntelligenceRecordRead:
+        entity_name = self._infer_entity_name(topic, source) or source.title or "Unknown"
+        facts = {
+            "company": entity_name,
+            "evidence_title": source.title,
+            "snippet": source.snippet,
+            "source_url": source.url,
+            "extraction_status": "source_metadata_fallback",
+        }
+        summary = self._summarize_record(entity_name, facts, source.url)
+        record_id = stable_id(topic_id, source.url, entity_name)
+        now = utc_now()
+        existing = await db.get(IntelligenceRecord, record_id)
+        if existing:
+            existing.facts_json = facts
+            existing.summary = summary
+            existing.confidence = 0.55
+            existing.freshness_status = "fresh"
+            existing.last_checked = now
+            existing.extracted_at = now
+            model = existing
+        else:
+            model = IntelligenceRecord(
+                id=record_id,
+                topic_id=topic_id,
+                source_id=source.id,
+                entity_name=entity_name,
+                entity_type="company",
+                source_url=source.url,
+                source_type=source.source_type,
+                facts_json=facts,
+                summary=summary,
+                confidence=0.55,
+                freshness_status="fresh",
+                embedding_text=self._embedding_text(entity_name, facts, summary),
+                last_checked=now,
+                extracted_at=now,
+            )
+            db.add(model)
+        source.last_checked = now
+        source.next_refresh_due = now + timedelta(minutes=1440)
+        await db.commit()
+        return self._record_read(model)
+
+    def _infer_entity_name(self, topic: Topic | None, source: Source) -> str | None:
+        haystack = " ".join([source.title or "", source.snippet or "", source.url or ""]).lower()
+        entities = topic.entities if topic and topic.entities else []
+        for entity in entities:
+            if entity and entity.lower() in haystack:
+                return entity
+        return None
 
     async def retrieve_context(self, db: AsyncSession, req: RetrievalRequest) -> list[RetrievalResult]:
         stmt = select(IntelligenceRecord)
