@@ -157,7 +157,7 @@ npm install
 npm run dev
 ```
 
-The live frontend is the Vite app in `apps/web/src/main.tsx`. It talks to the FastAPI backend through `VITE_API_BASE_URL` and sends `VITE_API_KEY` as the `X-API-Key` header when API auth is enabled. Docker Compose passes both values into the web image at build time.
+The live frontend is the polished v3 Vite app in `apps/web/src/main.jsx`. It talks to the FastAPI backend through `VITE_API_BASE_URL` and sends `VITE_API_KEY` as the `X-API-Key` header when API auth is enabled. Docker Compose passes both values into the web image at build time.
 
 ---
 
@@ -298,8 +298,8 @@ Record what happened after each recommendation. The system tracks hit rate, sign
 │   │   ├── dependencies.py   # Service wiring
 │   │   ├── db/               # SQLAlchemy models & session
 │   │   └── routes/           # API route handlers
-│   └── web/                  # Vite + React + TypeScript frontend
-│       └── src/main.tsx      # Single-file React app
+│   └── web/                  # Vite + React frontend
+│       └── src/main.jsx      # Polished v3 UI wired to the backend
 ├── packages/
 │   ├── agents/               # Orchestrator, planner, synthesizer
 │   ├── enterprise/           # Intelligence package definitions
