@@ -6,14 +6,14 @@ matching instead of semantic search.
 """
 from __future__ import annotations
 
-import logging
 from typing import Sequence
 
 import httpx
 
 from packages.common.config import get_settings
+from packages.common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 OPENAI_BASE = "https://api.openai.com/v1"
 MODEL = "text-embedding-3-small"

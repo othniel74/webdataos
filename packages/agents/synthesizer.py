@@ -9,14 +9,14 @@ When no LLM is configured, falls back to deterministic rule-based synthesis.
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any
 
+from packages.common.logging import get_logger
 from packages.llm.client import LLMClient
 from packages.schemas.intelligence import IntelligenceRecordRead
 from packages.schemas.partners import MemoryRecord
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SYSTEM_PROMPT = """You are an enterprise intelligence analyst. You receive:
 1. A research task describing what the user wants to know.

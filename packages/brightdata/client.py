@@ -11,7 +11,6 @@ Auth: Bearer API key for HTTP endpoints. Embedded credentials for WebSocket.
 """
 import asyncio
 import json
-import logging
 from typing import Any, Callable, Awaitable
 
 import httpx
@@ -19,10 +18,11 @@ import httpx
 from packages.common.circuit_breaker import CircuitOpenError, InMemoryCircuitBreaker
 from packages.common.config import get_settings
 from packages.common.errors import BrightDataError
+from packages.common.logging import get_logger
 from packages.schemas.common import ToolName
 from packages.brightdata.models import BrightDataResult, SearchResult
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BrightDataClient:

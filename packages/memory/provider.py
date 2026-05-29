@@ -15,15 +15,14 @@ can use Cognee's graph reasoning AND self-hosted embedding similarity.
 """
 from __future__ import annotations
 
-import logging
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from packages.common.logging import get_logger
 from packages.memory.service import MemoryService
 from packages.partners.cognee import CogneeMemoryService
 from packages.schemas.partners import MemoryRecord, MemorySearchRequest, MemoryUpsertRequest
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MemoryProvider:

@@ -19,7 +19,6 @@ The system works at every level of integration.
 """
 from __future__ import annotations
 
-import logging
 import math
 import uuid
 from typing import Sequence
@@ -28,10 +27,11 @@ from sqlalchemy import select, or_, func as sa_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.models import MemoryEntry
+from packages.common.logging import get_logger
 from packages.memory.embeddings import EmbeddingClient
 from packages.schemas.partners import MemoryRecord, MemorySearchRequest, MemoryUpsertRequest
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:

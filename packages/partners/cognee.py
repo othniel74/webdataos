@@ -12,14 +12,14 @@ Requires: LLM_API_KEY env var for the underlying LLM.
 """
 from __future__ import annotations
 
-import logging
 import os
 import uuid
 
 from packages.common.config import get_settings
+from packages.common.logging import get_logger
 from packages.schemas.partners import MemoryRecord, MemorySearchRequest, MemoryUpsertRequest
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CogneeMemoryService:

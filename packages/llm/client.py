@@ -6,14 +6,14 @@ Supports gpt-4o, gpt-4o-mini, or any OpenAI-compatible endpoint.
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any
 
 import httpx
 
 from packages.common.config import get_settings
+from packages.common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 OPENAI_BASE = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4o-mini"
