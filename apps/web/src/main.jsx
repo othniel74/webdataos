@@ -1001,16 +1001,6 @@ function PublicHomePage({ nav, user, auth }) {
         </div>
       </section>
 
-      {/* ── LOGO BAR ── */}
-      <div className="upgrade-trust-strip">
-        <div className="upgrade-container">
-          <span>Trusted by enterprise intelligence teams at</span>
-          <div><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 52, flexWrap: "wrap" }}>
-            {["Accenture", "Deloitte", "Bain & Co.", "KPMG", "Gartner"].map(n => <strong key={n} style={{ fontSize: 14, color: "#CBD5E1", letterSpacing: "-0.3px" }}>{n}</strong>)}
-          </div></div>
-        </div>
-      </div>
-
       {/* ── THREE SURFACES ── */}
       <section className="upgrade-dark-band">
         <div className="upgrade-container">
@@ -1297,7 +1287,7 @@ function PublicHomePage({ nav, user, auth }) {
               </div>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#64748B" }}>WebDataOS</span>
             </div>
-            <span style={{ fontSize: 12, color: "#1E293B" }}>© 2025 · Intelligence Operating System</span>
+            <span style={{ fontSize: 12, color: "#1E293B" }}>© 2026 · Intelligence Operating System</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
             {["Privacy", "Terms", "Security", "Status"].map(l => (
