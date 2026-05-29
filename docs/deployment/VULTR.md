@@ -28,8 +28,10 @@ API_AUTH_ENABLED=true
 API_KEYS=replace-with-a-long-random-key
 VITE_API_KEY=replace-with-the-same-or-public-demo-key
 
-PUBLIC_API_BASE_URL=https://api.your-domain.com
-VITE_API_BASE_URL=https://api.your-domain.com
+# Leave PUBLIC_API_BASE_URL empty when serving the frontend and API from the same Vultr host.
+# Set it only when the browser should call a separate API domain.
+PUBLIC_API_BASE_URL=
+VITE_API_BASE_URL=
 CORS_ALLOWED_ORIGINS=https://your-domain.com,https://your-vercel-app.vercel.app
 TRUSTED_HOSTS=your-domain.com,api.your-domain.com,localhost,127.0.0.1,api,web
 

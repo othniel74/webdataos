@@ -21,7 +21,7 @@ const stC = s => s === "pending_approval" ? "#f59e0b" : s === "approved" || s ==
 const oC = o => o === "acted" ? "#22c55e" : o === "confirmed_useful" ? "#06b6d4" : o === "dismissed" ? "#94a3b8" : o === "false_alarm" ? "#ef4444" : "#f59e0b";
 const fmt = n => `${Math.round(n * 100)}%`;
 const slug = v => v.toLowerCase().replace(/[^a-z0-9]+/g, "_") || "ws";
-const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 const KEY = import.meta.env.VITE_API_KEY || "dev-local-key-change-me";
 const headers = () => ({ "Content-Type": "application/json", "X-API-Key": KEY });
 async function api(method, path, body) {

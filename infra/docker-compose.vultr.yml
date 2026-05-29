@@ -12,7 +12,7 @@ services:
     restart: unless-stopped
     build:
       args:
-        VITE_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost}
+        VITE_API_BASE_URL: ${PUBLIC_API_BASE_URL:-}
         VITE_API_KEY: ${VITE_API_KEY:-dev-local-key-change-me}
 
   nginx:
