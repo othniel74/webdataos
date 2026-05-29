@@ -26,6 +26,26 @@
       "destination": "http://45.77.89.209/intelligence/:path*"
     },
     {
+      "source": "/llm/:path*",
+      "destination": "http://45.77.89.209/llm/:path*"
+    },
+    {
+      "source": "/transcriptions/:path*",
+      "destination": "http://45.77.89.209/transcriptions/:path*"
+    },
+    {
+      "source": "/memory/:path*",
+      "destination": "http://45.77.89.209/memory/:path*"
+    },
+    {
+      "source": "/workflows/:path*",
+      "destination": "http://45.77.89.209/workflows/:path*"
+    },
+    {
+      "source": "/context/:path*",
+      "destination": "http://45.77.89.209/context/:path*"
+    },
+    {
       "source": "/actions/:path*",
       "destination": "http://45.77.89.209/actions/:path*"
     },
