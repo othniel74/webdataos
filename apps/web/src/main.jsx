@@ -36,7 +36,8 @@ const KEY = import.meta.env.VITE_API_KEY || "dev-local-key-change-me";
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
 let apiBearerToken = null;
 const setApiBearerToken = token => { apiBearerToken = token || null; };
-const headers = () => ({ "Content-Type": "application/json", ...(apiBearerToken ? { "Authorization": `Bearer ${apiBearerToken}` } : { "X-API-Key": KEY }) });
+const authHeaders = () => (apiBearerToken ? { "Authorization": `Bearer ${apiBearerToken}` } : { "X-API-Key": KEY });
+const headers = () => ({ "Content-Type": "application/json", ...authHeaders() });
 const demoHeaders = sessionId => ({ "Content-Type": "application/json", ...(sessionId ? { "X-Demo-Session": sessionId } : {}) });
 async function api(method, path, body, timeoutMs = 20000) {
   const controller = new AbortController();
@@ -103,7 +104,7 @@ const endpoints = {
     form.append("language", language);
     const res = await fetch(`${API}/transcriptions/upload`, {
       method: "POST",
-      headers: { "X-API-Key": KEY },
+      headers: authHeaders(),
       body: form,
     });
     if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
@@ -1010,7 +1011,7 @@ function DocsPage() {
           {s === "journey" && <DS t="User Journey">{["Sign up and create a workspace with a package", "Enter entities to monitor and signals to watch", "Set refresh cadence (daily, weekly, every 6 hours, manual)", "Submit research task via text, voice, or audio upload", "Speechmatics transcribes voice/audio to structured text", "Cognee checks graph memory; self-hosted memory provides fallback context", "Intelligence Engine checks existing records for freshness", "If stale → Bright Data gateway fetches with self-healing recovery", "FailureDetector classifies errors → RecoveryRouter escalates tools", "ResultNormalizer produces clean JSON evidence records", "Change detection compares old vs new facts, logs ChangeEvents", "LLM synthesizes contextual brief from evidence + memory", "Reasoning Engine assesses materiality against org context", "Autonomous actions proposed for material findings", "TriggerWare fires workflow actions for material signals", "User receives brief, companies, changes, partner trace, receipts"].map((step, i) => <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0", borderBottom: i < 15 ? `1px solid ${T.border}` : "none" }}><span style={{ width: 22, height: 22, borderRadius: 999, display: "grid", placeItems: "center", background: `${T.accent}10`, color: T.accent, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span><span style={{ fontSize: 13, color: T.muted }}>{step}</span></div>)}</DS>}
           {s === "gateway" && <DS t="Gateway & Recovery"><p>The self-healing gateway detects failure modes and routes to the next Bright Data tool automatically.</p><DC t="ToolName enum">serp_api, web_scraper_api, web_unlocker, scraping_browser, mock</DC><DC t="FailureType enum">none, blocked, captcha, geo_blocked, rate_limited, javascript_required, selector_failed, empty_response, timeout, unknown</DC><DC t="Recovery routing">{"blocked/captcha/geo_blocked/rate_limited -> web_unlocker -> scraping_browser. javascript_required/empty_response/selector_failed -> scraping_browser -> web_unlocker. web_scraper_api failure -> scraping_browser. scraping_browser failure -> web_unlocker."}</DC><DC t="SourceType enum">search_result, company_page, pricing_page, docs_page, news_page, filing, social_public, unknown</DC></DS>}
           {s === "memory" && <DS t="Dual Memory: Cognee + Self-Hosted"><p>Cognee is the default open-source knowledge-graph memory layer. WebDataOS also writes to a self-hosted PostgreSQL memory store and falls back to it when Cognee is unavailable.</p><DC t="How it works">On upsert: memory writes to self-hosted storage and, when installed/configured, to Cognee. On search: Cognee graph recall is queried first, then merged with self-hosted embedding or keyword results.</DC><DC t="Key files">packages/memory/provider.py — MemoryProvider routes Cognee + self-hosted. packages/partners/cognee.py — Cognee adapter. packages/memory/service.py — PostgreSQL/OpenAI fallback memory.</DC><DC t="Graceful degradation">With Cognee installed: graph memory + self-hosted vector search. Without Cognee: self-hosted embeddings via OpenAI. Without OpenAI: keyword matching. The system works at every level of integration.</DC></DS>}
-          {s === "api" && <DS t="API Reference"><p>All endpoints require X-API-Key header.</p><div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${T.border}`, marginTop: 10 }}>{[
+          {s === "api" && <DS t="API Reference"><p>Tenant endpoints require either a Clerk bearer token or a configured API key. Public demo routes use a demo session header.</p><div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${T.border}`, marginTop: 10 }}>{[
             { m: "GET", p: "/health", d: "Health check with partner status" }, { m: "GET", p: "/workspaces/packages", d: "List intelligence packages" },
             { m: "POST", p: "/workspaces", d: "Create workspace" }, { m: "GET", p: "/workspaces", d: "List workspaces" },
             { m: "POST", p: "/agent/research", d: "Run LLM-powered research (text/voice/audio)" },
@@ -1150,7 +1151,7 @@ function DocsManualPage() {
               <section style={{ borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
                 <div style={{ padding: "11px 14px", borderBottom: `1px solid ${T.border}`, fontSize: 13, fontWeight: 800 }}>Request</div>
                 <pre style={{ margin: 0, padding: 14, color: T.muted, fontSize: 11, lineHeight: 1.65, fontFamily: "'JetBrains Mono'", overflow: "auto" }}>{`POST /agent/research
-X-API-Key: <key>
+Authorization: Bearer <clerk-session-token>
 
 {
   "workspace_id": "workspace_enterprise",
@@ -1215,7 +1216,7 @@ function DevPage() {
         </div>
         <div style={{ borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}`, padding: 12, fontSize: 11 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "4px 0" }}><span style={{ color: T.dim }}>Base URL</span><span style={{ color: T.text, fontFamily: "'JetBrains Mono'" }}>{API || "/"}</span></div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "4px 0", borderTop: `1px solid ${T.border}` }}><span style={{ color: T.dim }}>Auth header</span><span style={{ color: T.text, fontFamily: "'JetBrains Mono'" }}>X-API-Key</span></div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "4px 0", borderTop: `1px solid ${T.border}` }}><span style={{ color: T.dim }}>Auth header</span><span style={{ color: T.text, fontFamily: "'JetBrains Mono'" }}>Bearer or X-API-Key</span></div>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "4px 0", borderTop: `1px solid ${T.border}` }}><span style={{ color: T.dim }}>Format</span><span style={{ color: T.text, fontFamily: "'JetBrains Mono'" }}>application/json</span></div>
         </div>
       </div>
@@ -1225,7 +1226,7 @@ function DevPage() {
           <div style={{ padding: "11px 14px", borderBottom: `1px solid ${T.border}`, fontSize: 13, fontWeight: 800 }}>Quick request</div>
           <pre style={{ margin: 0, padding: 14, color: T.muted, fontSize: 11, lineHeight: 1.65, fontFamily: "'JetBrains Mono'", overflow: "auto" }}>{`curl -X POST "$WEBDATAOS_API/agent/research" \\
   -H "Content-Type: application/json" \\
-  -H "X-API-Key: $WEBDATAOS_API_KEY" \\
+  -H "Authorization: Bearer $CLERK_SESSION_TOKEN" \\
   -d '{
     "workspace_id": "workspace_enterprise",
     "topic_id": "workspace_enterprise",

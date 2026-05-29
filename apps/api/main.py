@@ -33,6 +33,10 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+def auth_is_enforced() -> bool:
+    return settings.api_auth_enabled or settings.auth_mode.lower() in {"clerk", "mixed"}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.is_production:
@@ -41,7 +45,12 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     await seed_defaults()
-    logger.info("app_started", env=settings.app_env, auth_enabled=settings.api_auth_enabled, mock_brightdata=settings.mock_brightdata)
+    logger.info(
+        "app_started",
+        env=settings.app_env,
+        auth_enabled=auth_is_enforced(),
+        mock_brightdata=settings.mock_brightdata,
+    )
     yield
     logger.info("app_stopped")
 
@@ -152,7 +161,7 @@ async def health():
             "cognee_local": bool(settings.openai_api_key or settings.aimlapi_api_key or os.getenv("LLM_API_KEY")),
             "cognee_cloud": bool(settings.cognee_endpoint and settings.cognee_api_key),
         },
-        "auth_enabled": settings.api_auth_enabled,
+        "auth_enabled": auth_is_enforced(),
         "auth_mode": settings.auth_mode,
         "public_demo_enabled": settings.public_demo_enabled,
         "version": "0.5.0",

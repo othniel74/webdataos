@@ -8,6 +8,7 @@ from apps.api.routes.demo import DEMO_MISSIONS, _workspace_id
 
 @pytest.mark.asyncio
 async def test_dev_auth_context_uses_default_tenant(monkeypatch):
+    monkeypatch.setenv("AUTH_MODE", "api_key")
     monkeypatch.setenv("API_AUTH_ENABLED", "false")
     monkeypatch.setenv("DEFAULT_TENANT_ID", "tenant_local")
     get_settings.cache_clear()

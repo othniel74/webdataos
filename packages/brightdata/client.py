@@ -12,6 +12,7 @@ Auth: Bearer API key for HTTP endpoints. Embedded credentials for WebSocket.
 import asyncio
 import json
 from typing import Any, Callable, Awaitable
+from urllib.parse import urlencode
 
 import httpx
 
@@ -64,10 +65,13 @@ class BrightDataClient:
         endpoint = self.settings.brightdata_serp_endpoint or self.settings.brightdata_api_endpoint
         zone = self.settings.brightdata_serp_zone
 
-        # Build Google search URL with query
-        search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+        # Bright Data validates the target as a URI. Build the SERP URL through
+        # urlencode so long agent/demo prompts cannot leak newlines, quotes, or
+        # other unsafe characters into the `url` field.
+        params = {"q": query}
         if country:
-            search_url += f"&gl={country}"
+            params["gl"] = country
+        search_url = f"https://www.google.com/search?{urlencode(params)}"
 
         payload = {
             "zone": zone,

@@ -41,12 +41,13 @@ async def require_api_key(
     settings = get_settings()
     bearer = _extract_bearer(authorization)
     auth_mode = settings.auth_mode.lower()
+    protected_auth_mode = auth_mode in {"clerk", "mixed"}
 
-    if bearer and auth_mode in {"clerk", "mixed"}:
+    if bearer and protected_auth_mode:
         try:
             claims = verify_clerk_token(bearer, settings)
         except (PyJWTError, ValueError) as exc:
-            if auth_mode == "clerk":
+            if auth_mode == "clerk" or not x_api_key:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Clerk session") from exc
         else:
             user_id = claims.get("sub")
@@ -64,7 +65,10 @@ async def require_api_key(
                 auth_type="clerk",
             )
 
-    if not settings.api_auth_enabled:
+    if auth_mode == "clerk":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Clerk session")
+
+    if not settings.api_auth_enabled and not protected_auth_mode:
         return AuthContext(
             principal="dev-anonymous",
             key_fingerprint="dev",
@@ -75,14 +79,14 @@ async def require_api_key(
 
     configured = settings.api_key_set
     if not configured:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="API auth is enabled but no API_KEYS are configured.",
-        )
+        if protected_auth_mode:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Clerk session")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="API auth is enabled but no API_KEYS are configured.")
 
     provided = x_api_key or bearer
     if not provided:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing API key")
+        detail = "Missing Clerk session or API key" if auth_mode == "mixed" else "Missing API key"
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
     if not any(hmac.compare_digest(provided, expected) for expected in configured):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
