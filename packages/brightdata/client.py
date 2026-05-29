@@ -168,14 +168,49 @@ class BrightDataClient:
         if self.mock:
             return await self._mock_extract(url, ToolName.scraping_browser, schema)
 
-        # Scraping Browser requires a WebSocket connection with a browser automation
-        # framework (Puppeteer/Playwright). In the API server context, we use
-        # Web Unlocker as the fallback for JavaScript-rendered pages.
-        # For full browser automation, use the SDK directly.
+        selenium_endpoint = self._selenium_endpoint()
+        if selenium_endpoint:
+            logger.info("brightdata_scraping_browser_selenium", url=url[:80])
+            try:
+                return await asyncio.to_thread(self._selenium_fetch, selenium_endpoint, url)
+            except Exception as exc:
+                logger.warning("brightdata_scraping_browser_failed", error=str(exc), url=url[:80])
+
         logger.info("brightdata_scraping_browser_via_unlocker", url=url[:80])
         result = await self.web_unlocker_fetch(url)
         result.tool = ToolName.scraping_browser
         return result
+
+    def _selenium_endpoint(self) -> str | None:
+        if self.settings.brightdata_selenium_endpoint:
+            return self.settings.brightdata_selenium_endpoint
+        if self.settings.brightdata_browser_user and self.settings.brightdata_browser_password:
+            return (
+                "https://"
+                f"{self.settings.brightdata_browser_user}:{self.settings.brightdata_browser_password}"
+                "@brd.superproxy.io:9515"
+            )
+        return None
+
+    def _selenium_fetch(self, endpoint: str, url: str) -> BrightDataResult:
+        from selenium import webdriver
+        from selenium.webdriver import ChromeOptions
+
+        options = ChromeOptions()
+        options.add_argument("--disable-dev-shm-usage")
+        driver = webdriver.Remote(command_executor=endpoint, options=options)
+        try:
+            driver.set_page_load_timeout(self.timeout)
+            driver.get(url)
+            return BrightDataResult(
+                tool=ToolName.scraping_browser,
+                url=url,
+                status_code=200,
+                text=driver.page_source,
+                metadata={"title": driver.title, "endpoint": "brightdata_selenium"},
+            )
+        finally:
+            driver.quit()
 
     # ── Bright Data MCP ───────────────────────────────────────────────
     # Optional final fallback. Bright Data MCP is typically an SSE endpoint;

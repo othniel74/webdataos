@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     brightdata_web_unlocker_zone: str = "web_unlocker2"
     brightdata_scraping_browser_zone: str = "scraping_browser2"
     brightdata_scraping_browser_endpoint: str = "wss://brd.superproxy.io:9222"
+    brightdata_selenium_endpoint: str | None = None
     brightdata_browser_user: str | None = None
     brightdata_browser_password: str | None = None
     brightdata_mcp_endpoint: str | None = None

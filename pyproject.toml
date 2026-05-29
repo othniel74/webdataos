@@ -24,6 +24,7 @@ dependencies = [
   "neo4j>=5.20.0",
   "cognee>=0.1.0",
   "APScheduler>=3.10.4",
+  "selenium>=4.27.0",
 ]
 
 [project.optional-dependencies]

@@ -10,10 +10,14 @@ class FailureDetector:
             if "captcha" in text:
                 return FailureType.captcha, "Captcha or access challenge detected"
             return FailureType.blocked, "Blocked or forbidden response"
+        if status == 404:
+            return FailureType.unknown, "Endpoint or resource not found"
         if status == 429:
             return FailureType.rate_limited, "Rate limited"
         if status >= 500:
             return FailureType.unknown, f"Server error {status}"
+        if status >= 400:
+            return FailureType.unknown, f"HTTP client error {status}"
         if "geo" in text and "block" in text:
             return FailureType.geo_blocked, "Geo blocking detected"
         if "captcha" in text:
