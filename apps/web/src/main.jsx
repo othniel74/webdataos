@@ -3661,7 +3661,7 @@ function EvidencePage({ ws }) {
               <div><Lb>Nodes</Lb><div style={{ marginTop: 4, color: (graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.nodes, topicGraphCounts.nodes)}</div></div>
               <div><Lb>Edges</Lb><div style={{ marginTop: 4, color: (graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.relationships, topicGraphCounts.relationships)}</div></div>
             </div>
-            <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} />
+            <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} latestRunId={activeReport?.run_id} />
             <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.45 }}>{explainGraph(graphView, selected, graphLabel)} {graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}.`}</div>
           </div>
         </aside>
@@ -3890,7 +3890,7 @@ function IntelPage({ ws }) {
                 <MC l="Nodes" v={Math.max(graphCounts.nodes, topicGraphCounts.nodes)} c={(graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim} />
                 <MC l="Edges" v={Math.max(graphCounts.relationships, topicGraphCounts.relationships)} c={(graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim} />
               </div>
-              <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} />
+              <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} latestRunId={report?.run_id} />
               <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>{graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}`}</div>
             </div>
           </div>
@@ -4671,6 +4671,19 @@ function GraphCanvas({ nodes: rawNodes, edges: rawEdges, selectedId, onSelect, w
         ctx.restore();
       }
 
+      // Risk posture ring on IntelligenceRun nodes
+      if (n.type === "IntelligenceRun" && n.properties?.risk_posture) {
+        const posture = n.properties.risk_posture;
+        const postureColor = posture === "critical" ? "#ef4444" : posture === "elevated" ? "#f97316" : posture === "stable" ? "#22c55e" : "#64748b";
+        ctx.save();
+        ctx.beginPath(); ctx.arc(n.x, n.y, r + 7, 0, Math.PI * 2);
+        ctx.strokeStyle = postureColor + "90";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = postureColor; ctx.shadowBlur = 6;
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // Double ring for hub types
       const isHub = n.type === "Workspace" || n.type === "IntelligenceRun";
       if (isHub) {
@@ -4955,21 +4968,19 @@ function GraphCanvas({ nodes: rawNodes, edges: rawEdges, selectedId, onSelect, w
   );
 }
 
-function GraphMini({ graph, title, wsId }) {
+function GraphMini({ graph, title, wsId, latestRunId }) {
   const [selectedId, setSelectedId] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [activeTypes, setActiveTypes] = useState(new Set());
   const [graphMode, setGraphMode] = useState("workspace");
   const [liveGraph, setLiveGraph] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
 
-  const rawNodes = (graph?.nodes || []);
-  const rawEdges = (graph?.relationships || []);
   const displayGraph = liveGraph || graph;
   const allNodes = displayGraph?.nodes || [];
   const allEdges = displayGraph?.relationships || [];
 
-  // Deduplicate node types for filter pills
   const nodeTypes = useMemo(() => [...new Set(allNodes.map(n => n.type))].sort(), [allNodes]);
 
   const loadMode = async (mode) => {
@@ -4985,6 +4996,18 @@ function GraphMini({ graph, title, wsId }) {
     finally { setLoading(false); }
   };
 
+  const refresh = () => loadMode(graphMode);
+
+  const triggerBackfill = async () => {
+    if (!wsId) return;
+    setBackfilling(true);
+    try {
+      await endpoints.graphBackfill(wsId);
+      await loadMode("workspace");
+    } catch (_) {}
+    finally { setBackfilling(false); }
+  };
+
   const selectedNode = useMemo(() => {
     return allNodes.find(n => n.id === selectedId) || null;
   }, [selectedId, allNodes]);
@@ -4996,8 +5019,19 @@ function GraphMini({ graph, title, wsId }) {
 
   if (!allNodes.length && !allEdges.length) {
     return (
-      <div style={{ marginTop: 10, padding: "12px 0", borderTop: `1px solid ${T.border}`, color: T.dim, fontSize: 11, lineHeight: 1.6 }}>
-        Graph populates after the first intelligence run. Run monitoring to build the relationship graph.
+      <div style={{ marginTop: 10, padding: "14px 0", borderTop: `1px solid ${T.border}` }}>
+        <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.6 }}>
+          Graph populates after the first intelligence run. Run monitoring to build the relationship graph.
+        </div>
+        {wsId && (
+          <button onClick={triggerBackfill} disabled={backfilling} style={{
+            marginTop: 10, padding: "5px 12px", borderRadius: 7, border: `1px solid ${T.accent}`,
+            background: "transparent", color: T.accent, fontSize: 11, fontWeight: 700,
+            opacity: backfilling ? 0.5 : 1,
+          }}>
+            {backfilling ? "Building graph…" : "Build from existing evidence"}
+          </button>
+        )}
       </div>
     );
   }
@@ -5074,7 +5108,10 @@ function GraphMini({ graph, title, wsId }) {
         <span style={{ fontSize: 11, fontWeight: 800, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {shortLabel(title, 36)} · <span style={{ color: T.dim, fontWeight: 400 }}>{allNodes.length} nodes · {allEdges.length} links</span>
         </span>
-        <button onClick={() => setExpanded(true)} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 10, fontWeight: 800, flexShrink: 0 }}>Expand</button>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button onClick={refresh} disabled={loading} style={{ border: "none", background: "transparent", color: T.dim, fontSize: 12, lineHeight: 1 }} title="Refresh graph">↺</button>
+          <button onClick={() => setExpanded(true)} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 10, fontWeight: 800 }}>Expand</button>
+        </div>
       </div>
       {filterBar}
       <GraphCanvas
@@ -5087,6 +5124,7 @@ function GraphMini({ graph, title, wsId }) {
       {expanded && (
         <GraphFullView
           graph={displayGraph} title={title} wsId={wsId}
+          latestRunId={latestRunId}
           onClose={() => setExpanded(false)}
         />
       )}
@@ -5094,7 +5132,7 @@ function GraphMini({ graph, title, wsId }) {
   );
 }
 
-function GraphFullView({ graph, title, wsId, onClose }) {
+function GraphFullView({ graph, title, wsId, latestRunId, onClose }) {
   const [selectedId, setSelectedId] = useState(null);
   const [activeTypes, setActiveTypes] = useState(new Set());
   const [mode, setMode] = useState("workspace");
@@ -5116,10 +5154,18 @@ function GraphFullView({ graph, title, wsId, onClose }) {
     return matched.size ? matched : null;
   }, [search, allNodes]);
 
+  // Node type stats for the stats bar
+  const typeStats = useMemo(() => {
+    const counts = {};
+    allNodes.forEach(n => { counts[n.type] = (counts[n.type] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [allNodes]);
+
   const MODES = [
     { id: "workspace", label: "Workspace" },
     { id: "signals", label: "Signals" },
     { id: "cross", label: "Co-occurrence" },
+    ...(latestRunId ? [{ id: "lineage", label: "Run Lineage" }] : []),
   ];
 
   const loadMode = async (m, sig = "") => {
@@ -5129,8 +5175,19 @@ function GraphFullView({ graph, title, wsId, onClose }) {
       if (m === "workspace" && wsId) data = await endpoints.graphTopic(wsId);
       else if (m === "signals") data = await endpoints.graphSignals(sig, 120);
       else if (m === "cross") data = await endpoints.graphCrossEntity(1, 150);
+      else if (m === "lineage" && latestRunId) data = await endpoints.graphRunLineage(latestRunId);
       setLiveGraph(data?.nodes?.length ? data : null);
     } catch (_) { setLiveGraph(null); }
+    finally { setLoading(false); }
+  };
+
+  const focusEntity = async (entityName) => {
+    if (!entityName) return;
+    setLoading(true); setSelectedId(null);
+    try {
+      const data = await endpoints.graphEntity(entityName);
+      setLiveGraph(data?.nodes?.length ? data : null);
+    } catch (_) {}
     finally { setLoading(false); }
   };
 
@@ -5149,7 +5206,15 @@ function GraphFullView({ graph, title, wsId, onClose }) {
           <GitBranch size={15} color={T.accent} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 900, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title} — Relationship Intelligence Graph</div>
-            <div style={{ fontSize: 10, color: T.dim, marginTop: 2 }}>{allNodes.length} nodes · {allEdges.length} relationships · scroll/+− to zoom · drag to pan · click to inspect · dbl-click to focus</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+              {typeStats.map(([type, count]) => (
+                <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: nodeColor(type), fontWeight: 700 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 99, background: nodeColor(type) }} />
+                  {count} {nodeDisplay(type)}
+                </span>
+              ))}
+              {!typeStats.length && <span style={{ fontSize: 10, color: T.dim }}>scroll/+− zoom · drag pan · click inspect · dbl-click focus</span>}
+            </div>
           </div>
           <button onClick={onClose} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, fontSize: 12 }}>Close</button>
         </div>
@@ -5227,30 +5292,101 @@ function GraphFullView({ graph, title, wsId, onClose }) {
 
           {/* Detail panel */}
           {selectedNode && (
-            <div style={{ width: 300, borderLeft: `1px solid ${T.border}`, padding: "14px 16px", overflowY: "auto", flexShrink: 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <span style={{ fontSize: 10, fontWeight: 900, color: nodeColor(selectedNode.type), textTransform: "uppercase", letterSpacing: ".07em" }}>{nodeDisplay(selectedNode.type)}</span>
-                <button onClick={() => setSelectedId(null)} style={{ background: "none", border: "none", color: T.dim, fontSize: 16, cursor: "pointer" }}>&times;</button>
+            <div style={{ width: 320, borderLeft: `1px solid ${T.border}`, padding: "14px 16px", overflowY: "auto", flexShrink: 0, display: "flex", flexDirection: "column", gap: 0 }}>
+              {/* Node header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div>
+                  <span style={{ fontSize: 9, fontWeight: 900, color: nodeColor(selectedNode.type), textTransform: "uppercase", letterSpacing: ".07em" }}>{nodeDisplay(selectedNode.type)}</span>
+                  {selectedNode.properties?.risk_posture && (
+                    <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 800, color: selectedNode.properties.risk_posture === "critical" ? "#ef4444" : selectedNode.properties.risk_posture === "elevated" ? "#f97316" : "#22c55e", background: (selectedNode.properties.risk_posture === "critical" ? "#ef4444" : selectedNode.properties.risk_posture === "elevated" ? "#f97316" : "#22c55e") + "18", padding: "2px 7px", borderRadius: 99 }}>
+                      {selectedNode.properties.risk_posture}
+                    </span>
+                  )}
+                  {selectedNode.properties?.severity && (
+                    <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 800, color: selectedNode.properties.severity === "critical" ? "#ef4444" : selectedNode.properties.severity === "high" ? "#f97316" : selectedNode.properties.severity === "medium" ? "#eab308" : "#22c55e", background: (selectedNode.properties.severity === "critical" ? "#ef4444" : selectedNode.properties.severity === "high" ? "#f97316" : "#22c55e") + "18", padding: "2px 7px", borderRadius: 99 }}>
+                      {selectedNode.properties.severity}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => setSelectedId(null)} style={{ background: "none", border: "none", color: T.dim, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>&times;</button>
               </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: T.text, wordBreak: "break-word", lineHeight: 1.35 }}>{stripPrefix(selectedNode.label)}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.text, wordBreak: "break-word", lineHeight: 1.35, marginBottom: 10 }}>{selectedNode.label}</div>
 
-              {/* Properties */}
-              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                {Object.entries(selectedNode.properties || {}).filter(([k]) => !["color", "scoped_id", "tenant_id"].includes(k)).slice(0, 10).map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em" }}>{k.replace(/_/g, " ")}</span>
-                    <span style={{ fontSize: 11, color: T.muted, wordBreak: "break-word" }}>{String(v).slice(0, 120)}</span>
+              {/* Context card per node type */}
+              {selectedNode.properties?.summary && (
+                <div style={{ padding: "10px 12px", borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}`, marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: T.dim, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Summary</div>
+                  <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.55 }}>{String(selectedNode.properties.summary).slice(0, 280)}</div>
+                </div>
+              )}
+              {selectedNode.properties?.finding && (
+                <div style={{ padding: "10px 12px", borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}`, marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: T.dim, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Finding</div>
+                  <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.55 }}>{String(selectedNode.properties.finding).slice(0, 280)}</div>
+                </div>
+              )}
+              {selectedNode.properties?.recommended_action && (
+                <div style={{ padding: "10px 12px", borderRadius: 8, background: T.accent + "12", border: `1px solid ${T.accent}30`, marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: T.accent, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Recommended Action</div>
+                  <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.55 }}>{String(selectedNode.properties.recommended_action).slice(0, 200)}</div>
+                </div>
+              )}
+              {selectedNode.properties?.url && (
+                <a href={selectedNode.properties.url} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 10, fontSize: 10, color: T.accent, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  ↗ {selectedNode.properties.url}
+                </a>
+              )}
+              {selectedNode.properties?.task && (
+                <div style={{ padding: "8px 12px", borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}`, marginBottom: 10, fontSize: 11, color: T.muted, lineHeight: 1.5 }}>
+                  <span style={{ color: T.dim, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>Task </span>
+                  {String(selectedNode.properties.task).slice(0, 160)}
+                </div>
+              )}
+              {/* Confidence bar */}
+              {selectedNode.properties?.confidence !== undefined && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                    <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", fontWeight: 800 }}>Confidence</span>
+                    <span style={{ fontSize: 9, color: T.accent, fontWeight: 700 }}>{Math.round(parseFloat(selectedNode.properties.confidence) * 100)}%</span>
                   </div>
-                ))}
+                  <div style={{ height: 3, borderRadius: 99, background: T.border }}>
+                    <div style={{ height: 3, borderRadius: 99, background: T.accent, width: `${Math.round(parseFloat(selectedNode.properties.confidence) * 100)}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Focus neighborhood button for entity-type nodes */}
+              {["Company", "Vendor", "Competitor", "Supplier", "Account", "Market", "Regulator", "Regulation", "Entity"].includes(selectedNode.type) && selectedNode.properties?.name && (
+                <button onClick={() => focusEntity(selectedNode.properties.name)} style={{
+                  marginBottom: 10, padding: "6px 12px", borderRadius: 7,
+                  border: `1px solid ${nodeColor(selectedNode.type)}60`,
+                  background: nodeColor(selectedNode.type) + "10",
+                  color: nodeColor(selectedNode.type), fontSize: 11, fontWeight: 700, textAlign: "left",
+                }}>
+                  Show full neighborhood ›
+                </button>
+              )}
+
+              {/* Properties — compact key/value */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 10 }}>
+                {Object.entries(selectedNode.properties || {})
+                  .filter(([k]) => !["color", "scoped_id", "tenant_id", "summary", "finding", "recommended_action", "url", "task", "confidence", "risk_posture", "severity"].includes(k))
+                  .slice(0, 8)
+                  .map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                      <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", flexShrink: 0, width: 90 }}>{k.replace(/_/g, " ")}</span>
+                      <span style={{ fontSize: 11, color: T.muted, wordBreak: "break-word", flex: 1 }}>{String(v).slice(0, 90)}</span>
+                    </div>
+                  ))}
               </div>
 
               {/* Connected nodes */}
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontSize: 10, color: T.dim, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>
+              <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
+                <div style={{ fontSize: 10, color: T.dim, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>
                   {connectedEdges.length} connection{connectedEdges.length !== 1 ? "s" : ""}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  {connectedEdges.slice(0, 12).map((e, i) => {
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {connectedEdges.slice(0, 14).map((e, i) => {
                     const otherId = e.source === selectedId ? e.target : e.source;
                     const other = allNodes.find(n => n.id === otherId);
                     if (!other) return null;
@@ -5263,7 +5399,7 @@ function GraphFullView({ graph, title, wsId, onClose }) {
                       }}>
                         <span style={{ width: 8, height: 8, borderRadius: 99, background: nodeColor(other.type), flexShrink: 0 }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripPrefix(other.label)}</div>
+                          <div style={{ fontSize: 11, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{other.label}</div>
                           <div style={{ fontSize: 9, color: T.dim }}>{dir} {e.type.replace(/_/g, " ").toLowerCase()}</div>
                         </div>
                       </button>
@@ -5275,14 +5411,17 @@ function GraphFullView({ graph, title, wsId, onClose }) {
           )}
         </div>
 
-        {/* Legend */}
-        <div style={{ padding: "8px 18px", borderTop: `1px solid ${T.border}`, display: "flex", flexWrap: "wrap", gap: 12, flexShrink: 0 }}>
-          {nodeTypes.slice(0, 12).map(type => (
-            <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 9, color: T.dim }}>
-              <span style={{ width: 7, height: 7, borderRadius: 99, background: nodeColor(type) }} />
-              {nodeDisplay(type)}
-            </span>
-          ))}
+        {/* Status bar */}
+        <div style={{ padding: "6px 18px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+          <span style={{ fontSize: 9, color: T.dim }}>{allNodes.length} nodes · {allEdges.length} edges · scroll to zoom · drag to pan · click to inspect</span>
+          <div style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {nodeTypes.slice(0, 10).map(type => (
+              <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: T.dim }}>
+                <span style={{ width: 6, height: 6, borderRadius: 99, background: nodeColor(type) }} />
+                {nodeDisplay(type)}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>
