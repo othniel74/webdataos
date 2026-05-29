@@ -783,7 +783,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const brandTarget = user ? "Monitor" : "Home";
   const go = n => { setPage(n); setMenuOpen(false); };
   const publicNav = !user && PUB.includes(page);
-  const lightNav = publicNav && page !== "Demo";
+  const lightNav = publicNav && page !== "Demo" && page !== "Pricing";
   const linkColor = (active) => active ? (lightNav ? "#0B1426" : "#F1F5F9") : (lightNav ? "#64748B" : "#64748B");
 
   const headerStyle = {
@@ -1539,7 +1539,55 @@ function PublicSolutionPage({ nav, auth }) {
 function PublicPricingPage({ nav, user, auth }) {
   const plans = [["Core", "One focused track", "For one team proving a single workflow."], ["Pro", "Two tracks", "For teams connecting security, GTM, or finance context."], ["Enterprise", "All tracks", "For organizations standardizing external intelligence."]];
   const start = user ? () => nav("Monitor") : auth;
-  return <main className="upgrade-page upgrade-light"><style>{UPGRADE_PUBLIC_CSS}</style><section className="upgrade-hero-light"><div className="upgrade-container"><div className="upgrade-pill upgrade-pill-blue">Pricing</div><h1>Pay for operating scope, not noise.</h1><p>Every plan uses the same operating loop: monitor, collect, reason, act, and record the outcome.</p></div></section><section className="upgrade-white-band"><div className="upgrade-container upgrade-price-grid">{plans.map(([name, scope, desc], i) => <div className={`upgrade-price-card ${i === 1 ? "featured" : ""}`} key={name}><span>{scope}</span><h2>{name}</h2><p>{desc}</p><button onClick={start}>{i === 2 ? "Contact sales" : "Start workspace"}</button></div>)}</div></section><section className="upgrade-dark-band"><div className="upgrade-centered"><div className="upgrade-pill upgrade-pill-dark">Included runtime</div><h2>Evidence, memory, reasoning, actions, and receipts.</h2><p>Pricing scales by monitoring scope and operating support, not by exposing users to more raw extraction.</p></div></section></main>;
+  return (
+    <main className="upgrade-page upgrade-pricing-page">
+      <style>{UPGRADE_PUBLIC_CSS}</style>
+      <style>{`
+        .upgrade-pricing-page{background:#0B1426;color:#F1F5F9;min-height:calc(100vh - 60px)}
+        .upgrade-pricing-hero{padding:88px 40px 56px;text-align:center}
+        .upgrade-pricing-hero .upgrade-container{max-width:760px}
+        .upgrade-pricing-hero h1{font-size:56px;font-weight:700;line-height:1.1;letter-spacing:-2.5px;margin:0 0 22px;color:#F1F5F9}
+        .upgrade-pricing-hero h1 span{color:#94A3B8;font-weight:300}
+        .upgrade-pricing-hero p{font-size:17px;color:#64748B;line-height:1.75;max-width:560px;margin:0 auto}
+        .upgrade-pricing-band{padding:0 40px 56px}
+        .upgrade-pricing-page .upgrade-price-card{background:#131F35;border-color:#1E293B;color:#F1F5F9}
+        .upgrade-pricing-page .upgrade-price-card.featured{border-color:#2563EB;box-shadow:0 0 0 1px rgba(37,99,235,.35)}
+        .upgrade-pricing-page .upgrade-price-card h2{color:#F1F5F9}
+        .upgrade-pricing-page .upgrade-price-card p{color:#94A3B8}
+        .upgrade-pricing-page .upgrade-price-card button{background:#2563EB;color:#fff}
+        .upgrade-pricing-runtime{padding:68px 40px 96px;border-top:1px solid rgba(255,255,255,.06);background:#0B1426}
+        .upgrade-pricing-runtime h2{color:#F1F5F9}
+        .upgrade-pricing-runtime p{color:#94A3B8}
+        @media(max-width:900px){.upgrade-pricing-hero{padding:64px 24px 42px}.upgrade-pricing-band,.upgrade-pricing-runtime{padding-left:24px;padding-right:24px}.upgrade-pricing-hero h1{font-size:42px}}
+      `}</style>
+      <section className="upgrade-pricing-hero">
+        <div className="upgrade-container">
+          <div className="upgrade-pill upgrade-pill-dark"><span /> Pricing</div>
+          <h1>Pay for operating scope,<br /><span>not noise.</span></h1>
+          <p>Every plan uses the same operating loop: monitor, collect, reason, act, and record the outcome.</p>
+        </div>
+      </section>
+      <section className="upgrade-pricing-band">
+        <div className="upgrade-container upgrade-price-grid">
+          {plans.map(([name, scope, desc], i) => (
+            <div className={`upgrade-price-card ${i === 1 ? "featured" : ""}`} key={name}>
+              <span>{scope}</span>
+              <h2>{name}</h2>
+              <p>{desc}</p>
+              <button onClick={start}>{i === 2 ? "Contact sales" : "Start workspace"}</button>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="upgrade-pricing-runtime">
+        <div className="upgrade-centered">
+          <div className="upgrade-pill upgrade-pill-dark"><span /> Included runtime</div>
+          <h2>Evidence, memory, reasoning, actions, and receipts.</h2>
+          <p>Pricing scales by monitoring scope and operating support, not by exposing users to more raw extraction.</p>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function PublicDocsPage({ nav, auth }) {
