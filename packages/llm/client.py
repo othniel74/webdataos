@@ -1,10 +1,11 @@
 """Thin async OpenAI-compatible LLM client using httpx.
 
 Falls back gracefully when no API key is configured.
-Supports OpenAI first, then AI/ML API as an OpenAI-compatible fallback.
+Supports OpenAI and AI/ML API as mutual OpenAI-compatible fallbacks.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 from typing import Any
 
@@ -17,6 +18,14 @@ logger = get_logger(__name__)
 
 MAX_TOKENS = 4096
 TEMPERATURE = 0.3
+
+
+@dataclass(frozen=True)
+class LLMProvider:
+    name: str
+    api_key: str
+    base_url: str
+    model: str
 
 
 class LLMClient:
@@ -34,43 +43,56 @@ class LLMClient:
         provider: str | None = None,
     ) -> None:
         settings = get_settings()
+        self.providers: list[LLMProvider] = []
         if api_key:
-            self.api_key = api_key
-            self.base_url = base_url or "https://api.openai.com/v1"
-            self.model = model or settings.openai_model
-            self.provider = provider or "custom"
-        elif settings.openai_api_key:
-            self.api_key = settings.openai_api_key
-            self.base_url = base_url or "https://api.openai.com/v1"
-            self.model = model or settings.openai_model
-            self.provider = provider or "openai"
-        elif settings.aimlapi_api_key:
-            self.api_key = settings.aimlapi_api_key
-            self.base_url = base_url or settings.aimlapi_base_url
-            self.model = model or settings.aimlapi_model
-            self.provider = provider or "aimlapi"
+            self.providers.append(
+                LLMProvider(
+                    name=provider or "custom",
+                    api_key=api_key,
+                    base_url=base_url or "https://api.openai.com/v1",
+                    model=model or settings.openai_model,
+                )
+            )
         else:
-            self.api_key = None
-            self.base_url = base_url or "https://api.openai.com/v1"
-            self.model = model or settings.openai_model
-            self.provider = provider
-        self._client: httpx.AsyncClient | None = None
+            if settings.openai_api_key:
+                self.providers.append(
+                    LLMProvider(
+                        name="openai",
+                        api_key=settings.openai_api_key,
+                        base_url=base_url or "https://api.openai.com/v1",
+                        model=model or settings.openai_model,
+                    )
+                )
+            if settings.aimlapi_api_key:
+                self.providers.append(
+                    LLMProvider(
+                        name="aimlapi",
+                        api_key=settings.aimlapi_api_key,
+                        base_url=settings.aimlapi_base_url,
+                        model=settings.aimlapi_model,
+                    )
+                )
+        self.provider = "+".join(p.name for p in self.providers) or provider
+        self.last_provider: str | None = None
+        self._clients: dict[str, httpx.AsyncClient] = {}
 
     @property
     def available(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.providers)
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(
-                base_url=self.base_url,
+    async def _get_client(self, provider: LLMProvider) -> httpx.AsyncClient:
+        client = self._clients.get(provider.name)
+        if client is None or client.is_closed:
+            client = httpx.AsyncClient(
+                base_url=provider.base_url,
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
+                    "Authorization": f"Bearer {provider.api_key}",
                     "Content-Type": "application/json",
                 },
                 timeout=60.0,
             )
-        return self._client
+            self._clients[provider.name] = client
+        return client
 
     async def chat(
         self,
@@ -84,32 +106,43 @@ class LLMClient:
         if not self.available:
             raise RuntimeError("LLM client has no API key configured")
 
-        client = await self._get_client()
+        last_error: Exception | None = None
+        for provider in self.providers:
+            client = await self._get_client(provider)
+            payload: dict[str, Any] = {
+                "model": provider.model,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+            }
 
-        payload: dict[str, Any] = {
-            "model": self.model,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        }
+            if json_mode:
+                payload["response_format"] = {"type": "json_object"}
 
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
+            try:
+                response = await client.post("/chat/completions", json=payload)
+                response.raise_for_status()
+                data = response.json()
+                self.last_provider = provider.name
+                return data["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as exc:
+                last_error = exc
+                logger.warning(
+                    "llm_provider_failed",
+                    provider=provider.name,
+                    status=exc.response.status_code,
+                    body=exc.response.text[:500],
+                )
+            except Exception as exc:
+                last_error = exc
+                logger.warning("llm_provider_failed", provider=provider.name, error=str(exc))
 
-        try:
-            response = await client.post("/chat/completions", json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
-        except httpx.HTTPStatusError as exc:
-            logger.error("llm_api_error", status=exc.response.status_code, body=exc.response.text[:500])
-            raise
-        except Exception as exc:
-            logger.error("llm_request_failed", error=str(exc))
-            raise
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("LLM client has no providers configured")
 
     async def chat_json(
         self,
@@ -129,5 +162,6 @@ class LLMClient:
         return json.loads(cleaned)
 
     async def close(self) -> None:
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+        for client in self._clients.values():
+            if not client.is_closed:
+                await client.aclose()

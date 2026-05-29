@@ -99,7 +99,8 @@ class ResearchAgentOrchestrator:
                 task_text, records, memories
             )
             if self.llm.available:
-                partner_trace.append("openai.chat.synthesis")
+                provider = self.llm.last_provider or self.llm.provider or "llm"
+                partner_trace.append(f"{provider}.chat.synthesis")
 
             # ── Phase 1+2: Load org context and run reasoning engine ──
             org_context = await self._load_org_context(db, topic_id)

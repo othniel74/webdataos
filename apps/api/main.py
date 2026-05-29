@@ -109,7 +109,15 @@ async def health():
         "mock_brightdata": settings.mock_brightdata,
         "brightdata_live": bool(settings.brightdata_api_key) and not settings.mock_brightdata,
         "llm_available": bool(settings.openai_api_key or settings.aimlapi_api_key),
-        "llm_provider": "openai" if settings.openai_api_key else ("aimlapi" if settings.aimlapi_api_key else None),
+        "llm_provider": "+".join(
+            provider
+            for provider, enabled in {
+                "openai": bool(settings.openai_api_key),
+                "aimlapi": bool(settings.aimlapi_api_key),
+            }.items()
+            if enabled
+        )
+        or None,
         "auth_enabled": settings.api_auth_enabled,
         "version": "0.5.0",
     }
