@@ -135,11 +135,11 @@ class MemoryService:
                         """
                         SELECT id, entity, content, evidence_urls, metadata_json,
                                workspace_id, updated_at,
-                               1 - (embedding_vector <=> :vec::vector) AS score
+                               1 - (embedding_vector <=> CAST(:vec AS vector)) AS score
                         FROM memory_entries
                         WHERE workspace_id = :ws_id
                           AND embedding_vector IS NOT NULL
-                        ORDER BY embedding_vector <=> :vec::vector
+                        ORDER BY embedding_vector <=> CAST(:vec AS vector)
                         LIMIT :top_k
                         """
                     ),
@@ -165,7 +165,8 @@ class MemoryService:
                     return records
             except Exception as exc:
                 logger.warning("pgvector_search_failed", error=str(exc)[:200])
-                # Fall through to JSON embedding path
+                # Roll back aborted transaction so the fallback ORM query can run
+                await db.rollback()
 
         # JSON embedding fallback (existing rows without pgvector column)
         result = await db.execute(

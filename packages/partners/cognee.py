@@ -206,7 +206,7 @@ class CogneeMemoryService:
 
         try:
             async with self._io_lock:
-                results = await cognee.recall(query, dataset_name=request.workspace_id)
+                results = await cognee.recall(query, datasets=[request.workspace_id])
             records = []
             for i, result in enumerate(results or []):
                 text = str(result) if not isinstance(result, str) else result
@@ -236,7 +236,7 @@ class CogneeMemoryService:
         import cognee
 
         try:
-            await cognee.forget(dataset_name=workspace_id)
+            await cognee.forget(dataset=workspace_id)
             logger.info("cognee_forget", workspace=workspace_id)
         except Exception as exc:
             logger.error("cognee_forget_failed", error=str(exc))
