@@ -97,6 +97,15 @@ async def list_actions(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
+    return await _list_actions(db, workspace_id, auth, status)
+
+
+async def _list_actions(
+    db: AsyncSession,
+    workspace_id: str,
+    auth: AuthContext,
+    status: str | None = None,
+) -> list[ActionRead]:
     workspace_id = normalize_workspace_id(workspace_id)
     stmt = select(AutonomousAction).where(
         AutonomousAction.workspace_id == workspace_id,
@@ -149,6 +158,16 @@ async def execute_action(
     return _action_read(action)
 
 
+@router.get("/actions/{workspace_id:path}", response_model=list[ActionRead])
+async def list_actions_legacy_path(
+    workspace_id: str,
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
+    return await _list_actions(db, workspace_id, auth, status)
+
+
 # ── Outcomes ─────────────────────────────────────────────────────────
 
 @router.post("/outcomes", response_model=OutcomeRead)
@@ -179,6 +198,16 @@ async def outcome_stats(
 ):
     workspace_id = normalize_workspace_id(workspace_id)
     return await _outcome_svc.get_stats(db, workspace_id, tenant_id=auth.tenant_id)
+
+
+@router.get("/outcomes/{workspace_id:path}", response_model=list[OutcomeRead])
+async def list_outcomes_legacy_path(
+    workspace_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
+    workspace_id = normalize_workspace_id(workspace_id)
+    return await _outcome_svc.list_outcomes(db, workspace_id, tenant_id=auth.tenant_id)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
