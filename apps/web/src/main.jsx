@@ -34,17 +34,31 @@ const createDefaultWorkspace = () => ({
 const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 const KEY = import.meta.env.VITE_API_KEY || "dev-local-key-change-me";
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
+const CLERK_CONFIGURED = CLERK_KEY.startsWith("pk_");
 let apiBearerToken = null;
 const setApiBearerToken = token => { apiBearerToken = token || null; };
 const authHeaders = () => (apiBearerToken ? { "Authorization": `Bearer ${apiBearerToken}` } : { "X-API-Key": KEY });
 const headers = () => ({ "Content-Type": "application/json", ...authHeaders() });
 const demoHeaders = sessionId => ({ "Content-Type": "application/json", ...(sessionId ? { "X-Demo-Session": sessionId } : {}) });
+const readableError = (status, text, path) => {
+  const body = (text || "").trim();
+  const lower = body.toLowerCase();
+  if (lower.includes("<html") || lower.includes("gateway time-out") || lower.includes("bad gateway")) {
+    return `${path} did not complete before the deployment gateway timed out. Please retry; no workspace data was changed.`;
+  }
+  try {
+    const parsed = JSON.parse(body);
+    return `${status}: ${parsed.detail || parsed.error || body.slice(0, 280)}`;
+  } catch {
+    return `${status}: ${body.slice(0, 280)}`;
+  }
+};
 async function api(method, path, body, timeoutMs = 20000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API}${path}`, { method, headers: headers(), signal: controller.signal, ...(body ? { body: JSON.stringify(body) } : {}) });
-    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(readableError(res.status, await res.text(), path));
     return res.json();
   } catch (error) {
     if (error?.name === "AbortError") throw new Error(`${path} timed out. The live backend did not respond fast enough.`);
@@ -59,7 +73,7 @@ async function demoApi(method, path, sessionId, body, timeoutMs = 70000) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API}${path}`, { method, headers: demoHeaders(sessionId), signal: controller.signal, ...(body ? { body: JSON.stringify(body) } : {}) });
-    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(readableError(res.status, await res.text(), path));
     return res.json();
   } catch (error) {
     if (error?.name === "AbortError") throw new Error(`${path} timed out. The demo backend did not respond fast enough.`);
@@ -123,8 +137,8 @@ const endpoints = {
   demoSession: mission => demoApi("POST", "/demo/sessions", null, { mission }, 20000),
   demoCurrent: sessionId => demoApi("GET", "/demo/sessions/current", sessionId, null, 20000),
   demoWorkspace: (sessionId, data) => demoApi("POST", "/demo/workspaces", sessionId, data, 20000),
-  demoRun: sessionId => demoApi("POST", "/demo/monitor/run", sessionId, null, 90000),
-  demoChat: (sessionId, question, history = []) => demoApi("POST", "/demo/analyst/chat", sessionId, { question, history }, 90000),
+  demoRun: sessionId => demoApi("POST", "/demo/monitor/run", sessionId, null, 180000),
+  demoChat: (sessionId, question, history = []) => demoApi("POST", "/demo/analyst/chat", sessionId, { question, history }, 180000),
   demoEvidence: sessionId => demoApi("GET", "/demo/evidence", sessionId, null, 30000),
   demoGraph: sessionId => demoApi("GET", "/demo/graph", sessionId, null, 30000),
   demoLatest: sessionId => demoApi("GET", "/demo/runs/latest", sessionId, null, 30000),
@@ -161,7 +175,7 @@ const packIcon = (id, size = 18) => {
 const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
 const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Settings"];
 
-export default function App({ externalUser = null, externalSignOut = null, clerkEnabled = false } = {}) {
+export default function App({ externalUser = null, externalSignOut = null, clerkEnabled = false, authUnavailable = false } = {}) {
   const [page, setPage] = useState("Home");
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -225,7 +239,7 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'DM Sans','Manrope',system-ui,sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <style>{CSS}</style>
-      <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { if (externalSignOut) externalSignOut(); setUser(null); setPage("Home"); }} backendOk={backendOk} clerkEnabled={clerkEnabled} />
+      <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { if (externalSignOut) externalSignOut(); setUser(null); setPage("Home"); }} backendOk={backendOk} clerkEnabled={clerkEnabled} authUnavailable={authUnavailable} />
       {page === "Home" && <HomePage nav={nav} user={user} auth={() => setShowAuth(true)} />}
       {page === "Demo" && <DemoPage nav={nav} />}
       {page === "Solution" && <SolutionManualPage nav={nav} />}
@@ -282,7 +296,7 @@ function FI({ icon, ph, v, set, type = "text" }) {
 }
 
 /* ═══════ NAV ═══════ */
-function Nav({ page, setPage, user, onAuth, onOut, backendOk, clerkEnabled = false }) {
+function Nav({ page, setPage, user, onAuth, onOut, backendOk, clerkEnabled = false, authUnavailable = false }) {
   const navItems = user ? PRIV : PUB;
   const brandTarget = user ? "Monitor" : "Home";
   return (
@@ -298,7 +312,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk, clerkEnabled = fal
         })}
       </nav>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {user ? <><div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 6px", borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}><div style={{ width: 24, height: 24, borderRadius: 999, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div><span style={{ fontSize: 12, color: T.muted }}>{user.name}</span></div>{clerkEnabled && <UserButton afterSignOutUrl="/" />}<button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}><LogOut size={12} /></button></> : clerkEnabled ? <><SignInButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button></SignInButton><SignUpButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Create account</button></SignUpButton><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button></> : <><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Try demo</button></>}
+        {user ? <><div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 6px", borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}><div style={{ width: 24, height: 24, borderRadius: 999, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div><span style={{ fontSize: 12, color: T.muted }}>{user.name}</span></div>{clerkEnabled && <UserButton afterSignOutUrl="/" />}<button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}><LogOut size={12} /></button></> : clerkEnabled ? <><SignInButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button></SignInButton><SignUpButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Create account</button></SignUpButton><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button></> : authUnavailable ? <><button disabled title="Clerk is not configured for this deployment" style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid rgba(239,68,68,.28)`, background: "rgba(239,68,68,.08)", fontSize: 12, color: "#fca5a5", cursor: "not-allowed" }}>Auth not configured</button><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Demo</button></> : <><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Local sign in</button><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Try demo</button></>}
       </div>
     </header>
   );
@@ -3484,7 +3498,7 @@ function ClerkApp() {
 }
 
 function Root() {
-  if (!CLERK_KEY) return <App />;
+  if (!CLERK_CONFIGURED) return <App authUnavailable={!import.meta.env.DEV} />;
   return <ClerkProvider publishableKey={CLERK_KEY}><ClerkApp /></ClerkProvider>;
 }
 

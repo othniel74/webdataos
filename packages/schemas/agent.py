@@ -16,6 +16,7 @@ class ResearchRequest(BaseModel):
     transcript_text: str | None = None
     enable_memory: bool = True
     enable_workflows: bool = True
+    allow_live_refresh: bool = True
 
 
 class ResearchPlanStep(BaseModel):

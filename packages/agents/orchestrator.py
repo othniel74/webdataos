@@ -133,42 +133,52 @@ class ResearchAgentOrchestrator:
             )
 
             if len(records) < 2:
-                try:
-                    refresh_limit = min(request.max_sources, 3)
-                    refresh_result = await asyncio.wait_for(
-                        self.intelligence.refresh_topic(
-                            db,
-                            topic_id,
-                            max_sources=refresh_limit,
-                            query=retrieval_query,
-                            tenant_id=tenant_id,
-                        ),
-                        timeout=min(40, max(15, self.settings.request_timeout_seconds + 5)),
-                    )
-                    partner_trace.append(f"brightdata.gateway.refresh({refresh_limit},query_specific)")
-                    refresh_status = refresh_result.get("status", "success")
-                    refresh_detail = (
-                        f"checked={refresh_result.get('sources_checked', 0)}, "
-                        f"created={refresh_result.get('records_created', 0)}"
-                    )
-                    if refresh_result.get("error"):
-                        refresh_detail = refresh_result["error"][:220]
-                    stages.append(
-                        ResearchRunStage(
-                            name="brightdata_refresh",
-                            status="success" if refresh_status == "success" else "failed",
-                            provider="bright_data_gateway",
-                            detail=refresh_detail,
+                if request.allow_live_refresh:
+                    try:
+                        refresh_limit = min(request.max_sources, 3)
+                        refresh_result = await asyncio.wait_for(
+                            self.intelligence.refresh_topic(
+                                db,
+                                topic_id,
+                                max_sources=refresh_limit,
+                                query=retrieval_query,
+                                tenant_id=tenant_id,
+                            ),
+                            timeout=min(40, max(15, self.settings.request_timeout_seconds + 5)),
                         )
-                    )
-                except TimeoutError:
-                    partner_trace.append("brightdata.gateway.refresh_timeout")
+                        partner_trace.append(f"brightdata.gateway.refresh({refresh_limit},query_specific)")
+                        refresh_status = refresh_result.get("status", "success")
+                        refresh_detail = (
+                            f"checked={refresh_result.get('sources_checked', 0)}, "
+                            f"created={refresh_result.get('records_created', 0)}"
+                        )
+                        if refresh_result.get("error"):
+                            refresh_detail = refresh_result["error"][:220]
+                        stages.append(
+                            ResearchRunStage(
+                                name="brightdata_refresh",
+                                status="success" if refresh_status == "success" else "failed",
+                                provider="bright_data_gateway",
+                                detail=refresh_detail,
+                            )
+                        )
+                    except TimeoutError:
+                        partner_trace.append("brightdata.gateway.refresh_timeout")
+                        stages.append(
+                            ResearchRunStage(
+                                name="brightdata_refresh",
+                                status="timeout",
+                                provider="bright_data_gateway",
+                                detail=f"max_sources={refresh_limit}",
+                            )
+                        )
+                else:
                     stages.append(
                         ResearchRunStage(
                             name="brightdata_refresh",
-                            status="timeout",
+                            status="skipped",
                             provider="bright_data_gateway",
-                            detail=f"max_sources={refresh_limit}",
+                            detail="live refresh disabled for this turn",
                         )
                     )
                 retrieval = await self.intelligence.retrieve_context(

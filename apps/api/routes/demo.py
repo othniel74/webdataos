@@ -211,9 +211,10 @@ async def run_demo_monitor(
             workspace_id=session.workspace_id,
             topic_id=session.workspace_id,
             package_id=mission["package_id"],
-            max_sources=3,
+            max_sources=1,
             enable_memory=True,
             enable_workflows=False,
+            allow_live_refresh=True,
         ),
     )
     return report
@@ -251,9 +252,10 @@ async def demo_analyst_chat(
             workspace_id=session.workspace_id,
             topic_id=session.workspace_id,
             package_id=mission["package_id"],
-            max_sources=3,
+            max_sources=2,
             enable_memory=True,
             enable_workflows=False,
+            allow_live_refresh=False,
         ),
     )
     return report
