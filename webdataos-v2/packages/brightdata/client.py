@@ -1,5 +1,7 @@
 import asyncio
 from typing import Any, Callable, Awaitable
+from urllib.parse import quote_plus
+
 import httpx
 from packages.common.circuit_breaker import CircuitOpenError, InMemoryCircuitBreaker
 from packages.common.config import get_settings
@@ -38,7 +40,13 @@ class BrightDataClient:
     async def serp_search(self, query: str, country: str | None = None) -> list[SearchResult]:
         if self.mock or not self.settings.brightdata_serp_endpoint:
             return self._mock_serp(query)
-        payload = {"query": query, "country": country or self.settings.default_country}
+        base_url = f"https://www.google.com/search?q={quote_plus(query)}"
+        search_url = f"{base_url}&brd_json=1"
+        payload = {
+            "zone": "serp_api1",
+            "url": search_url,
+            "format": "raw",
+        }
         data = await self._post_json(self.settings.brightdata_serp_endpoint, payload, "serp_api")
         items = data.get("organic", data.get("results", data if isinstance(data, list) else []))
         return [
@@ -68,19 +76,51 @@ class BrightDataClient:
         return await self._post_tool(
             self.settings.brightdata_web_unlocker_endpoint,
             ToolName.web_unlocker,
-            {"url": url},
+            {"zone": "unlocker", "url": url, "format": "raw", "data_format": "html"},
             url=url,
         )
 
     async def scraping_browser_extract(self, url: str, schema: dict[str, Any] | None = None) -> BrightDataResult:
         if self.mock or not self.settings.brightdata_scraping_browser_endpoint:
             return await self._mock_extract(url, ToolName.scraping_browser, schema)
+        endpoint = self.settings.brightdata_scraping_browser_endpoint
+        if endpoint.startswith("wss://"):
+            raise BrightDataError(
+                "Bright Data Browser API is a WebSocket endpoint and requires browser automation support; this app cannot POST to wss:// URLs yet."
+            )
         return await self._post_tool(
-            self.settings.brightdata_scraping_browser_endpoint,
+            endpoint,
             ToolName.scraping_browser,
             {"url": url, "schema": schema or {}},
             url=url,
         )
+
+    async def mcp_server_extract(self, url: str, schema: dict[str, Any] | None = None) -> BrightDataResult:
+        if self.mock or not self.settings.brightdata_mcp_endpoint:
+            return await self._mock_extract(url, ToolName.mcp_server, schema)
+        return await self._get_tool(
+            self.settings.brightdata_mcp_endpoint,
+            ToolName.mcp_server,
+            url=url,
+        )
+
+    async def _get_tool(self, endpoint: str, tool: ToolName, url: str | None) -> BrightDataResult:
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await self._with_resilience(tool.value, lambda: client.get(endpoint, headers=self.headers))
+        except CircuitOpenError as exc:
+            raise BrightDataError(str(exc)) from exc
+        except httpx.TimeoutException as exc:
+            return BrightDataResult(tool=tool, url=url, status_code=504, text="timeout", metadata={"endpoint": endpoint})
+        except httpx.HTTPError as exc:
+            return BrightDataResult(tool=tool, url=url, status_code=502, text=str(exc), metadata={"endpoint": endpoint})
+        text = resp.text
+        json_data = None
+        try:
+            json_data = resp.json()
+        except Exception:
+            pass
+        return BrightDataResult(tool=tool, url=url, status_code=resp.status_code, text=text, json_data=json_data, metadata={"endpoint": endpoint})
 
     async def _post_tool(self, endpoint: str, tool: ToolName, payload: dict[str, Any], url: str | None) -> BrightDataResult:
         try:

@@ -116,6 +116,8 @@ class GatewayService:
             return await self.client.web_scraper_extract(request.url, request.output_schema)
         if tool == ToolName.scraping_browser:
             return await self.client.scraping_browser_extract(request.url, request.output_schema)
+        if tool == ToolName.mcp_server:
+            return await self.client.mcp_server_extract(request.url, request.output_schema)
         if tool == ToolName.web_unlocker:
             return await self.client.web_unlocker_fetch(request.url)
         return await self.client.web_scraper_extract(request.url, request.output_schema)

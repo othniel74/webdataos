@@ -19,13 +19,19 @@ class RecoveryRouter:
                 return ToolName.web_unlocker
             if current != ToolName.scraping_browser:
                 return ToolName.scraping_browser
+            if current != ToolName.mcp_server:
+                return ToolName.mcp_server
         if failure in {FailureType.javascript_required, FailureType.empty_response, FailureType.selector_failed}:
             if current != ToolName.scraping_browser:
                 return ToolName.scraping_browser
+            if current != ToolName.mcp_server:
+                return ToolName.mcp_server
             if current != ToolName.web_unlocker:
                 return ToolName.web_unlocker
         if current == ToolName.web_scraper_api:
             return ToolName.scraping_browser
         if current == ToolName.scraping_browser:
+            return ToolName.mcp_server
+        if current == ToolName.mcp_server:
             return ToolName.web_unlocker
         return None

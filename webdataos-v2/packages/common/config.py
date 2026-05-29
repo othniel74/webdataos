@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     brightdata_web_scraper_endpoint: str | None = None
     brightdata_web_unlocker_endpoint: str | None = None
     brightdata_scraping_browser_endpoint: str | None = None
+    brightdata_mcp_endpoint: str | None = None
 
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
