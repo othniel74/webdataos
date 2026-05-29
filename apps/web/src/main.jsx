@@ -39,6 +39,7 @@ const endpoints = {
   listActions: (wsId, status) => api("GET", `/actions/${wsId}${status ? `?status=${status}` : ""}`),
   approveAction: (id, data) => api("POST", `/actions/${id}/approve`, data),
   executeAction: id => api("POST", `/actions/${id}/execute`),
+  recordOutcome: data => api("POST", "/outcomes", data),
   listOutcomes: wsId => api("GET", `/outcomes/${wsId}`),
   outcomeStats: wsId => api("GET", `/outcomes/${wsId}/stats`),
 };
@@ -84,14 +85,6 @@ const MOCK_ACTIONS = [
   { id: "act_002", run_id: "run_01", action_type: "schedule_review", status: "pending_approval", title: "Schedule procurement review: Stripe", description: "Review contract before July 1 renewal." },
   { id: "act_003", run_id: "run_01", action_type: "notify_team", status: "auto_approved", title: "Alert: EU AI Act registration deadline", description: "Compliance team notified." },
   { id: "act_004", run_id: "run_02", action_type: "update_risk_register", status: "executed", title: "Update risk register: HubSpot", description: "Competitive signal added.", approved_by: "analyst@co.com" },
-];
-
-const MOCK_STATS = { total_outcomes: 23, acted: 14, dismissed: 4, false_alarms: 2, confirmed_useful: 3, hit_rate: 0.739, signal_accuracy: { pricing_change: 0.92, vendor_risk: 0.78, regulatory_change: 0.85, competitor_move: 0.65 }, entity_accuracy: { Stripe: 0.95, Okta: 0.82, HubSpot: 0.60, OpenAI: 0.71 } };
-
-const MOCK_OUTCOMES = [
-  { id: "o1", entity_name: "Stripe", signal_type: "pricing_change", outcome_type: "acted", feedback_text: "Renegotiated at 2.7%", recorded_by: "procurement@co.com" },
-  { id: "o2", entity_name: "HubSpot", signal_type: "competitor_move", outcome_type: "dismissed", feedback_text: "Not relevant", recorded_by: "strategy@co.com" },
-  { id: "o3", entity_name: "Okta", signal_type: "vendor_risk", outcome_type: "confirmed_useful", feedback_text: "SOC2 docs received", recorded_by: "security@co.com" },
 ];
 
 const packIcon = (id, size = 18) => {
@@ -174,7 +167,7 @@ export default function App() {
       {page === "Intelligence" && user && <IntelPage />}
       {page === "Gateway" && user && <GwPage />}
       {page === "Actions" && user && <ActPage actions={actions} setActions={setActions} />}
-      {page === "Outcomes" && user && <OutPage />}
+      {page === "Outcomes" && user && <OutPage ws={ws} user={user} />}
       {showAuth && <Auth onClose={() => setShowAuth(false)} onAuth={u => { setUser(u); setShowAuth(false); setPage("Workspace"); }} />}
     </div>
   );
@@ -882,18 +875,75 @@ function ActPage({ actions, setActions }) {
 }
 
 /* ═══════ OUTCOMES ═══════ */
-function OutPage() {
-  const s = MOCK_STATS;
+function OutPage({ ws, user }) {
+  const emptyStats = { total_outcomes: 0, acted: 0, dismissed: 0, false_alarms: 0, confirmed_useful: 0, hit_rate: 0, signal_accuracy: {}, entity_accuracy: {} };
+  const [stats, setStats] = useState(emptyStats);
+  const [outcomes, setOutcomes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [draft, setDraft] = useState({ entity_name: "", signal_type: "vendor_risk", outcome_type: "acted", feedback_text: "" });
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const [items, summary] = await Promise.all([endpoints.listOutcomes(ws.id), endpoints.outcomeStats(ws.id)]);
+      setOutcomes(items);
+      setStats({ ...emptyStats, ...summary });
+    } catch (e) {
+      setErr(e.message || "Could not load outcomes");
+    } finally {
+      setLoading(false);
+    }
+  }, [ws.id]);
+  useEffect(() => { load(); }, [load]);
+  const record = async () => {
+    setErr("");
+    try {
+      await endpoints.recordOutcome({
+        workspace_id: ws.id,
+        entity_name: draft.entity_name || null,
+        signal_type: draft.signal_type || null,
+        outcome_type: draft.outcome_type,
+        feedback_text: draft.feedback_text || null,
+        recorded_by: user?.email || user?.name || "analyst",
+      });
+      setDraft(prev => ({ ...prev, entity_name: "", feedback_text: "" }));
+      await load();
+    } catch (e) {
+      setErr(e.message || "Could not record outcome");
+    }
+  };
+  const s = stats;
+  const hasOutcomes = outcomes.length > 0;
+  const accuracyPanels = [["Signal accuracy", s.signal_accuracy || {}], ["Entity accuracy", s.entity_accuracy || {}]];
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 24px" }}>
-      <Eye>Outcome learning</Eye><h2 style={{ fontSize: 22, marginTop: 4 }}>What happened after recommendations</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+        <div>
+          <Eye>Outcome learning</Eye><h2 style={{ fontSize: 22, marginTop: 4 }}>What happened after recommendations</h2>
+          <div style={{ fontSize: 12, color: T.dim, marginTop: 5 }}>Live outcomes for workspace <span style={{ color: T.muted, fontFamily: "'JetBrains Mono'" }}>{ws.id}</span>.</div>
+        </div>
+        <button onClick={load} disabled={loading} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: loading ? "rgba(255,255,255,.03)" : T.bgSub, color: T.muted, fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>{loading ? <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={12} />}Refresh</button>
+      </div>
+      {err && <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", color: "#fca5a5", fontSize: 12 }}>{err}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 6, marginTop: 16 }}>
         <MC l="Total" v={s.total_outcomes} c={T.accent} /><MC l="Acted" v={s.acted} c="#22c55e" /><MC l="Confirmed" v={s.confirmed_useful} c={T.accent} /><MC l="Dismissed" v={s.dismissed} c={T.muted} /><MC l="False alarms" v={s.false_alarms} c="#ef4444" /><MC l="Hit rate" v={fmt(s.hit_rate)} c={s.hit_rate > .7 ? "#22c55e" : "#f59e0b"} />
       </div>
+      <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Record live outcome</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
+          <div><Lb>Entity</Lb><input value={draft.entity_name} onChange={e => setDraft({ ...draft, entity_name: e.target.value })} placeholder="Vendor or company" style={IS} /></div>
+          <div><Lb>Signal</Lb><input value={draft.signal_type} onChange={e => setDraft({ ...draft, signal_type: e.target.value })} placeholder="vendor_risk" style={IS} /></div>
+          <div><Lb>Outcome</Lb><select value={draft.outcome_type} onChange={e => setDraft({ ...draft, outcome_type: e.target.value })} style={IS}>{["acted", "confirmed_useful", "dismissed", "false_alarm", "deferred"].map(o => <option key={o}>{o}</option>)}</select></div>
+          <button onClick={record} disabled={loading} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 700 }}>Save</button>
+        </div>
+        <textarea value={draft.feedback_text} onChange={e => setDraft({ ...draft, feedback_text: e.target.value })} placeholder="What happened after the recommendation?" rows={2} style={{ ...IS, resize: "vertical", marginTop: 8 }} />
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 12 }}>
-        {[["Signal accuracy", s.signal_accuracy], ["Entity accuracy", s.entity_accuracy]].map(([title, data], i) => (
+        {accuracyPanels.map(([title, data], i) => (
           <div key={i} style={{ padding: 14, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{title}</div>
+            {Object.keys(data).length === 0 && <div style={{ fontSize: 12, color: T.dim, padding: "6px 0" }}>No live accuracy data yet.</div>}
             {Object.entries(data).map(([k, v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
               <span style={{ fontSize: 12, color: T.muted }}>{k.replace(/_/g, " ")}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -906,9 +956,11 @@ function OutPage() {
       </div>
       <div style={{ marginTop: 12, borderRadius: 12, overflow: "hidden", background: T.bgSub, border: `1px solid ${T.border}` }}>
         <div style={{ padding: "8px 14px", borderBottom: `1px solid ${T.border}`, fontSize: 13, fontWeight: 600 }}>Recent outcomes</div>
-        {MOCK_OUTCOMES.map(o => <div key={o.id} style={{ padding: "8px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between" }}>
-          <div><span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: `${oC(o.outcome_type)}12`, color: oC(o.outcome_type), fontWeight: 600, marginRight: 6 }}>{o.outcome_type}</span><span style={{ fontSize: 12, fontWeight: 500 }}>{o.entity_name}</span><span style={{ fontSize: 11, color: T.dim, marginLeft: 6 }}>{o.feedback_text}</span></div>
-          <span style={{ fontSize: 10, color: T.dim }}>{o.recorded_by}</span>
+        {!loading && !hasOutcomes && <div style={{ padding: 18, color: T.dim, fontSize: 12 }}>No outcomes recorded yet. Save the first live outcome above after a recommendation is acted on, dismissed, or confirmed useful.</div>}
+        {loading && <div style={{ padding: 18, color: T.dim, fontSize: 12 }}>Loading live outcomes...</div>}
+        {outcomes.map(o => <div key={o.id} style={{ padding: "8px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 10 }}>
+          <div><span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: `${oC(o.outcome_type)}12`, color: oC(o.outcome_type), fontWeight: 600, marginRight: 6 }}>{o.outcome_type}</span><span style={{ fontSize: 12, fontWeight: 500 }}>{o.entity_name || "Unspecified entity"}</span><span style={{ fontSize: 11, color: T.dim, marginLeft: 6 }}>{o.feedback_text || o.signal_type || "No feedback"}</span></div>
+          <span style={{ fontSize: 10, color: T.dim, whiteSpace: "nowrap" }}>{o.recorded_by || o.created_at || "system"}</span>
         </div>)}
       </div>
     </div>
