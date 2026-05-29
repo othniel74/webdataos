@@ -178,7 +178,7 @@ class ResearchAgentOrchestrator:
                 )
                 records = [
                     r.record for r in retrieval
-                    if r.score >= 0.35 and "no_query_match" not in r.reasons
+                    if r.score >= 0.40 and "no_query_match" not in r.reasons
                 ]
 
             summary, findings, companies, changes, confidence = await self.synthesizer.synthesize_async(

@@ -32,7 +32,8 @@ STOPWORDS = {
     "how", "in", "into", "is", "it", "its", "me", "of", "on", "or", "our", "show",
     "that", "the", "their", "this", "to", "us", "what", "when", "where", "which",
     "who", "why", "with", "without", "about", "against", "latest", "current",
-    "tell", "find", "give", "can", "could", "should", "would",
+    "tell", "find", "give", "can", "could", "should", "would", "cite", "exact",
+    "source", "sources", "signal", "signals",
 }
 
 
