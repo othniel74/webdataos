@@ -1,9 +1,0 @@
-.venv
-__pycache__
-*.pyc
-node_modules
-.git
-.env
-postgres_data
-neo4j_data
-.DS_Store

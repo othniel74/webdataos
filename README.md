@@ -2,6 +2,8 @@
 
 **WebDataOS** is an enterprise intelligence platform that turns public web signals into fresh, structured, evidence-backed intelligence. It serves both developers (via REST API and SDKs) and business users (via web interface) across three intelligence domains: Security & Compliance, GTM Intelligence, and Finance & Market Intelligence.
 
+> Active project: v3 now lives in `webdataos-v3/`. Run backend, frontend, Docker, and test commands from that directory.
+
 The system is built on a partner runtime architecture where each integration has a single, non-overlapping responsibility:
 
 | Partner | Role | What it does |
@@ -54,6 +56,7 @@ User (text / voice / audio upload)
 ### 1. Configure environment
 
 ```bash
+cd webdataos-v3
 cp .env.example .env
 ```
 
@@ -96,6 +99,7 @@ API_KEYS=your-api-key-here
 ### 2. Start services
 
 ```bash
+cd webdataos-v3
 docker compose -f infra/docker-compose.yml up --build
 ```
 
@@ -146,6 +150,7 @@ curl -X POST http://localhost:8000/agent/research \
 
 ```bash
 # Backend
+cd webdataos-v3
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"

@@ -1,1 +1,0 @@
-"""Enterprise intelligence package definitions."""
