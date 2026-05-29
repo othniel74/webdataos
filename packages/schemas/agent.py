@@ -36,6 +36,10 @@ class ResearchRunStage(BaseModel):
 
 class ResearchRunReceipt(BaseModel):
     run_id: str
+    topic_id: str | None = None
+    tenant_id: str | None = None
+    package_id: str | None = None
+    task: str | None = None
     status: str
     input_mode: str
     stages: list[ResearchRunStage] = Field(default_factory=list)

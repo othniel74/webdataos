@@ -380,6 +380,10 @@ class ResearchAgentOrchestrator:
                 summary = f"No material changes detected since the last monitoring cycle. {summary}"
             run_receipt = ResearchRunReceipt(
                 run_id=run_id,
+                topic_id=topic_id,
+                tenant_id=tenant_id,
+                package_id=request.package_id,
+                task=request.task,
                 status="success",
                 input_mode=request.input_mode,
                 stages=stages,
