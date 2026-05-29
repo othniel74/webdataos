@@ -27,6 +27,10 @@ APP_ENV=production
 API_AUTH_ENABLED=true
 API_KEYS=replace-with-a-long-random-key
 VITE_API_KEY=replace-with-the-same-or-public-demo-key
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_or_pk_live_from_clerk
+CLERK_PUBLISHABLE_KEY=pk_test_or_pk_live_from_clerk
+CLERK_ISSUER=https://your-clerk-instance.clerk.accounts.dev
+CLERK_JWKS_URL=https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json
 
 # Leave PUBLIC_API_BASE_URL empty when serving the frontend and API from the same Vultr host.
 # Set it only when the browser should call a separate API domain.
@@ -68,12 +72,14 @@ Keep `.env` on the server only. Do not commit it.
 Minimal production stack:
 
 ```bash
-docker compose \
+docker compose --env-file .env \
   -f infra/docker-compose.yml \
   -f infra/docker-compose.vultr.yml \
   --profile production \
   up -d --build
 ```
+
+The `--env-file .env` flag is required. The Vite frontend is a static build, so browser-visible values such as `VITE_CLERK_PUBLISHABLE_KEY` must be available during image build, not only at container runtime.
 
 ## Vultr API deployment from this workstation
 
@@ -103,7 +109,7 @@ Optional flags:
 With monitoring:
 
 ```bash
-docker compose \
+docker compose --env-file .env \
   -f infra/docker-compose.yml \
   -f infra/docker-compose.vultr.yml \
   --profile production \
