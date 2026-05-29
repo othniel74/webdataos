@@ -29,8 +29,19 @@ async def refresh(topic_id: str, max_sources: int = 8, db: AsyncSession = Depend
 
 
 @router.get("/records", response_model=list[IntelligenceRecordRead])
-async def records(topic_id: str | None = Query(default=None), db: AsyncSession = Depends(get_db), service: IntelligenceService = Depends(get_intelligence_service)):
-    return await service.list_records(db, topic_id=topic_id)
+async def records(
+    topic_id: str | None = Query(default=None),
+    include_stale: bool = Query(default=False),
+    freshness_required_days: int = Query(default=7, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    service: IntelligenceService = Depends(get_intelligence_service),
+):
+    return await service.list_records(
+        db,
+        topic_id=topic_id,
+        include_stale=include_stale,
+        freshness_required_days=freshness_required_days,
+    )
 
 
 @router.post("/retrieve", response_model=list[RetrievalResult])

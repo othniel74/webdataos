@@ -1943,6 +1943,32 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
     "Which signals need action and why?",
     "Show the evidence behind the highest risk finding.",
   ];
+  const selectedRunMessages = selectedRunId ? messages.filter(message => message.runId === selectedRunId) : [];
+  const synthesizedRunMessages = selectedRunId && activeRun ? [
+    {
+      id: `${activeRun.id}-saved-user`,
+      role: "user",
+      content: activeRun.task || "Saved research run",
+      at: activeRun.at || "",
+      runId: activeRun.id,
+    },
+    activeReport ? {
+      id: `${activeRun.id}-saved-assistant`,
+      role: "assistant",
+      content: summary || activeReport.reasoning?.executive_summary || "Saved analysis completed.",
+      at: activeRun.at || "",
+      runId: activeRun.id,
+      report: activeReport,
+    } : null,
+  ].filter(Boolean) : [];
+  const conversationMessages = selectedRunId && activeRun
+    ? (selectedRunMessages.length
+      ? [
+          ...(!selectedRunMessages.some(message => message.role === "user") ? synthesizedRunMessages.filter(message => message.role === "user") : []),
+          ...selectedRunMessages,
+        ]
+      : synthesizedRunMessages)
+    : messages;
 
   return (
     <div style={{ minHeight: "calc(100vh - 58px)", display: "grid", gridTemplateColumns: "280px minmax(0,1fr)", background: T.bg }}>
@@ -1976,14 +2002,14 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
         <div style={{ height: 54, borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
           <div><div style={{ fontSize: 14, fontWeight: 800 }}>Analyst</div><div style={{ fontSize: 11, color: T.dim }}>{ws.name}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", color: T.dim, fontSize: 11 }}>
-            <span>{messages.length} turns</span>
+            <span>{conversationMessages.length} turns</span>
             {!!messages.length && <button onClick={clearConversation} style={{ border: `1px solid ${T.border}`, background: T.bgSub, color: T.muted, borderRadius: 8, padding: "6px 9px", fontSize: 11 }}>Clear</button>}
           </div>
         </div>
 
         <div style={{ flex: 1, overflow: "auto", padding: "28px 24px 22px" }}>
           <div style={{ maxWidth: 820, margin: "0 auto", display: "grid", gap: 22 }}>
-            {!messages.length && (
+            {!conversationMessages.length && (
               <div style={{ minHeight: 360, display: "grid", alignContent: "center", justifyItems: "center", textAlign: "center" }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center", marginBottom: 14 }}><Brain size={20} color="#001018" /></div>
                 <h2 style={{ fontSize: 24, margin: 0 }}>What should we investigate?</h2>
@@ -1993,7 +2019,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
                 </div>
               </div>
             )}
-            {messages.map(message => {
+            {conversationMessages.map(message => {
               const isUser = message.role === "user";
               const messageReport = message.report;
               const messageReasoning = messageReport?.reasoning || {};
@@ -2109,6 +2135,7 @@ function IntelPage({ ws }) {
   const [selectedId, setSelectedId] = useState(null);
   const [graphStatus, setGraphStatus] = useState(null);
   const [graph, setGraph] = useState(null);
+  const [topicGraph, setTopicGraph] = useState(null);
   const [query, setQuery] = useState(`vendor risk and market signals for ${ws.entities || ws.name}`);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -2118,12 +2145,19 @@ function IntelPage({ ws }) {
     setSelectedId(null);
     setRetrieval([]);
     setSources([]);
+    setGraph(null);
+    setTopicGraph(null);
     setQuery(`vendor risk and market signals for ${ws.entities || ws.name}`);
   }, [ws.id, ws.entities, ws.name]);
   const loadRecords = useCallback(async () => {
     setErr("");
     try {
-      setRecords(await endpoints.listTopicRecords(ws.id));
+      const [items, topicSnapshot] = await Promise.all([
+        endpoints.listTopicRecords(ws.id),
+        endpoints.graphTopic(ws.id).catch(() => null),
+      ]);
+      setRecords(items);
+      if (topicSnapshot) setTopicGraph(topicSnapshot);
     } catch (e) {
       setErr(e.message || "Could not load evidence records");
     }
@@ -2143,6 +2177,7 @@ function IntelPage({ ws }) {
       if (step === "refresh") {
         await endpoints.refreshTopic(ws.id, 4);
         await loadRecords();
+        endpoints.graphTopic(ws.id).then(setTopicGraph).catch(() => {});
       }
       if (step === "retrieve") {
         setRetrieval(await endpoints.retrieveContext({ topic_id: ws.id, query, entities: entityList, top_k: 6, freshness_required_days: 7 }));
@@ -2168,6 +2203,12 @@ function IntelPage({ ws }) {
     nodes: graph?.counts?.nodes ?? graph?.nodes?.length ?? 0,
     relationships: graph?.counts?.relationships ?? graph?.relationships?.length ?? 0,
   };
+  const topicGraphCounts = {
+    nodes: topicGraph?.counts?.nodes ?? topicGraph?.nodes?.length ?? 0,
+    relationships: topicGraph?.counts?.relationships ?? topicGraph?.relationships?.length ?? 0,
+  };
+  const graphView = graph?.nodes?.length ? graph : topicGraph;
+  const graphLabel = graph?.nodes?.length ? (selected?.entity_name || "Selected entity") : ws.name;
   const sourceRows = sources.slice(0, 5);
   const retrievalReasons = retrievalForSelected?.reasons?.length ? retrievalForSelected.reasons : [];
   return (
@@ -2176,7 +2217,7 @@ function IntelPage({ ws }) {
         <div>
           <Eye>Intelligence</Eye>
           <h2 style={{ fontSize: 22, marginTop: 4 }}>Evidence workspace</h2>
-          <div style={{ color: T.dim, fontSize: 12, marginTop: 6 }}>{ws.name} - {displayRecords.length} records - Neo4j {graphStatus?.status || "checking"}</div>
+          <div style={{ color: T.dim, fontSize: 12, marginTop: 6 }}>{ws.name} - {displayRecords.length} fresh records - Neo4j {graphStatus?.status || "checking"}</div>
         </div>
         <button onClick={loadRecords} disabled={loading} title="Reload evidence" style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.muted, display: "grid", placeItems: "center" }}>
           <RefreshCw size={14} style={loading ? { animation: "spin 1s linear infinite" } : null} />
@@ -2199,8 +2240,8 @@ function IntelPage({ ws }) {
           <MC l="Sources" v={sources.length} c={T.accent} />
           <MC l="Records" v={records.length} c={T.accent} />
           <MC l="Retrieved" v={retrieval.length} c={retrieval.length ? "#22c55e" : T.dim} />
-          <MC l="Graph nodes" v={graphCounts.nodes} c={graphCounts.nodes ? T.accent : T.dim} />
-          <MC l="Graph edges" v={graphCounts.relationships} c={graphCounts.relationships ? "#22c55e" : T.dim} />
+          <MC l="Graph nodes" v={Math.max(graphCounts.nodes, topicGraphCounts.nodes)} c={(graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim} />
+          <MC l="Graph edges" v={Math.max(graphCounts.relationships, topicGraphCounts.relationships)} c={(graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim} />
         </div>
       </div>
 
@@ -2273,12 +2314,13 @@ function IntelPage({ ws }) {
               {!sourceRows.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>No source discovery run yet.</div>}
             </div>
             <div style={{ borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}`, padding: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 800 }}>Neo4j</div>
+              <div style={{ fontSize: 13, fontWeight: 800 }}>Evidence graph</div>
               <div style={{ marginTop: 9, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-                <MC l="Nodes" v={graphCounts.nodes} c={graphCounts.nodes ? T.accent : T.dim} />
-                <MC l="Edges" v={graphCounts.relationships} c={graphCounts.relationships ? "#22c55e" : T.dim} />
+                <MC l="Nodes" v={Math.max(graphCounts.nodes, topicGraphCounts.nodes)} c={(graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim} />
+                <MC l="Edges" v={Math.max(graphCounts.relationships, topicGraphCounts.relationships)} c={(graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim} />
               </div>
-              <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>{graph?.status === "ok" ? `Entity graph for ${selected?.entity_name || "selected record"}` : `Graph ${graph?.status || graphStatus?.status || "checking"}`}</div>
+              <GraphMini graph={graphView} title={graphLabel} />
+              <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>{graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}`}</div>
             </div>
           </div>
         </div>
@@ -2621,6 +2663,30 @@ function OutPage({ ws, user }) {
 function Eye({ children }) { return <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: T.accent }}>{children}</div>; }
 function Lb({ children, style }) { return <div style={{ fontSize: 10, fontWeight: 600, color: T.dim, ...style }}>{children}</div>; }
 function MC({ l, v, c }) { return <div style={{ padding: "6px 7px", borderRadius: 6, background: "rgba(255,255,255,.02)", border: `1px solid ${T.border}` }}><div style={{ fontSize: 8, color: T.dim, textTransform: "uppercase", letterSpacing: ".05em" }}>{l}</div><div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 1, fontFamily: "'JetBrains Mono'" }}>{v}</div></div>; }
+function GraphMini({ graph, title }) {
+  const nodes = (graph?.nodes || []).slice(0, 8);
+  const relationships = (graph?.relationships || []).slice(0, 8);
+  const short = value => String(value || "").replace(/^(Company|Workspace|Source|IntelligenceRecord|Product|Feature|PricingModel):/, "").slice(0, 46);
+  if (!nodes.length && !relationships.length) {
+    return <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: T.bgSub, border: `1px solid ${T.border}`, color: T.dim, fontSize: 11, lineHeight: 1.5 }}>No graph relationships yet. Saving fresh evidence will populate the relationship map.</div>;
+  }
+  return (
+    <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: T.bgSub, border: `1px solid ${T.border}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+        <span style={{ fontSize: 9, color: T.dim }}>{nodes.length} nodes</span>
+      </div>
+      <div style={{ marginTop: 9, display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {nodes.map(node => <span key={node.id} title={`${node.type}: ${node.label}`} style={{ maxWidth: "100%", padding: "4px 7px", borderRadius: 999, background: node.type === "Company" ? "rgba(18,181,203,.12)" : "rgba(255,255,255,.04)", border: `1px solid ${T.border}`, color: node.type === "Company" ? T.accent : T.muted, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.type}: {short(node.label)}</span>)}
+      </div>
+      <div style={{ marginTop: 10, display: "grid", gap: 5 }}>
+        {relationships.map((rel, i) => <div key={`${rel.source}-${rel.type}-${rel.target}-${i}`} style={{ fontSize: 10, color: T.dim, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ color: T.muted }}>{short(rel.source)}</span> <span style={{ color: T.accent }}>{rel.type.replace(/_/g, " ").toLowerCase()}</span> <span style={{ color: T.muted }}>{short(rel.target)}</span>
+        </div>)}
+      </div>
+    </div>
+  );
+}
 function DS({ t, children }) { return <div className="ai" style={{ marginBottom: 24 }}><h3 style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-.02em", marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>{t}</h3><div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7, display: "flex", flexDirection: "column", gap: 10 }}>{children}</div></div>; }
 function DC({ t, children }) { return <div style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: T.text }}>{t}</div><div style={{ fontSize: 12, color: T.muted, lineHeight: 1.6 }}>{children}</div></div>; }
 function JB({ children }) { return <pre style={{ padding: 14, borderRadius: 10, background: T.bgInset, border: `1px solid ${T.border}`, fontSize: 11, fontFamily: "'JetBrains Mono'", color: T.accent, lineHeight: 1.5, whiteSpace: "pre-wrap", margin: "6px 0", overflow: "auto" }}>{children}</pre>; }

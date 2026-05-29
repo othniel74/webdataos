@@ -304,17 +304,28 @@ class IntelligenceService:
         scored: list[RetrievalResult] = []
         query_terms = set(req.query.lower().split())
         for rec in records:
+            if req.freshness_required_days and not self._record_is_current(rec, req.freshness_required_days):
+                continue
             score, reasons = self._score_record(rec, query_terms, req)
             scored.append(RetrievalResult(record=self._record_read(rec), score=score, reasons=reasons))
         scored.sort(key=lambda x: x.score, reverse=True)
         return scored[: req.top_k]
 
-    async def list_records(self, db: AsyncSession, topic_id: str | None = None) -> list[IntelligenceRecordRead]:
+    async def list_records(
+        self,
+        db: AsyncSession,
+        topic_id: str | None = None,
+        include_stale: bool = False,
+        freshness_required_days: int = 7,
+    ) -> list[IntelligenceRecordRead]:
         stmt = select(IntelligenceRecord).order_by(IntelligenceRecord.extracted_at.desc())
         if topic_id:
             stmt = stmt.where(IntelligenceRecord.topic_id == topic_id)
         result = await db.execute(stmt)
-        return [self._record_read(r) for r in result.scalars().all()]
+        records = result.scalars().all()
+        if not include_stale:
+            records = [record for record in records if self._record_is_current(record, freshness_required_days)]
+        return [self._record_read(r) for r in records]
 
     async def _detect_changes(self, db: AsyncSession, existing: IntelligenceRecord, new_facts: dict, topic_id: str) -> None:
         old = existing.facts_json or {}
@@ -351,6 +362,12 @@ class IntelligenceService:
         if confidence > 0.7:
             reasons.append("high_confidence")
         return round(score, 4), reasons
+
+    def _record_is_current(self, rec: IntelligenceRecord, freshness_required_days: int | None = 7) -> bool:
+        if rec.freshness_status == "stale":
+            return False
+        status = freshness_status(rec.last_checked, freshness_required_days)
+        return status in {"fresh", "unknown"}
 
     def _summarize_record(self, entity: str, facts: dict[str, Any], url: str) -> str:
         parts = [entity]
