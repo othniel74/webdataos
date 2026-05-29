@@ -14,7 +14,9 @@ that makes cross-entity intelligence queries possible.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
+from urllib.parse import urlparse
 
 from neo4j import GraphDatabase
 
@@ -203,10 +205,13 @@ class Neo4jGraphClient:
         risk_posture = run_data.get("risk_posture", "stable")
         confidence = run_data.get("confidence", 0.0)
 
-        # Workspace node
+        # Workspace node — store display_name stripped of tenant/workspace prefixes
+        _ws_display = re.sub(r"^[a-f0-9\-]+_workspace_", "", topic_id)
+        _ws_display = re.sub(r"^workspace_", "", _ws_display)
+        _ws_display = _ws_display.replace("_", " ").title() or topic_id
         tx.run(
-            "MERGE (w:Workspace {id: $id}) SET w.tenant_id=$tid, w.package_id=$pkg, w.name=$name",
-            id=topic_id, tid=tenant_id, pkg=package_id, name=topic_id,
+            "MERGE (w:Workspace {id: $id}) SET w.tenant_id=$tid, w.package_id=$pkg, w.name=$dname, w.topic_id=$id",
+            id=topic_id, tid=tenant_id, pkg=package_id, dname=_ws_display,
         )
 
         # IntelligenceRun node
@@ -255,7 +260,7 @@ class Neo4jGraphClient:
                 tx.run(
                     """
                     MERGE (ir:IntelligenceRecord {id: $id})
-                    SET ir.summary=$summary, ir.confidence=$conf,
+                    SET ir.summary=$summary, ir.entity_name=$ename, ir.confidence=$conf,
                         ir.freshness_status=$fresh, ir.source_type=$stype,
                         ir.tenant_id=$tid, ir.topic_id=$topic_id
                     WITH ir
@@ -266,6 +271,7 @@ class Neo4jGraphClient:
                     MERGE (r)-[:RETRIEVED]->(ir)
                     """,
                     id=rec_id, summary=(rec.get("summary") or "")[:500],
+                    ename=entity_name,
                     conf=rec.get("confidence", 0.0),
                     fresh=rec.get("freshness_status", "unknown"),
                     stype=rec.get("source_type", "unknown"),
@@ -460,14 +466,14 @@ class Neo4jGraphClient:
         tx.run(
             f"""
             MERGE (w:Workspace {{id: $topic_id}})
-            SET w.name=$topic_id, w.tenant_id=$tenant_id
+            SET w.topic_id=$topic_id, w.tenant_id=$tenant_id
             MERGE (e:Entity {{scoped_id: $entity_scoped}})
             SET e:{label}, e.name=$entity_name, e.tenant_id=$tenant_id,
                 e.entity_type=$entity_type, e.color=$color
             MERGE (r:IntelligenceRecord {{id: $rec_id}})
-            SET r.summary=$summary, r.tenant_id=$tenant_id, r.topic_id=$topic_id,
-                r.confidence=$confidence, r.freshness_status=$freshness,
-                r.source_type=$source_type
+            SET r.summary=$summary, r.entity_name=$entity_name, r.tenant_id=$tenant_id,
+                r.topic_id=$topic_id, r.confidence=$confidence,
+                r.freshness_status=$freshness, r.source_type=$source_type
             MERGE (s:Source {{scoped_id: $source_scoped}})
             SET s.url=$source_url, s.tenant_id=$tenant_id,
                 s.source_type=$source_type
@@ -505,15 +511,18 @@ class Neo4jGraphClient:
         label = ENTITY_LABEL_MAP.get(entity_type.lower(), "Company")
         company_scoped_id = f"{tenant_id}:{entity_name}"
         workspace_scoped_id = f"{tenant_id}:{topic_id}"
+        _ws_d = re.sub(r"^[a-f0-9\-]+_workspace_", "", topic_id)
+        _ws_d = re.sub(r"^workspace_", "", _ws_d)
+        ws_display = _ws_d.replace("_", " ").title() or topic_id
 
         tx.run(
             f"""
             MERGE (w:Workspace {{scoped_id: $workspace_scoped_id}})
-            SET w.id=$topic_id, w.name=$topic_id, w.tenant_id=$tenant_id
+            SET w.id=$topic_id, w.name=$ws_display, w.tenant_id=$tenant_id
             MERGE (c:{label} {{scoped_id: $company_scoped_id}})
             SET c.name=$entity_name, c.tenant_id=$tenant_id, c.entity_type=$entity_type
             MERGE (r:IntelligenceRecord {{id: $rec_id}})
-            SET r.tenant_id=$tenant_id, r.topic_id=$topic_id,
+            SET r.entity_name=$entity_name, r.tenant_id=$tenant_id, r.topic_id=$topic_id,
                 r.summary=$summary, r.confidence=$confidence,
                 r.freshness_status=$freshness, r.source_type=$source_type
             MERGE (w)-[:MONITORS]->(c)
@@ -521,6 +530,7 @@ class Neo4jGraphClient:
             """,
             tenant_id=tenant_id,
             topic_id=topic_id,
+            ws_display=ws_display,
             workspace_scoped_id=workspace_scoped_id,
             company_scoped_id=company_scoped_id,
             entity_name=entity_name,
@@ -799,19 +809,56 @@ class Neo4jGraphClient:
                 labels[0] if labels else "Node",
             )
             props = dict(node)
-            label = (
-                props.get("name")
-                or props.get("title")
-                or props.get("url")
-                or props.get("run_id")
-                or props.get("id")
-                or str(node.element_id)
-            )
-            node_id = f"{node_type}:{label}"
+
+            # Build a human-readable display label per node type
+            if node_type == "IntelligenceRecord":
+                summary = props.get("summary") or ""
+                entity = props.get("entity_name") or ""
+                raw_id = props.get("id") or str(node.element_id)
+                # Show entity + truncated summary when available
+                if summary and entity:
+                    display_label = f"{entity}: {summary[:55]}"
+                elif summary:
+                    display_label = summary[:60]
+                else:
+                    display_label = f"Record {raw_id[:8]}"
+                stable_id = raw_id  # stable dedup key
+            elif node_type == "Workspace":
+                raw = props.get("name") or props.get("id") or str(node.element_id)
+                clean = re.sub(r"^[a-f0-9\-]+_workspace_", "", raw)
+                clean = re.sub(r"^workspace_", "", clean)
+                display_label = clean.replace("_", " ").title() or raw
+                stable_id = raw
+            elif node_type == "IntelligenceRun":
+                task = props.get("task") or ""
+                run_id = props.get("run_id") or str(node.element_id)
+                display_label = task[:55] if task else f"Run {run_id[:8]}"
+                stable_id = run_id
+            elif node_type == "Source":
+                url = props.get("url") or props.get("scoped_id") or str(node.element_id)
+                try:
+                    p = urlparse(url)
+                    domain = p.netloc.lstrip("www.")
+                    path_parts = [x for x in p.path.split("/") if x]
+                    display_label = domain + ("/" + path_parts[0] if path_parts else "")
+                except Exception:
+                    display_label = url[:60]
+                stable_id = url
+            else:
+                display_label = (
+                    props.get("name")
+                    or props.get("title")
+                    or props.get("run_id")
+                    or props.get("id")
+                    or str(node.element_id)
+                )
+                stable_id = display_label
+
+            node_id = f"{node_type}:{stable_id}"
             color = props.get("color") or NODE_COLORS.get(node_type, "#64748b")
             nodes[node_id] = GraphNode(
                 id=node_id,
-                label=str(label)[:80],
+                label=str(display_label)[:80],
                 type=node_type,
                 properties={**props, "color": color},
             )

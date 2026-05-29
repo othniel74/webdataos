@@ -1084,6 +1084,11 @@ function DemoPage({ nav }) {
   const recorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const currentAudioRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, chatLoading]);
 
   const sessionId = session?.session_id;
   const brief = decisionFromReport(report);
@@ -1298,10 +1303,9 @@ function DemoPage({ nav }) {
       setMessages(prev => [...prev, { role: "assistant", content: answer, report: result }]);
       if (result?.run_id || result?.summary) setReport(result);
       if (readAloud) speakText(answer);
-    } catch {
-      const fallback = `Based on the evidence for ${scenario?.entities?.join(", ")}: ${scenario?.example_action || "Review the latest signals and coordinate with your team."}`;
-      setMessages(prev => [...prev, { role: "assistant", content: fallback }]);
-      if (readAloud) speakText(fallback);
+    } catch (e) {
+      const errText = e?.message?.includes("timed out") ? "Analyst timed out — the backend is slow. Try again." : e?.message?.includes("No session") ? "Session expired — start a new scenario." : e?.message || "Could not reach the analyst. Try again.";
+      setMessages(prev => [...prev, { role: "error", content: errText }]);
     } finally {
       setChatLoading(false);
     }
@@ -1499,11 +1503,12 @@ function DemoPage({ nav }) {
             <div style={{ maxHeight: 300, overflowY: "auto", padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
               {!messages.length && <div style={{ color: T.dim, fontSize: 13 }}>Try: <strong style={{ color: T.text }}>What changed?</strong> — or tap the mic to ask by voice.</div>}
               {messages.map((m, i) => (
-                <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "14px 14px 3px 14px" : "14px 14px 14px 3px", background: m.role === "user" ? T.accent : T.bgSub, border: m.role === "user" ? "none" : `1px solid ${T.border}`, color: m.role === "user" ? "#000" : T.muted, fontSize: 13, lineHeight: 1.55 }}>
+                <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", padding: "10px 14px", borderRadius: m.role === "user" ? "14px 14px 3px 14px" : "14px 14px 14px 3px", background: m.role === "user" ? T.accent : m.role === "error" ? "rgba(239,68,68,.08)" : T.bgSub, border: m.role === "user" ? "none" : m.role === "error" ? "1px solid rgba(239,68,68,.2)" : `1px solid ${T.border}`, color: m.role === "user" ? "#000" : m.role === "error" ? "#fca5a5" : T.muted, fontSize: 13, lineHeight: 1.55 }}>
                   {m.content}
                 </div>
               ))}
               {chatLoading && <div style={{ alignSelf: "flex-start", padding: "10px 14px", borderRadius: "14px 14px 14px 3px", background: T.bgSub, border: `1px solid ${T.border}`, color: T.dim, fontSize: 12 }}>Thinking…</div>}
+              <div ref={messagesEndRef} />
             </div>
             <div style={{ padding: "10px 14px", borderTop: `1px solid ${T.border}` }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -4271,8 +4276,8 @@ const GRAPH_NODE_DISPLAY = {
 
 const nodeColor = type => GRAPH_NODE_COLORS[type] || "#64748b";
 const nodeDisplay = type => GRAPH_NODE_DISPLAY[type] || type;
-const stripPrefix = str => String(str || "").replace(/^[A-Za-z]+:/, "");
-const shortLabel = (str, max = 22) => { const s = stripPrefix(str); return s.length > max ? s.slice(0, max - 1) + "…" : s; };
+const stripPrefix = str => String(str || "").replace(/^[A-Za-z]+:[^ ]/, m => m.slice(-1));
+const shortLabel = (str, max = 22) => { const s = String(str || ""); return s.length > max ? s.slice(0, max - 1) + "…" : s; };
 
 /* ═══════════════════════════════════════════════════════════════════════
    EXCEPTIONAL KNOWLEDGE GRAPH
@@ -4706,7 +4711,7 @@ function GraphCanvas({ nodes: rawNodes, edges: rawEdges, selectedId, onSelect, w
         ctx.fillStyle = isSel ? "#f1f5f9" : isHov ? "#94a3b8" : "rgba(100,116,139,0.8)";
         ctx.globalAlpha = nodeAlpha;
         ctx.textAlign = "center";
-        ctx.fillText(shortLabel(n.label, 16), n.x, n.y + r + 11);
+        ctx.fillText(shortLabel(n.label, 20), n.x, n.y + r + 11);
         ctx.restore();
       }
 
@@ -5133,12 +5138,12 @@ function GraphFullView({ graph, title, wsId, onClose }) {
 
   const SIGNAL_TYPES = ["", "breach", "compliance", "competitor_move", "pricing", "filing", "supplier_risk", "market_movement"];
 
-  const w = Math.min(window.innerWidth - 48, 1200);
-  const h = Math.min(window.innerHeight - 200, 660);
+  const w = window.innerWidth;
+  const h = window.innerHeight - 128;
 
   return (
-    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div style={{ width: w, maxHeight: "92vh", display: "flex", flexDirection: "column", borderRadius: 14, background: T.bgInset, border: `1px solid ${T.borderL}`, boxShadow: "0 32px 80px rgba(0,0,0,.6)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.88)", display: "flex", alignItems: "stretch", justifyContent: "stretch" }} onClick={onClose}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", borderRadius: 0, background: T.bgInset, border: "none", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <GitBranch size={15} color={T.accent} />
