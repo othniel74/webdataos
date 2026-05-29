@@ -6,11 +6,13 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: production
+      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209
 
   worker:
     restart: unless-stopped
     environment:
       APP_ENV: production
+      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209
 
   web:
     restart: unless-stopped
