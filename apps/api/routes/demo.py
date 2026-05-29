@@ -20,6 +20,7 @@ from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.intelligence.service import IntelligenceService
 from packages.intelligence.utils import infer_authority, infer_source_type, stable_id
 from packages.schemas.agent import ResearchRequest
+from packages.schemas.intelligence import GraphNode, GraphRelationship, GraphSnapshot, IntelligenceRecordRead
 
 router = APIRouter(prefix="/demo", tags=["Public Demo"])
 
@@ -274,6 +275,81 @@ async def _ensure_demo_baseline_records(db: AsyncSession, session: DemoSession, 
     return created
 
 
+def _demo_records_graph(session: DemoSession, records: list[IntelligenceRecordRead]) -> GraphSnapshot:
+    nodes: dict[str, GraphNode] = {}
+    relationships: dict[tuple[str, str, str], GraphRelationship] = {}
+
+    workspace_id = f"Workspace:{session.workspace_id}"
+    nodes[workspace_id] = GraphNode(
+        id=workspace_id,
+        label=DEMO_MISSIONS[session.mission]["name"],
+        type="Workspace",
+        properties={"id": session.workspace_id, "tenant_id": session.tenant_id, "source": "demo_evidence"},
+    )
+    for record in records:
+        entity = record.entity_name or record.facts.get("company") or "Unknown"
+        company_id = f"Company:{entity}"
+        record_id = f"IntelligenceRecord:{record.id}"
+        source_id = f"Source:{record.source_url}"
+        nodes[company_id] = GraphNode(
+            id=company_id,
+            label=entity,
+            type="Company",
+            properties={"tenant_id": session.tenant_id, "entity_type": record.entity_type or "company"},
+        )
+        nodes[record_id] = GraphNode(
+            id=record_id,
+            label=record.facts.get("evidence_title") or record.summary or record.id,
+            type="IntelligenceRecord",
+            properties={
+                "id": record.id,
+                "summary": record.summary,
+                "confidence": record.confidence,
+                "freshness_status": record.freshness_status,
+            },
+        )
+        nodes[source_id] = GraphNode(
+            id=source_id,
+            label=record.source_url,
+            type="Source",
+            properties={"url": record.source_url, "source_type": record.source_type},
+        )
+        for source, target, rel_type in [
+            (workspace_id, company_id, "MONITORS"),
+            (workspace_id, record_id, "HAS_EVIDENCE"),
+            (company_id, record_id, "HAS_RECORD"),
+            (record_id, source_id, "SUPPORTED_BY"),
+            (company_id, source_id, "SUPPORTED_BY"),
+        ]:
+            relationships[(source, target, rel_type)] = GraphRelationship(
+                source=source,
+                target=target,
+                type=rel_type,
+                properties={"source": "demo_evidence"},
+            )
+        for feature in record.facts.get("features", []) or []:
+            feature_id = f"Feature:{feature}"
+            nodes[feature_id] = GraphNode(
+                id=feature_id,
+                label=str(feature),
+                type="Feature",
+                properties={"tenant_id": session.tenant_id},
+            )
+            relationships[(company_id, feature_id, "HAS_FEATURE")] = GraphRelationship(
+                source=company_id,
+                target=feature_id,
+                type="HAS_FEATURE",
+                properties={"source": "demo_evidence"},
+            )
+    return GraphSnapshot(
+        status="ok",
+        nodes=list(nodes.values()),
+        relationships=list(relationships.values()),
+        counts={"nodes": len(nodes), "relationships": len(relationships)},
+        message="Derived from saved demo evidence because the graph projection had no nodes yet.",
+    )
+
+
 @router.get("/catalog")
 async def catalog():
     _require_demo_enabled()
@@ -433,9 +509,20 @@ async def demo_evidence(
 async def demo_graph(
     limit: int = Query(default=80, ge=1, le=200),
     session: DemoSession = Depends(_load_session),
+    service: IntelligenceService = Depends(get_intelligence_service),
     graph: Neo4jGraphClient = Depends(get_graph_service),
+    db: AsyncSession = Depends(get_db),
 ):
-    return graph.topic_graph(session.workspace_id, limit=limit, tenant_id=session.tenant_id)
+    snapshot = graph.topic_graph(session.workspace_id, limit=limit, tenant_id=session.tenant_id)
+    if snapshot.nodes:
+        return snapshot
+    records = await service.list_records(
+        db,
+        topic_id=session.workspace_id,
+        tenant_id=session.tenant_id,
+        include_stale=False,
+    )
+    return _demo_records_graph(session, records[:limit])
 
 
 @router.get("/receipt/{run_id}")

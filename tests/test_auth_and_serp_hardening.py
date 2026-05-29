@@ -4,12 +4,13 @@ import pytest
 from fastapi import HTTPException
 
 from apps.api.db.models import DemoSession, IntelligenceRecord, Source, Topic
-from apps.api.routes.demo import run_demo_monitor
+from apps.api.routes.demo import _demo_records_graph, run_demo_monitor
 from packages.brightdata.client import BrightDataClient
 from packages.common.clerk import _domain_from_publishable_key, _jwks_url
 from packages.common.config import get_settings
 from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import require_api_key
+from packages.schemas.intelligence import IntelligenceRecordRead
 
 
 @pytest.mark.asyncio
@@ -237,3 +238,35 @@ async def test_demo_monitor_uses_fast_bounded_baseline_path():
     assert agent.request.max_sources == 3
     assert sum(1 for cls, _ in db.objects if cls is Source) == 3
     assert sum(1 for cls, _ in db.objects if cls is IntelligenceRecord) == 3
+
+
+def test_demo_graph_falls_back_to_saved_records():
+    session = DemoSession(
+        id="demo-session",
+        tenant_id="tenant_demo",
+        workspace_id="demo_workspace",
+        mission="vendor_risk",
+        entities=["Okta"],
+        watch_types=["vendor risk"],
+    )
+    record = IntelligenceRecordRead(
+        id="record_1",
+        tenant_id="tenant_demo",
+        topic_id="demo_workspace",
+        entity_name="Okta",
+        entity_type="company",
+        source_url="https://trust.okta.com/",
+        source_type="company_page",
+        facts={"evidence_title": "Okta Trust", "features": ["vendor risk", "compliance"]},
+        summary="Okta trust evidence.",
+        confidence=0.74,
+        freshness_status="fresh",
+    )
+
+    graph = _demo_records_graph(session, [record])
+
+    assert graph.status == "ok"
+    assert graph.counts["nodes"] == 6
+    assert graph.counts["relationships"] == 7
+    assert any(node.type == "Company" and node.label == "Okta" for node in graph.nodes)
+    assert any(rel.type == "SUPPORTED_BY" for rel in graph.relationships)
