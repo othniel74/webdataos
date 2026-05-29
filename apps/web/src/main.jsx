@@ -203,8 +203,8 @@ export default function App() {
       {page === "Settings" && user && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
       {page === "Analyst" && user && <AgentWorkbenchPage pack={pack} ws={ws} actions={actions} setActions={setActions} runResearch={runResearch} report={report} backendOk={backendOk} />}
       {page === "Agent" && user && <AgentWorkbenchPage pack={pack} ws={ws} actions={actions} setActions={setActions} runResearch={runResearch} report={report} backendOk={backendOk} />}
-      {page === "Evidence" && user && <IntelPage ws={ws} />}
-      {page === "Intelligence" && user && <IntelPage ws={ws} />}
+      {page === "Evidence" && user && <EvidencePage ws={ws} />}
+      {page === "Intelligence" && user && <EvidencePage ws={ws} />}
       {page === "Gateway" && user && <GwPage />}
       {page === "Actions" && user && <ActPage actions={actions} setActions={setActions} />}
       {page === "Outcomes" && user && <OutPage ws={ws} user={user} />}
@@ -2123,6 +2123,249 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
             <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Evidence used</Lb>{(activeReport?.records_used || []).slice(0, 5).map(rec => <div key={rec.id} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 11, color: T.text }}>{rec.entity_name || "Evidence"}</div><div style={{ fontSize: 10, color: T.dim, wordBreak: "break-all" }}>{rec.source_url}</div></div>)}{!activeReport?.records_used?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>No evidence selected yet.</div>}</div>
             <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Reasoning trace</Lb>{(r.reasoning_trace || []).slice(0, 8).map((trace, i) => <div key={i} style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", padding: "4px 0", borderBottom: `1px solid ${T.border}` }}>{trace}</div>)}{!r.reasoning_trace?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>Trace appears after reasoning.</div>}</div>
             {receipt && <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Run receipt</Lb><pre style={{ margin: "8px 0 0", maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: T.muted, fontSize: 10, lineHeight: 1.5, fontFamily: "'JetBrains Mono'" }}>{JSON.stringify(receipt, null, 2)}</pre></div>}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function EvidencePage({ ws }) {
+  const [records, setRecords] = useState([]);
+  const [sources, setSources] = useState([]);
+  const [retrieval, setRetrieval] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [graphStatus, setGraphStatus] = useState(null);
+  const [graph, setGraph] = useState(null);
+  const [topicGraph, setTopicGraph] = useState(null);
+  const [graphBackfill, setGraphBackfill] = useState(null);
+  const [query, setQuery] = useState(`vendor risk and market signals for ${ws.entities || ws.name}`);
+  const [loading, setLoading] = useState(false);
+  const [graphSyncing, setGraphSyncing] = useState(false);
+  const [err, setErr] = useState("");
+  const entityList = String(ws.entities || "").split(",").map(s => s.trim()).filter(Boolean);
+  const signalList = String(ws.signals || "").split(",").map(s => s.trim()).filter(Boolean);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setRetrieval([]);
+    setSources([]);
+    setGraph(null);
+    setTopicGraph(null);
+    setGraphBackfill(null);
+    setQuery(`vendor risk and market signals for ${ws.entities || ws.name}`);
+  }, [ws.id, ws.entities, ws.name]);
+
+  const loadRecords = useCallback(async () => {
+    setErr("");
+    try {
+      const [items, topicSnapshot] = await Promise.all([
+        endpoints.listTopicRecords(ws.id),
+        endpoints.graphTopic(ws.id).catch(() => null),
+      ]);
+      setRecords(items);
+      if (topicSnapshot) setTopicGraph(topicSnapshot);
+    } catch (e) {
+      setErr(e.message || "Could not load evidence records");
+    }
+  }, [ws.id]);
+
+  useEffect(() => { loadRecords(); }, [loadRecords]);
+  useEffect(() => { endpoints.graphStatus().then(setGraphStatus).catch(() => setGraphStatus({ status: "unavailable" })); }, []);
+  useEffect(() => {
+    if (records.length && !records.some(record => record.id === selectedId)) setSelectedId(records[0].id);
+    if (!records.length && selectedId) setSelectedId(null);
+  }, [records, selectedId]);
+
+  const runStep = async step => {
+    setLoading(true);
+    setErr("");
+    try {
+      await endpoints.createTopic({ id: ws.id, name: ws.name, description: ws.description || null, entities: entityList, watch_types: signalList, refresh_frequency_minutes: ws.refresh_frequency_minutes || 1440 });
+      if (step === "discover") setSources(await endpoints.discoverSources(ws.id, 6, query));
+      if (step === "refresh") {
+        await endpoints.refreshTopic(ws.id, 4, query);
+        await loadRecords();
+        endpoints.graphTopic(ws.id).then(setTopicGraph).catch(() => {});
+      }
+      if (step === "retrieve") setRetrieval(await endpoints.retrieveContext({ topic_id: ws.id, query, entities: entityList, top_k: 8, freshness_required_days: 7 }));
+    } catch (e) {
+      setErr(e.message || "Intelligence operation failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncGraph = async () => {
+    setGraphSyncing(true);
+    setErr("");
+    try {
+      const result = await endpoints.graphBackfill(ws.id);
+      setGraphBackfill(result);
+      const [status, snapshot] = await Promise.all([
+        endpoints.graphStatus().catch(() => ({ status: "unavailable" })),
+        endpoints.graphTopic(ws.id).catch(() => null),
+      ]);
+      setGraphStatus(status);
+      if (snapshot) setTopicGraph(snapshot);
+    } catch (e) {
+      setErr(e.message || "Could not sync evidence graph");
+    } finally {
+      setGraphSyncing(false);
+    }
+  };
+
+  const retrievalRecords = retrieval.map(item => item.record);
+  const displayRecords = records.length ? records : retrievalRecords;
+  const selected = displayRecords.find(r => r.id === selectedId) || displayRecords[0] || null;
+  const retrievalForSelected = retrieval.find(item => item.record.id === selected?.id);
+  const retrievalReasons = retrievalForSelected?.reasons?.length ? retrievalForSelected.reasons : [];
+
+  useEffect(() => {
+    if (!selected?.entity_name) {
+      setGraph(null);
+      return;
+    }
+    endpoints.graphEntity(selected.entity_name).then(setGraph).catch(() => setGraph({ status: "unavailable", nodes: [], relationships: [] }));
+  }, [selected?.entity_name]);
+
+  const graphCounts = {
+    nodes: graph?.counts?.nodes ?? graph?.nodes?.length ?? 0,
+    relationships: graph?.counts?.relationships ?? graph?.relationships?.length ?? 0,
+  };
+  const topicGraphCounts = {
+    nodes: topicGraph?.counts?.nodes ?? topicGraph?.nodes?.length ?? 0,
+    relationships: topicGraph?.counts?.relationships ?? topicGraph?.relationships?.length ?? 0,
+  };
+  const graphView = graph?.nodes?.length ? graph : topicGraph;
+  const graphLabel = graph?.nodes?.length ? (selected?.entity_name || "Selected entity") : ws.name;
+  const stats = [
+    ["Sources", sources.length, T.accent],
+    ["Fresh records", records.length, T.accent],
+    ["Ranked", retrieval.length, retrieval.length ? "#22c55e" : T.dim],
+    ["Graph nodes", Math.max(graphCounts.nodes, topicGraphCounts.nodes), (graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim],
+    ["Graph edges", Math.max(graphCounts.relationships, topicGraphCounts.relationships), (graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim],
+  ];
+
+  return (
+    <div style={{ maxWidth: 1360, margin: "0 auto", padding: "30px 24px 36px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div>
+          <Eye>Intelligence</Eye>
+          <h2 style={{ fontSize: 22, marginTop: 4 }}>Evidence workspace</h2>
+          <div style={{ color: T.dim, fontSize: 12, marginTop: 6 }}>{ws.name} - Neo4j {graphStatus?.status || "checking"}</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={syncGraph} disabled={graphSyncing || loading || !records.length} title="Sync fresh evidence to Neo4j" style={{ height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: records.length ? T.text : T.dim, display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 800 }}>
+            <GitBranch size={14} style={graphSyncing ? { animation: "spin 1s linear infinite" } : null} /> Sync graph
+          </button>
+          <button onClick={loadRecords} disabled={loading} title="Reload evidence" style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.muted, display: "grid", placeItems: "center" }}>
+            <RefreshCw size={14} style={loading ? { animation: "spin 1s linear infinite" } : null} />
+          </button>
+        </div>
+      </div>
+
+      {err && <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", color: "#ef4444", fontSize: 12 }}>{err}</div>}
+
+      <div style={{ marginTop: 18, paddingBottom: 16, borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(300px,1fr) repeat(auto-fit,minmax(104px,max-content))", gap: 8, alignItems: "end" }}>
+          <div>
+            <Lb>Question</Lb>
+            <input value={query} onChange={e => setQuery(e.target.value)} style={{ ...IS, marginTop: 5 }} />
+          </div>
+          <button onClick={() => runStep("discover")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: "none", background: T.accent, color: "#001018", fontWeight: 800, fontSize: 12 }}><Search size={13} /> Sources</button>
+          <button onClick={() => runStep("refresh")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}><Database size={13} /> Save</button>
+          <button onClick={() => runStep("retrieve")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}><Target size={13} /> Rank</button>
+        </div>
+        <div style={{ marginTop: 12, display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+          {stats.map(([label, value, color], i) => <div key={label} style={{ display: "flex", alignItems: "baseline", gap: 6, paddingRight: i < stats.length - 1 ? 18 : 0, borderRight: i < stats.length - 1 ? `1px solid ${T.border}` : "none" }}>
+            <span style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</span>
+            <span style={{ fontSize: 15, fontWeight: 800, color }}>{value}</span>
+          </div>)}
+        </div>
+        {graphBackfill && <div style={{ marginTop: 9, fontSize: 11, color: graphBackfill.status === "ok" ? T.muted : "#f59e0b" }}>
+          Graph sync: {graphBackfill.records_mirrored} mirrored from {graphBackfill.records_seen} fresh records{graphBackfill.records_skipped_stale ? `, ${graphBackfill.records_skipped_stale} stale skipped` : ""}{graphBackfill.records_failed ? `, ${graphBackfill.records_failed} failed` : ""}.
+        </div>}
+      </div>
+
+      <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14, alignItems: "stretch" }}>
+        <section style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden", minHeight: 590 }}>
+          <div style={{ padding: "10px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>Evidence</div>
+            <span style={{ fontSize: 11, color: T.dim }}>{displayRecords.length}</span>
+          </div>
+          <div style={{ maxHeight: 540, overflowY: "auto" }}>
+            {displayRecords.map(item => {
+              const active = selected?.id === item.id;
+              return (
+                <button key={item.id} onClick={() => setSelectedId(item.id)} style={{ width: "100%", textAlign: "left", padding: "11px 12px", border: "none", borderBottom: `1px solid ${T.border}`, background: active ? "rgba(6,182,212,.1)" : "transparent", color: T.text }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.entity_name || "Evidence record"}</div>
+                    <span style={{ fontSize: 10, color: active ? T.accent : T.dim, fontFamily: "'JetBrains Mono'" }}>{fmt(item.confidence || 0)}</span>
+                  </div>
+                  <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.45, color: T.muted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.summary || "No summary captured."}</div>
+                  <div style={{ marginTop: 6, fontSize: 10, color: T.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.source_url || item.source_type || "source pending"}</div>
+                </button>
+              );
+            })}
+            {!displayRecords.length && <div style={{ padding: 14, color: T.dim, fontSize: 12, lineHeight: 1.6 }}>No evidence yet. Discover sources, save records, then rank them against the current question.</div>}
+          </div>
+        </section>
+
+        <section style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16, minHeight: 590, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em" }}>Selected record</div>
+              <h3 style={{ margin: "5px 0 0", fontSize: 18, overflowWrap: "anywhere" }}>{selected?.entity_name || "Select evidence"}</h3>
+            </div>
+            {selected && <span style={{ fontSize: 10, padding: "3px 7px", borderRadius: 999, background: "rgba(6,182,212,.1)", color: T.accent, flexShrink: 0 }}>{selected.freshness_status || "unknown"}</span>}
+          </div>
+          {selected ? <>
+            <p style={{ marginTop: 14, fontSize: 13, lineHeight: 1.75, color: T.muted }}>{selected.summary || "No summary available for this record."}</p>
+            <div style={{ marginTop: 12, display: "flex", gap: 18, flexWrap: "wrap", paddingBottom: 12, borderBottom: `1px solid ${T.border}` }}>
+              <div><Lb>Confidence</Lb><div style={{ marginTop: 4, color: T.accent, fontWeight: 800 }}>{fmt(selected.confidence || 0)}</div></div>
+              <div><Lb>Type</Lb><div style={{ marginTop: 4, color: T.muted, fontWeight: 700 }}>{selected.source_type || "web"}</div></div>
+              <div><Lb>Checked</Lb><div style={{ marginTop: 4, color: T.muted, fontWeight: 700 }}>{selected.last_checked ? new Date(selected.last_checked).toLocaleDateString() : "unknown"}</div></div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <Lb>Source</Lb>
+              <a href={selected.source_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: T.accent, fontSize: 12, wordBreak: "break-all" }}>{selected.source_url || "No source URL captured"}</a>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <Lb>Payload</Lb>
+              <pre style={{ marginTop: 6, maxHeight: 270, overflow: "auto", padding: 10, borderRadius: 8, background: T.bgInset, border: `1px solid ${T.border}`, color: T.muted, fontSize: 11 }}>{JSON.stringify(selected.facts || {}, null, 2)}</pre>
+            </div>
+          </> : <div style={{ marginTop: 14, color: T.dim, fontSize: 12 }}>The detail panel appears after evidence exists.</div>}
+        </section>
+
+        <aside style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, padding: 14, minHeight: 590, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>Inspector</div>
+          <div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>Retrieval rank, source candidates, and graph context.</div>
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 800 }}>Retrieval</div>
+              <div style={{ fontSize: 18, color: T.accent, fontWeight: 800 }}>{retrievalForSelected?.score ?? "-"}</div>
+            </div>
+            <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(retrievalReasons.length ? retrievalReasons : ["Rank this evidence to see match reasons."]).map(reason => <span key={reason} style={{ fontSize: 11, color: T.muted, lineHeight: 1.35, overflowWrap: "anywhere" }}>{reason}</span>)}
+            </div>
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 12, fontWeight: 800 }}>Discovered sources</div>
+            {sources.slice(0, 5).map((source, i) => <div key={`${source.url}-${i}`} style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: T.text, fontWeight: 700, overflowWrap: "anywhere" }}>{source.title || source.url}</div>
+              <div style={{ marginTop: 3, fontSize: 10, color: T.dim, overflowWrap: "anywhere" }}>{source.url}</div>
+            </div>)}
+            {!sources.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.5 }}>No source discovery run yet.</div>}
+          </div>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 12, fontWeight: 800 }}>Evidence graph</div>
+            <div style={{ marginTop: 9, display: "flex", gap: 18, alignItems: "center" }}>
+              <div><Lb>Nodes</Lb><div style={{ marginTop: 4, color: (graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.nodes, topicGraphCounts.nodes)}</div></div>
+              <div><Lb>Edges</Lb><div style={{ marginTop: 4, color: (graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.relationships, topicGraphCounts.relationships)}</div></div>
+            </div>
+            <GraphMini graph={graphView} title={graphLabel} />
+            <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.45 }}>{graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}`}</div>
           </div>
         </aside>
       </div>
