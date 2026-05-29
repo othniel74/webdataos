@@ -1,0 +1,31 @@
+{
+  "name": "@webdata/gateway",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the Self-Healing Web Data Gateway for AI agents and LLM workflows.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "bright-data",
+    "web-data",
+    "ai-agents",
+    "rag",
+    "scraping",
+    "sdk"
+  ],
+  "author": "NOVTIA",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}
