@@ -61,16 +61,25 @@ chmod 600 /opt/webdataos/.env
 
 cd /opt/webdataos
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --profile production up -d postgres
-until docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres pg_isready -U postgres -d webdata; do
+until docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres pg_isready -U postgres -d postgres; do
   sleep 2
 done
 DB_URL=`$( (grep -E '^DATABASE_URL=' .env || true) | tail -n1 | cut -d= -f2-)
 DB_CREDENTIALS=
 DB_APP_PASSWORD=
+DB_TARGET=webdata
 if [ -n "`$DB_URL" ]; then
   DB_CREDENTIALS=`${DB_URL#*://}
   DB_CREDENTIALS=`${DB_CREDENTIALS%%@*}
   DB_APP_PASSWORD=`${DB_CREDENTIALS#*:}
+  DB_URL_NO_QUERY=`${DB_URL%%\?*}
+  DB_PATH=`${DB_URL_NO_QUERY##*/}
+  if [ -n "`$DB_PATH" ] && [ "`$DB_PATH" != "`$DB_URL_NO_QUERY" ]; then
+    DB_TARGET=`$DB_PATH
+  fi
+fi
+if ! docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres psql -U postgres -d postgres -Atc "select 1 from pg_database where datname='`$DB_TARGET'" | grep -q 1; then
+  docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres createdb -U postgres "`$DB_TARGET"
 fi
 if [ -n "`$DB_APP_PASSWORD" ] && [ "`$DB_APP_PASSWORD" != "`$DB_CREDENTIALS" ]; then
   POSTGRES_APP_PASSWORD=`$DB_APP_PASSWORD
@@ -81,7 +90,7 @@ else
   fi
 fi
 POSTGRES_APP_PASSWORD_SQL=`$(printf "%s" "`$POSTGRES_APP_PASSWORD" | sed "s/'/''/g")
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres psql -U postgres -d webdata -c "ALTER USER postgres WITH PASSWORD '`$POSTGRES_APP_PASSWORD_SQL';"
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T postgres psql -U postgres -d postgres -c "ALTER USER postgres WITH PASSWORD '`$POSTGRES_APP_PASSWORD_SQL';"
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml --profile production up -d --build
 docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec -T api alembic upgrade head || true
 "@
