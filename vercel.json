@@ -10,6 +10,10 @@
       "destination": "http://45.77.89.209/health"
     },
     {
+      "source": "/ready",
+      "destination": "http://45.77.89.209/ready"
+    },
+    {
       "source": "/workspaces/:path*",
       "destination": "http://45.77.89.209/workspaces/:path*"
     },
