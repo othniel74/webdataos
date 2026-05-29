@@ -68,14 +68,17 @@ class IntelligenceService:
         results = []
         seen_urls: set[str] = set()
         for query in queries:
+            added_for_query = 0
             for item in await self.brightdata.serp_search(query):
                 if item.url and item.url not in seen_urls:
                     results.append(item)
                     seen_urls.add(item.url)
-                if len(results) >= limit:
+                    added_for_query += 1
+                if added_for_query >= per_query_limit:
                     break
             if len(results) >= limit:
                 break
+        results = results[:limit]
         records: list[SourceRecord] = []
         for r in results[:limit]:
             source_id = stable_id(topic_id, r.url)

@@ -816,7 +816,7 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
           </div>
           <div style={{ padding: 12, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
             <Lb>Org context</Lb>
-            <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{report.org_context_used ? "Backend org context used" : "No backend org context for this run"}</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{report.org_context_used ? "Contract and risk context used" : "Workspace entities used; no contract/risk context saved"}</div>
             <div style={{ fontSize: 11, color: T.muted }}>Sources: {report.sources?.length || 0}</div>
             <div style={{ fontSize: 11, color: T.muted }}>Partner trace: {report.partner_trace?.length || 0}</div>
           </div>
