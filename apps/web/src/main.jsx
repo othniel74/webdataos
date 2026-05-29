@@ -31,6 +31,15 @@ const createDefaultWorkspace = () => ({
   entities: "vendors, competitors, accounts, companies",
   signals: "vendor_risk, competitor_move, pricing_change, market_movement, regulatory_change, workflow_trigger",
 });
+const normalizeWorkspaceId = value => {
+  const raw = String(value || "").trim();
+  if (!raw) return "workspace_enterprise";
+  const workspaceTail = raw.match(/(workspace_[a-z0-9_]+)$/i);
+  if (workspaceTail) return workspaceTail[1].toLowerCase();
+  if (raw.includes("://") || raw.startsWith("clerk_")) return "workspace_enterprise";
+  return slug(raw);
+};
+const workspacePath = value => encodeURIComponent(normalizeWorkspaceId(value));
 const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 const KEY = import.meta.env.VITE_API_KEY || "dev-local-key-change-me";
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
@@ -101,17 +110,17 @@ const endpoints = {
   graphTopic: topicId => api("GET", `/graph/topics/${encodeURIComponent(topicId)}`),
   graphBackfill: topicId => api("POST", `/graph/topics/${encodeURIComponent(topicId)}/backfill`),
   graphEntity: entity => api("GET", `/graph/entities/${encodeURIComponent(entity)}`),
-  monitorSummary: workspaceId => api("GET", `/monitor/${encodeURIComponent(workspaceId)}`),
-  runMonitor: workspaceId => api("POST", `/monitor/${encodeURIComponent(workspaceId)}/run`, null, 70000),
-  listChat: (workspaceId, limit = 80) => api("GET", `/chat/${encodeURIComponent(workspaceId)}?limit=${limit}`),
-  createChat: (workspaceId, data) => api("POST", `/chat/${encodeURIComponent(workspaceId)}`, data),
-  clearChat: workspaceId => api("DELETE", `/chat/${encodeURIComponent(workspaceId)}`),
-  listActions: (wsId, status) => api("GET", `/actions/${wsId}${status ? `?status=${status}` : ""}`),
+  monitorSummary: workspaceId => api("GET", `/monitor/${workspacePath(workspaceId)}`),
+  runMonitor: workspaceId => api("POST", `/monitor/${workspacePath(workspaceId)}/run`, null, 70000),
+  listChat: (workspaceId, limit = 80) => api("GET", `/chat/${workspacePath(workspaceId)}?limit=${limit}`),
+  createChat: (workspaceId, data) => api("POST", `/chat/${workspacePath(workspaceId)}`, data),
+  clearChat: workspaceId => api("DELETE", `/chat/${workspacePath(workspaceId)}`),
+  listActions: (wsId, status) => api("GET", `/actions/${workspacePath(wsId)}${status ? `?status=${status}` : ""}`),
   approveAction: (id, data) => api("POST", `/actions/${id}/approve`, data),
   executeAction: id => api("POST", `/actions/${id}/execute`),
   recordOutcome: data => api("POST", "/outcomes", data),
-  listOutcomes: wsId => api("GET", `/outcomes/${wsId}`),
-  outcomeStats: wsId => api("GET", `/outcomes/${wsId}/stats`),
+  listOutcomes: wsId => api("GET", `/outcomes/${workspacePath(wsId)}`),
+  outcomeStats: wsId => api("GET", `/outcomes/${workspacePath(wsId)}/stats`),
   transcribeAudio: async (blob, language = "en") => {
     const form = new FormData();
     form.append("audio", blob, `recording-${Date.now()}.webm`);
@@ -202,12 +211,24 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
     endpoints.health().then(status => setBackendOk(status)).catch(() => setBackendOk(false));
   }, []);
   useEffect(() => {
+    try {
+      Object.keys(localStorage)
+        .filter(key => key.startsWith("webdataos.chat.") && (key.includes("://") || key.includes("clerk_org_") || key.includes("clerk_user_")))
+        .forEach(key => localStorage.removeItem(key));
+    } catch (_) {}
+  }, []);
+  useEffect(() => {
+    const cleanId = normalizeWorkspaceId(ws.id);
+    if (cleanId !== ws.id) setWs(prev => ({ ...prev, id: cleanId }));
+  }, [ws.id]);
+  useEffect(() => {
     if (!user || !["Analyst", "Actions", "Outcomes", "Monitor"].includes(page)) return;
     endpoints.listActions(ws.id).then(items => { if (items.length) setActions(items); }).catch(() => {});
   }, [user, page, ws.id]);
   const saveWorkspace = async () => {
+    const workspaceId = normalizeWorkspaceId(ws.id || ws.name);
     const payload = {
-      id: ws.id || slug(ws.name),
+      id: workspaceId,
       name: ws.name,
       package_id: effectivePackId,
       entities: ws.entities.split(",").map(s => s.trim()).filter(Boolean),
@@ -219,11 +240,12 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
     return saved;
   };
   const runResearch = async (task, options = {}) => {
+    const workspaceId = normalizeWorkspaceId(ws.id);
     const result = await endpoints.research({
       task,
       conversation_context: options.conversation_context || null,
-      workspace_id: ws.id,
-      topic_id: ws.id,
+      workspace_id: workspaceId,
+      topic_id: workspaceId,
       package_id: effectivePackId,
       input_mode: options.input_mode || "text",
       enable_memory: true,
