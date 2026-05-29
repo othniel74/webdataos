@@ -138,7 +138,7 @@ async def health():
         },
         "partner_apis": {
             "speechmatics": bool(settings.speechmatics_api_key),
-            "triggerware": bool(settings.triggerware_endpoint),
+            "triggerware": bool(settings.triggerware_endpoint or settings.triggerware_api_key),
             "cognee_local": bool(settings.openai_api_key or settings.aimlapi_api_key or os.getenv("LLM_API_KEY")),
             "cognee_cloud": bool(settings.cognee_endpoint and settings.cognee_api_key),
         },
