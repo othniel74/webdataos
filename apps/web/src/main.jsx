@@ -331,28 +331,28 @@ function Auth({ onClose, onAuth }) {
     }
   };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,.6)", backdropFilter: "blur(10px)", display: "grid", placeItems: "center" }}>
-      <div onClick={e => e.stopPropagation()} className="au" style={{ width: 400, maxWidth: "92vw", padding: "32px 28px", borderRadius: 22, background: T.bgCard, border: `1px solid ${T.border}`, position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,.5)" }}>
+    <div onClick={onClose} role="presentation" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,.6)", backdropFilter: "blur(10px)", display: "grid", placeItems: "center" }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="auth-title" className="au" style={{ width: 400, maxWidth: "92vw", padding: "32px 28px", borderRadius: 22, background: T.bgCard, border: `1px solid ${T.border}`, position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,.5)" }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, margin: "0 auto 12px", background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center" }}><Layers size={18} color="#fff" /></div>
-          <h2 style={{ fontSize: 20 }}>Sign in to WebDataOS</h2>
+          <h2 id="auth-title" style={{ fontSize: 20 }}>Sign in to WebDataOS</h2>
           <p style={{ color: T.dim, fontSize: 13, marginTop: 6 }}>Access your tenant workspace</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: 3, borderRadius: 12, border: `1px solid ${T.border}`, background: T.bgSub, marginBottom: 14 }}>
           {[["login", "Sign in"], ["signup", "Create account"]].map(([id, label]) => (
-            <button key={id} onClick={() => { setMode(id); setError(""); }} style={{ border: "none", borderRadius: 9, padding: "8px 10px", background: mode === id ? T.accent : "transparent", color: mode === id ? "#000" : T.muted, fontSize: 12, fontWeight: 800 }}>{label}</button>
+            <button key={id} type="button" aria-pressed={mode === id} onClick={() => { setMode(id); setError(""); }} style={{ border: "none", borderRadius: 9, padding: "8px 10px", background: mode === id ? T.accent : "transparent", color: mode === id ? "#000" : T.muted, fontSize: 12, fontWeight: 800 }}>{label}</button>
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {mode === "signup" && <FI icon={<User size={14} />} ph="Full name" v={name} set={setName} />}
-          {mode === "signup" && <FI icon={<Briefcase size={14} />} ph="Organization" v={organization} set={setOrganization} />}
-          <FI icon={<Mail size={14} />} ph="Email" v={email} set={setEmail} type="email" />
-          <FI icon={<KeyRound size={14} />} ph="Password" v={password} set={setPassword} type="password" />
+          {mode === "signup" && <FI icon={<User size={14} />} ph="Full name" label="Full name" v={name} set={setName} />}
+          {mode === "signup" && <FI icon={<Briefcase size={14} />} ph="Organization" label="Organization" v={organization} set={setOrganization} />}
+          <FI icon={<Mail size={14} />} ph="Email" label="Email" v={email} set={setEmail} type="email" />
+          <FI icon={<KeyRound size={14} />} ph="Password" label="Password" v={password} set={setPassword} type="password" />
           {error && <div style={{ color: "#fca5a5", fontSize: 12, lineHeight: 1.45, padding: "8px 10px", borderRadius: 10, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>{error}</div>}
-          <button onClick={submit} disabled={loading || !email || !password || (mode === "signup" && !name)} style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontWeight: 800, fontSize: 14, cursor: loading ? "wait" : "pointer", width: "100%", opacity: loading ? .7 : 1 }}>{loading ? "Working..." : mode === "signup" ? "Create account" : "Sign in"}</button>
+          <button type="button" aria-label={mode === "signup" ? "Create WebDataOS account" : "Sign in to WebDataOS"} onClick={submit} disabled={loading || !email || !password || (mode === "signup" && !name)} style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontWeight: 800, fontSize: 14, cursor: loading ? "wait" : "pointer", width: "100%", opacity: loading ? .7 : 1 }}>{loading ? "Working..." : mode === "signup" ? "Create WebDataOS account" : "Sign in"}</button>
           <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>Public demo remains available without an account. Private workspaces are tenant-scoped.</div>
         </div>
-        <button onClick={onClose} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer" }}>&times;</button>
+        <button type="button" aria-label="Close authentication dialog" onClick={onClose} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer" }}>&times;</button>
       </div>
     </div>
   );
@@ -368,11 +368,11 @@ function AuthLoadingPage() {
   );
 }
 
-function FI({ icon, ph, v, set, type = "text" }) {
+function FI({ icon, ph, label, v, set, type = "text" }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderRadius: 10, background: T.bgSub, border: `1px solid ${T.borderL}` }}>
       <span style={{ color: T.dim, flexShrink: 0 }}>{icon}</span>
-      <input type={type} placeholder={ph} value={v} onChange={e => set(e.target.value)} style={{ flex: 1, border: "none", background: "transparent", outline: "none", padding: "10px 0", fontSize: 13, color: T.text }} />
+      <input aria-label={label || ph} type={type} placeholder={ph} value={v} onChange={e => set(e.target.value)} style={{ flex: 1, border: "none", background: "transparent", outline: "none", padding: "10px 0", fontSize: 13, color: T.text }} />
     </div>
   );
 }
