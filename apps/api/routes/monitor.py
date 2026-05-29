@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, IntelligenceRecord, Outcome, RefreshRun, Topic
+from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, IntelligenceRecord, Outcome, RefreshRun
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context, get_agent_orchestrator
-from packages.common.identifiers import normalize_workspace_id
+from apps.api.workspace_resolution import resolve_workspace
 from packages.common.security import AuthContext
 from packages.enterprise.packs import get_pack, package_id_from_description
 from packages.agents.orchestrator import ResearchAgentOrchestrator
@@ -53,10 +53,10 @@ async def monitor_summary(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ):
-    workspace_id = normalize_workspace_id(workspace_id)
-    topic = await db.get(Topic, workspace_id)
-    if not topic or topic.tenant_id != auth.tenant_id:
+    topic = await resolve_workspace(db, workspace_id, auth)
+    if not topic:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    workspace_id = topic.id
 
     runs_result = await db.execute(
         select(AgentRun)
@@ -210,10 +210,10 @@ async def run_monitoring(
     auth: AuthContext = Depends(authenticated_context),
     agent: ResearchAgentOrchestrator = Depends(get_agent_orchestrator),
 ):
-    workspace_id = normalize_workspace_id(workspace_id)
-    topic = await db.get(Topic, workspace_id)
-    if not topic or topic.tenant_id != auth.tenant_id:
+    topic = await resolve_workspace(db, workspace_id, auth)
+    if not topic:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    workspace_id = topic.id
 
     entities = ", ".join(topic.entities or []) or topic.name
     signals = ", ".join(topic.watch_types or []) or "material external changes"

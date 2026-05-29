@@ -268,7 +268,8 @@ export default function App() {
     return saved;
   };
   const runResearch = async (task, options = {}) => {
-    const workspaceId = normalizeWorkspaceId(ws.id);
+    const saved = await saveWorkspace();
+    const workspaceId = normalizeWorkspaceId(saved?.id || ws.id);
     const result = await endpoints.research({
       task,
       conversation_context: options.conversation_context || null,

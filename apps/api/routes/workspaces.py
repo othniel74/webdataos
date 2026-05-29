@@ -3,14 +3,14 @@ from __future__ import annotations
 import re
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.models import Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
-from packages.common.identifiers import normalize_workspace_id
+from apps.api.workspace_resolution import ensure_workspace, resolve_workspace, workspace_id_for_tenant
 from packages.common.security import AuthContext
 from packages.enterprise.packs import get_pack, list_packs, package_id_from_description
 from packages.schemas.workspace import IntelligencePackRead, WorkspaceCreate, WorkspaceRead
@@ -69,12 +69,8 @@ async def create_workspace(
     auth: AuthContext = Depends(authenticated_context),
 ) -> WorkspaceRead:
     pack = get_pack(payload.package_id)
-    workspace_id = normalize_workspace_id(payload.id) if payload.id else _slug(payload.name)
+    workspace_id = workspace_id_for_tenant(payload.id or _slug(payload.name), auth)
     existing = await db.get(Topic, workspace_id)
-    if existing:
-        if existing.tenant_id != auth.tenant_id:
-            workspace_id = f"{auth.tenant_id}_{workspace_id}"
-            existing = await db.get(Topic, workspace_id)
     if existing:
         existing.name = payload.name
         existing.description = f"package_id={pack.id}; {payload.description or pack.description}"
@@ -114,21 +110,7 @@ async def get_workspace(
     db: AsyncSession = Depends(get_db),
     auth: AuthContext = Depends(authenticated_context),
 ) -> WorkspaceRead:
-    workspace_id = normalize_workspace_id(workspace_id)
-    topic = await db.get(Topic, workspace_id)
-    if topic and topic.tenant_id != auth.tenant_id:
-        raise HTTPException(status_code=404, detail="Workspace not found")
+    topic = await resolve_workspace(db, workspace_id, auth)
     if not topic:
-        pack = get_pack("enterprise")
-        topic = Topic(
-            id=workspace_id,
-            tenant_id=auth.tenant_id,
-            name=workspace_id.replace("_", " ").title(),
-            description=f"package_id={pack.id}; {pack.description}",
-            entities=pack.entities,
-            watch_types=pack.signals,
-            refresh_frequency_minutes=1440,
-        )
-        db.add(topic)
-        await db.commit()
+        topic = await ensure_workspace(db, workspace_id, auth, package_id="enterprise")
     return _workspace_read(topic)

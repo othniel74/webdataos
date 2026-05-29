@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context, get_intelligence_service
-from packages.common.identifiers import normalize_workspace_id
+from apps.api.workspace_resolution import resolve_workspace, workspace_id_for_tenant
 from packages.common.security import AuthContext
 from packages.intelligence.service import IntelligenceService
 from packages.schemas.intelligence import TopicCreate, TopicRead, SourceRecord, IntelligenceRecordRead, RetrievalRequest, RetrievalResult
@@ -17,7 +17,7 @@ async def create_topic(
     service: IntelligenceService = Depends(get_intelligence_service),
     auth: AuthContext = Depends(authenticated_context),
 ):
-    topic.id = normalize_workspace_id(topic.id)
+    topic.id = workspace_id_for_tenant(topic.id, auth)
     return await service.create_topic(db, topic, tenant_id=auth.tenant_id)
 
 
@@ -39,7 +39,8 @@ async def discover(
     service: IntelligenceService = Depends(get_intelligence_service),
     auth: AuthContext = Depends(authenticated_context),
 ):
-    topic_id = normalize_workspace_id(topic_id)
+    topic = await resolve_workspace(db, topic_id, auth)
+    topic_id = topic.id if topic else workspace_id_for_tenant(topic_id, auth)
     return await service.discover_sources(db, topic_id, limit=limit, query=query, tenant_id=auth.tenant_id)
 
 
@@ -52,7 +53,8 @@ async def refresh(
     service: IntelligenceService = Depends(get_intelligence_service),
     auth: AuthContext = Depends(authenticated_context),
 ):
-    topic_id = normalize_workspace_id(topic_id)
+    topic = await resolve_workspace(db, topic_id, auth)
+    topic_id = topic.id if topic else workspace_id_for_tenant(topic_id, auth)
     return await service.refresh_topic(db, topic_id, max_sources=max_sources, query=query, tenant_id=auth.tenant_id)
 
 
@@ -66,7 +68,8 @@ async def records(
     auth: AuthContext = Depends(authenticated_context),
 ):
     if topic_id:
-        topic_id = normalize_workspace_id(topic_id)
+        topic = await resolve_workspace(db, topic_id, auth)
+        topic_id = topic.id if topic else workspace_id_for_tenant(topic_id, auth)
     return await service.list_records(
         db,
         topic_id=topic_id,
@@ -83,7 +86,8 @@ async def retrieve_alias(
     service: IntelligenceService = Depends(get_intelligence_service),
     auth: AuthContext = Depends(authenticated_context),
 ):
-    req.topic_id = normalize_workspace_id(req.topic_id)
+    topic = await resolve_workspace(db, req.topic_id, auth)
+    req.topic_id = topic.id if topic else workspace_id_for_tenant(req.topic_id, auth)
     return await service.retrieve_context(db, req, tenant_id=auth.tenant_id)
 
 
@@ -94,5 +98,6 @@ async def retrieve(
     service: IntelligenceService = Depends(get_intelligence_service),
     auth: AuthContext = Depends(authenticated_context),
 ):
-    req.topic_id = normalize_workspace_id(req.topic_id)
+    topic = await resolve_workspace(db, req.topic_id, auth)
+    req.topic_id = topic.id if topic else workspace_id_for_tenant(req.topic_id, auth)
     return await service.retrieve_context(db, req, tenant_id=auth.tenant_id)
