@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import AutonomousAction, OrganizationalContext
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
+from packages.common.security import AuthContext
 from packages.common.time import utc_now
 from packages.outcomes.service import OutcomeService
 from packages.schemas.reasoning import (
@@ -29,9 +30,16 @@ _outcome_svc = OutcomeService()
 # ── Organizational Context ───────────────────────────────────────────
 
 @router.post("/context", response_model=OrgContextRead)
-async def upsert_context(payload: OrgContextCreate, db: AsyncSession = Depends(get_db)) -> OrgContextRead:
+async def upsert_context(
+    payload: OrgContextCreate,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+) -> OrgContextRead:
     result = await db.execute(
-        select(OrganizationalContext).where(OrganizationalContext.workspace_id == payload.workspace_id)
+        select(OrganizationalContext).where(
+            OrganizationalContext.workspace_id == payload.workspace_id,
+            OrganizationalContext.tenant_id == auth.tenant_id,
+        )
     )
     existing = result.scalar_one_or_none()
     if existing:
@@ -45,6 +53,7 @@ async def upsert_context(payload: OrgContextCreate, db: AsyncSession = Depends(g
         return _ctx_read(existing)
     ctx = OrganizationalContext(
         id=str(uuid.uuid4()),
+        tenant_id=auth.tenant_id,
         workspace_id=payload.workspace_id,
         contracts=[c.model_dump() if hasattr(c, "model_dump") else c for c in payload.contracts],
         risk_thresholds=payload.risk_thresholds.model_dump() if hasattr(payload.risk_thresholds, "model_dump") else payload.risk_thresholds,
@@ -59,9 +68,16 @@ async def upsert_context(payload: OrgContextCreate, db: AsyncSession = Depends(g
 
 
 @router.get("/context/{workspace_id}", response_model=OrgContextRead)
-async def get_context(workspace_id: str, db: AsyncSession = Depends(get_db)) -> OrgContextRead:
+async def get_context(
+    workspace_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+) -> OrgContextRead:
     result = await db.execute(
-        select(OrganizationalContext).where(OrganizationalContext.workspace_id == workspace_id)
+        select(OrganizationalContext).where(
+            OrganizationalContext.workspace_id == workspace_id,
+            OrganizationalContext.tenant_id == auth.tenant_id,
+        )
     )
     ctx = result.scalar_one_or_none()
     if not ctx:
@@ -72,8 +88,16 @@ async def get_context(workspace_id: str, db: AsyncSession = Depends(get_db)) -> 
 # ── Autonomous Actions ───────────────────────────────────────────────
 
 @router.get("/actions/{workspace_id}", response_model=list[ActionRead])
-async def list_actions(workspace_id: str, status: str | None = None, db: AsyncSession = Depends(get_db)):
-    stmt = select(AutonomousAction).where(AutonomousAction.workspace_id == workspace_id)
+async def list_actions(
+    workspace_id: str,
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
+    stmt = select(AutonomousAction).where(
+        AutonomousAction.workspace_id == workspace_id,
+        AutonomousAction.tenant_id == auth.tenant_id,
+    )
     if status:
         stmt = stmt.where(AutonomousAction.status == status)
     stmt = stmt.order_by(AutonomousAction.created_at.desc()).limit(50)
@@ -82,9 +106,14 @@ async def list_actions(workspace_id: str, status: str | None = None, db: AsyncSe
 
 
 @router.post("/actions/{action_id}/approve", response_model=ActionRead)
-async def approve_action(action_id: str, approval: ActionApproval, db: AsyncSession = Depends(get_db)):
+async def approve_action(
+    action_id: str,
+    approval: ActionApproval,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
     action = await db.get(AutonomousAction, action_id)
-    if not action:
+    if not action or action.tenant_id != auth.tenant_id:
         raise HTTPException(status_code=404, detail="Action not found")
     if action.status not in {"pending_approval", "auto_approved"}:
         raise HTTPException(status_code=400, detail=f"Cannot approve action in status: {action.status}")
@@ -99,9 +128,13 @@ async def approve_action(action_id: str, approval: ActionApproval, db: AsyncSess
 
 
 @router.post("/actions/{action_id}/execute", response_model=ActionRead)
-async def execute_action(action_id: str, db: AsyncSession = Depends(get_db)):
+async def execute_action(
+    action_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
     action = await db.get(AutonomousAction, action_id)
-    if not action:
+    if not action or action.tenant_id != auth.tenant_id:
         raise HTTPException(status_code=404, detail="Action not found")
     if action.status not in {"approved", "auto_approved"}:
         raise HTTPException(status_code=400, detail=f"Cannot execute action in status: {action.status}")
@@ -115,18 +148,30 @@ async def execute_action(action_id: str, db: AsyncSession = Depends(get_db)):
 # ── Outcomes ─────────────────────────────────────────────────────────
 
 @router.post("/outcomes", response_model=OutcomeRead)
-async def record_outcome(payload: OutcomeRecord, db: AsyncSession = Depends(get_db)):
-    return await _outcome_svc.record(db, payload)
+async def record_outcome(
+    payload: OutcomeRecord,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
+    return await _outcome_svc.record(db, payload, tenant_id=auth.tenant_id)
 
 
 @router.get("/outcomes/{workspace_id}", response_model=list[OutcomeRead])
-async def list_outcomes(workspace_id: str, db: AsyncSession = Depends(get_db)):
-    return await _outcome_svc.list_outcomes(db, workspace_id)
+async def list_outcomes(
+    workspace_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
+    return await _outcome_svc.list_outcomes(db, workspace_id, tenant_id=auth.tenant_id)
 
 
 @router.get("/outcomes/{workspace_id}/stats", response_model=OutcomeStats)
-async def outcome_stats(workspace_id: str, db: AsyncSession = Depends(get_db)):
-    return await _outcome_svc.get_stats(db, workspace_id)
+async def outcome_stats(
+    workspace_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
+    return await _outcome_svc.get_stats(db, workspace_id, tenant_id=auth.tenant_id)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

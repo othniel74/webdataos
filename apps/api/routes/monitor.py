@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, IntelligenceRecord, Outcome, RefreshRun, Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context, get_agent_orchestrator
+from packages.common.security import AuthContext
 from packages.enterprise.packs import get_pack, package_id_from_description
 from packages.agents.orchestrator import ResearchAgentOrchestrator
 from packages.schemas.agent import ResearchRequest
@@ -45,19 +46,26 @@ def _run_summary(run: AgentRun) -> dict:
 
 
 @router.get("/{workspace_id}")
-async def monitor_summary(workspace_id: str, db: AsyncSession = Depends(get_db)):
+async def monitor_summary(
+    workspace_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+):
     topic = await db.get(Topic, workspace_id)
-    if not topic:
+    if not topic or topic.tenant_id != auth.tenant_id:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
     runs_result = await db.execute(
-        select(AgentRun).where(AgentRun.topic_id == workspace_id).order_by(desc(AgentRun.created_at)).limit(10)
+        select(AgentRun)
+        .where(AgentRun.topic_id == workspace_id, AgentRun.tenant_id == auth.tenant_id)
+        .order_by(desc(AgentRun.created_at))
+        .limit(10)
     )
     runs = runs_result.scalars().all()
 
     records_result = await db.execute(
         select(IntelligenceRecord)
-        .where(IntelligenceRecord.topic_id == workspace_id)
+        .where(IntelligenceRecord.topic_id == workspace_id, IntelligenceRecord.tenant_id == auth.tenant_id)
         .order_by(desc(IntelligenceRecord.extracted_at))
         .limit(12)
     )
@@ -65,24 +73,33 @@ async def monitor_summary(workspace_id: str, db: AsyncSession = Depends(get_db))
 
     actions_result = await db.execute(
         select(AutonomousAction)
-        .where(AutonomousAction.workspace_id == workspace_id)
+        .where(AutonomousAction.workspace_id == workspace_id, AutonomousAction.tenant_id == auth.tenant_id)
         .order_by(desc(AutonomousAction.created_at))
         .limit(12)
     )
     actions = actions_result.scalars().all()
 
     changes_result = await db.execute(
-        select(ChangeEvent).where(ChangeEvent.topic_id == workspace_id).order_by(desc(ChangeEvent.detected_at)).limit(12)
+        select(ChangeEvent)
+        .where(ChangeEvent.topic_id == workspace_id, ChangeEvent.tenant_id == auth.tenant_id)
+        .order_by(desc(ChangeEvent.detected_at))
+        .limit(12)
     )
     changes = changes_result.scalars().all()
 
     refresh_result = await db.execute(
-        select(RefreshRun).where(RefreshRun.topic_id == workspace_id).order_by(desc(RefreshRun.started_at)).limit(5)
+        select(RefreshRun)
+        .where(RefreshRun.topic_id == workspace_id, RefreshRun.tenant_id == auth.tenant_id)
+        .order_by(desc(RefreshRun.started_at))
+        .limit(5)
     )
     refresh_runs = refresh_result.scalars().all()
 
     outcomes_result = await db.execute(
-        select(Outcome).where(Outcome.workspace_id == workspace_id).order_by(desc(Outcome.created_at)).limit(12)
+        select(Outcome)
+        .where(Outcome.workspace_id == workspace_id, Outcome.tenant_id == auth.tenant_id)
+        .order_by(desc(Outcome.created_at))
+        .limit(12)
     )
     outcomes = outcomes_result.scalars().all()
 
@@ -184,10 +201,11 @@ async def monitor_summary(workspace_id: str, db: AsyncSession = Depends(get_db))
 async def run_monitoring(
     workspace_id: str,
     db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
     agent: ResearchAgentOrchestrator = Depends(get_agent_orchestrator),
 ):
     topic = await db.get(Topic, workspace_id)
-    if not topic:
+    if not topic or topic.tenant_id != auth.tenant_id:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
     entities = ", ".join(topic.entities or []) or topic.name

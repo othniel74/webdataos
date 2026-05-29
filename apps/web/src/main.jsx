@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
+import { ClerkProvider, SignInButton, SignUpButton, useAuth, useUser, UserButton } from "@clerk/clerk-react";
 import {
   Shield, Globe, TrendingUp, Layers, Mic, Brain, Zap, ArrowRight,
   CheckCircle, RefreshCw, Send, LogOut, User, Mail, KeyRound,
@@ -32,7 +33,11 @@ const createDefaultWorkspace = () => ({
 });
 const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 const KEY = import.meta.env.VITE_API_KEY || "dev-local-key-change-me";
-const headers = () => ({ "Content-Type": "application/json", "X-API-Key": KEY });
+const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
+let apiBearerToken = null;
+const setApiBearerToken = token => { apiBearerToken = token || null; };
+const headers = () => ({ "Content-Type": "application/json", ...(apiBearerToken ? { "Authorization": `Bearer ${apiBearerToken}` } : { "X-API-Key": KEY }) });
+const demoHeaders = sessionId => ({ "Content-Type": "application/json", ...(sessionId ? { "X-Demo-Session": sessionId } : {}) });
 async function api(method, path, body, timeoutMs = 20000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -43,6 +48,21 @@ async function api(method, path, body, timeoutMs = 20000) {
   } catch (error) {
     if (error?.name === "AbortError") throw new Error(`${path} timed out. The live backend did not respond fast enough.`);
     if (error instanceof TypeError) throw new Error(`${path} failed to fetch. Check the API connection and deployment proxy.`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function demoApi(method, path, sessionId, body, timeoutMs = 70000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API}${path}`, { method, headers: demoHeaders(sessionId), signal: controller.signal, ...(body ? { body: JSON.stringify(body) } : {}) });
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+    return res.json();
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error(`${path} timed out. The demo backend did not respond fast enough.`);
+    if (error instanceof TypeError) throw new Error(`${path} failed to fetch. Check the API connection.`);
     throw error;
   } finally {
     clearTimeout(timer);
@@ -98,6 +118,15 @@ const endpoints = {
     if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
     return res.blob();
   },
+  demoCatalog: () => demoApi("GET", "/demo/catalog"),
+  demoSession: mission => demoApi("POST", "/demo/sessions", null, { mission }, 20000),
+  demoCurrent: sessionId => demoApi("GET", "/demo/sessions/current", sessionId, null, 20000),
+  demoWorkspace: (sessionId, data) => demoApi("POST", "/demo/workspaces", sessionId, data, 20000),
+  demoRun: sessionId => demoApi("POST", "/demo/monitor/run", sessionId, null, 90000),
+  demoChat: (sessionId, question, history = []) => demoApi("POST", "/demo/analyst/chat", sessionId, { question, history }, 90000),
+  demoEvidence: sessionId => demoApi("GET", "/demo/evidence", sessionId, null, 30000),
+  demoGraph: sessionId => demoApi("GET", "/demo/graph", sessionId, null, 30000),
+  demoLatest: sessionId => demoApi("GET", "/demo/runs/latest", sessionId, null, 30000),
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -128,10 +157,10 @@ const packIcon = (id, size = 18) => {
 /* ═══════════════════════════════════════════════════════════════════════
    APP
    ═══════════════════════════════════════════════════════════════════════ */
-const PUB = ["Home", "Solution", "Pricing", "Docs", "Developer"];
+const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
 const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Settings"];
 
-export default function App() {
+export default function App({ externalUser = null, externalSignOut = null, clerkEnabled = false } = {}) {
   const [page, setPage] = useState("Home");
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -148,6 +177,9 @@ export default function App() {
   const pack = useMemo(() => PACKS.find(p => p.id === effectivePackId) || PACKS[3], [effectivePackId]);
   const toggleDomain = (id) => { if (tierId === "enterprise") return; setSelDomains(prev => { if (prev.includes(id)) return prev.filter(d => d !== id); if (prev.length >= tier.pick) return [...prev.slice(1), id]; return [...prev, id]; }); };
   const nav = useCallback(t => { if (PRIV.includes(t) && !user) { setShowAuth(true); return; } setPage(t); }, [user]);
+  useEffect(() => {
+    if (clerkEnabled) setUser(externalUser);
+  }, [clerkEnabled, externalUser]);
   useEffect(() => {
     if (packId !== effectivePackId) setPackId(effectivePackId);
   }, [packId, effectivePackId]);
@@ -192,8 +224,9 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'DM Sans','Manrope',system-ui,sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <style>{CSS}</style>
-      <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { setUser(null); setPage("Home"); }} backendOk={backendOk} />
+      <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { if (externalSignOut) externalSignOut(); setUser(null); setPage("Home"); }} backendOk={backendOk} clerkEnabled={clerkEnabled} />
       {page === "Home" && <HomePage nav={nav} user={user} auth={() => setShowAuth(true)} />}
+      {page === "Demo" && <DemoPage nav={nav} />}
       {page === "Solution" && <SolutionManualPage nav={nav} />}
       {page === "Pricing" && <PricingPage nav={nav} tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} user={user} auth={() => setShowAuth(true)} />}
       {page === "Docs" && <DocsManualPage />}
@@ -208,13 +241,13 @@ export default function App() {
       {page === "Gateway" && user && <GwPage />}
       {page === "Actions" && user && <ActPage actions={actions} setActions={setActions} />}
       {page === "Outcomes" && user && <OutPage ws={ws} user={user} />}
-      {showAuth && <Auth onClose={() => setShowAuth(false)} onAuth={u => { setUser(u); setShowAuth(false); setPage("Monitor"); }} />}
+      {showAuth && <Auth clerkEnabled={clerkEnabled} onClose={() => setShowAuth(false)} onAuth={u => { setUser(u); setShowAuth(false); setPage("Monitor"); }} />}
     </div>
   );
 }
 
 /* ═══════ AUTH ═══════ */
-function Auth({ onClose, onAuth }) {
+function Auth({ onClose, onAuth, clerkEnabled = false }) {
   const [email, setEmail] = useState("analyst@company.com"); const [name, setName] = useState("Analyst");
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,.6)", backdropFilter: "blur(10px)", display: "grid", placeItems: "center" }}>
@@ -224,11 +257,15 @@ function Auth({ onClose, onAuth }) {
           <h2 style={{ fontSize: 20 }}>Sign in to WebDataOS</h2>
           <p style={{ color: T.dim, fontSize: 13, marginTop: 6 }}>Access your intelligence workspaces</p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {clerkEnabled ? <div style={{ display: "grid", gap: 10 }}>
+          <SignInButton mode="modal"><button style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontWeight: 800, fontSize: 14, cursor: "pointer", width: "100%" }}>Sign in with Clerk</button></SignInButton>
+          <SignUpButton mode="modal"><button style={{ padding: "12px", borderRadius: 12, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 14, cursor: "pointer", width: "100%" }}>Create tenant account</button></SignUpButton>
+          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>Tenant workspaces are isolated by Clerk identity. The public demo works without sign-in.</div>
+        </div> : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <FI icon={<User size={14} />} ph="Name" v={name} set={setName} />
           <FI icon={<Mail size={14} />} ph="Email" v={email} set={setEmail} type="email" />
           <button onClick={() => onAuth({ name: name || "Analyst", initials: (name || "A")[0].toUpperCase(), email: email || "analyst@company.com" })} style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", width: "100%" }}>Sign in</button>
-        </div>
+        </div>}
         <button onClick={onClose} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer" }}>&times;</button>
       </div>
     </div>
@@ -244,7 +281,7 @@ function FI({ icon, ph, v, set, type = "text" }) {
 }
 
 /* ═══════ NAV ═══════ */
-function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
+function Nav({ page, setPage, user, onAuth, onOut, backendOk, clerkEnabled = false }) {
   const navItems = user ? PRIV : PUB;
   const brandTarget = user ? "Monitor" : "Home";
   return (
@@ -260,7 +297,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
         })}
       </nav>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {user ? <><div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 6px", borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}><div style={{ width: 24, height: 24, borderRadius: 999, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div><span style={{ fontSize: 12, color: T.muted }}>{user.name}</span></div><button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}><LogOut size={12} /></button></> : <><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Get started</button></>}
+        {user ? <><div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 6px", borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}><div style={{ width: 24, height: 24, borderRadius: 999, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div><span style={{ fontSize: 12, color: T.muted }}>{user.name}</span></div>{clerkEnabled && <UserButton afterSignOutUrl="/" />}<button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}><LogOut size={12} /></button></> : clerkEnabled ? <><SignInButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button></SignInButton><SignUpButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Create account</button></SignUpButton><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button></> : <><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Try demo</button></>}
       </div>
     </header>
   );
@@ -410,6 +447,287 @@ function HomePage({ nav, user, auth }) {
 /* ═══════════════════════════════════════════════════════════════════════
    PRICING PAGE (Public) — tier cards + domain picker
    ═══════════════════════════════════════════════════════════════════════ */
+const DEMO_FALLBACK_CATALOG = {
+  missions: [
+    {
+      id: "vendor_risk",
+      name: "Vendor Risk and Compliance",
+      package_id: "security",
+      entities: ["Okta", "Stripe", "Microsoft"],
+      signals: ["vendor risk", "breach exposure", "compliance signals", "regulatory change"],
+    },
+    {
+      id: "gtm",
+      name: "Competitor and GTM Intelligence",
+      package_id: "gtm",
+      entities: ["OpenAI", "Anthropic", "Google"],
+      signals: ["competitor moves", "pricing changes", "messaging shifts", "buying signals"],
+    },
+    {
+      id: "market",
+      name: "Market and Finance Signals",
+      package_id: "finance",
+      entities: ["Nvidia", "Microsoft", "Salesforce"],
+      signals: ["filings", "supplier signals", "market movement", "pricing changes"],
+    },
+  ],
+  limits: { entities: 5, signals: 6, runs_per_hour: 6, session_ttl_hours: 24 },
+};
+
+function DemoPage({ nav }) {
+  const [catalog, setCatalog] = useState(null);
+  const [session, setSession] = useState(null);
+  const [mission, setMission] = useState("vendor_risk");
+  const [entities, setEntities] = useState("Okta, Stripe, Microsoft");
+  const [signals, setSignals] = useState("vendor risk, breach exposure, compliance signals, regulatory change");
+  const [report, setReport] = useState(null);
+  const [evidence, setEvidence] = useState([]);
+  const [graph, setGraph] = useState(null);
+  const [question, setQuestion] = useState("Which signal needs action and what evidence supports it?");
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState("");
+  const [error, setError] = useState("");
+  const [catalogLive, setCatalogLive] = useState(false);
+  const missionOptions = catalog?.missions?.length ? catalog.missions : DEMO_FALLBACK_CATALOG.missions;
+  const missionData = missionOptions.find(m => m.id === mission) || missionOptions[0];
+  const sessionId = session?.session_id;
+
+  const loadEvidence = useCallback(async (sid = sessionId) => {
+    if (!sid) return;
+    const [ev, gr, latest] = await Promise.all([
+      endpoints.demoEvidence(sid).catch(() => ({ records: [] })),
+      endpoints.demoGraph(sid).catch(() => null),
+      endpoints.demoLatest(sid).catch(() => null),
+    ]);
+    setEvidence(ev.records || []);
+    setGraph(gr);
+    if (latest?.run_id || latest?.summary) setReport(latest);
+  }, [sessionId]);
+
+  useEffect(() => {
+    endpoints.demoCatalog().then(data => {
+      setCatalog(data);
+      setCatalogLive(true);
+      const saved = localStorage.getItem("webdataos_demo_session");
+      if (saved) {
+        endpoints.demoCurrent(saved).then(active => {
+          setSession(active);
+          setMission(active.mission || "vendor_risk");
+          setEntities((active.entities || []).join(", "));
+          setSignals((active.signals || []).join(", "));
+          loadEvidence(active.session_id);
+        }).catch(() => localStorage.removeItem("webdataos_demo_session"));
+      }
+    }).catch(() => {
+      setCatalog(DEMO_FALLBACK_CATALOG);
+      setCatalogLive(false);
+      setError("The demo shell is available. Start the local API/database to run live demo updates.");
+    });
+  }, [loadEvidence]);
+
+  useEffect(() => {
+    if (!missionData) return;
+    setEntities(missionData.entities.join(", "));
+    setSignals(missionData.signals.join(", "));
+  }, [missionData?.id]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    try {
+      const saved = localStorage.getItem(`webdataos_demo_messages_${sessionId}`);
+      setMessages(saved ? JSON.parse(saved) : []);
+    } catch {
+      setMessages([]);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    localStorage.setItem(`webdataos_demo_messages_${sessionId}`, JSON.stringify(messages.slice(-20)));
+  }, [messages, sessionId]);
+
+  const ensureSession = async () => {
+    if (sessionId) return session;
+    const created = await endpoints.demoSession(mission);
+    localStorage.setItem("webdataos_demo_session", created.session_id);
+    setSession(created);
+    return created;
+  };
+  const saveDemoScope = async () => {
+    const active = await ensureSession();
+    const updated = await endpoints.demoWorkspace(active.session_id, {
+      mission,
+      entities: entities.split(",").map(x => x.trim()).filter(Boolean),
+      signals: signals.split(",").map(x => x.trim()).filter(Boolean),
+    });
+    setSession(updated);
+    return updated;
+  };
+  const runDemo = async () => {
+    setLoading("run");
+    setError("");
+    try {
+      const active = await saveDemoScope();
+      const result = await endpoints.demoRun(active.session_id);
+      setReport(result);
+      await loadEvidence(active.session_id);
+    } catch (e) {
+      setError(e.message || "Demo run failed.");
+    } finally {
+      setLoading("");
+    }
+  };
+  const askDemo = async () => {
+    if (!question.trim()) return;
+    const q = question.trim();
+    setLoading("chat");
+    setError("");
+    const nextMessages = [...messages, { role: "user", content: q }];
+    setMessages(nextMessages);
+    setQuestion("");
+    try {
+      const active = await saveDemoScope();
+      const result = await endpoints.demoChat(active.session_id, q, messages.slice(-8));
+      setReport(result);
+      setMessages(prev => [...prev, { role: "assistant", content: result.summary || "No answer returned." }]);
+      await loadEvidence(active.session_id);
+    } catch (e) {
+      setError(e.message || "Demo Analyst failed.");
+    } finally {
+      setLoading("");
+    }
+  };
+  const loop = report?.run_receipt?.value_loop || [];
+  const missionIcon = id => id === "vendor_risk" ? <Shield size={17} /> : id === "gtm" ? <TrendingUp size={17} /> : <BarChart3 size={17} />;
+  const evidenceCount = evidence.length;
+  const graphCount = graph?.counts?.nodes || graph?.nodes?.length || 0;
+
+  return (
+    <div style={{ maxWidth: 1080, margin: "0 auto", padding: "34px 24px 54px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "flex-end" }}>
+        <div>
+          <Eye>Demo</Eye>
+          <h2 style={{ fontSize: 30, marginTop: 6, lineHeight: 1.12 }}>Monitor a business signal</h2>
+          <div style={{ color: T.muted, fontSize: 14, marginTop: 8, maxWidth: 620, lineHeight: 1.5 }}>Choose a scenario, run a short update, then ask the Analyst what matters.</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={() => nav("Home")} style={{ padding: "9px 14px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}>Back home</button>
+        </div>
+      </div>
+
+      {error && <div style={{ marginTop: 16, padding: "9px 0", borderTop: "1px solid rgba(239,68,68,.22)", borderBottom: "1px solid rgba(239,68,68,.22)", color: "#fca5a5", fontSize: 12 }}>{error}</div>}
+
+      <section style={{ marginTop: 28, paddingTop: 18, borderTop: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 12, color: T.accent, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Scenario</div>
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 8 }}>
+          {missionOptions.map(item => {
+            const active = item.id === mission;
+            return (
+              <button key={item.id} onClick={() => setMission(item.id)} style={{ minHeight: 86, textAlign: "left", padding: 13, borderRadius: 8, border: `1px solid ${active ? T.accent : T.border}`, background: active ? "rgba(18,181,203,.08)" : "transparent", color: active ? T.text : T.muted, display: "grid", alignContent: "start", gap: 8 }}>
+                <span style={{ color: active ? T.accent : T.dim }}>{missionIcon(item.id)}</span>
+                <div style={{ fontSize: 14, fontWeight: 900, lineHeight: 1.25 }}>{item.name}</div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 24, paddingTop: 18, borderTop: `1px solid ${T.border}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 18, alignItems: "end" }}>
+          <div>
+            <div style={{ fontSize: 12, color: T.accent, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Scope</div>
+            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <Lb>Entities</Lb>
+                <input value={entities} onChange={e => setEntities(e.target.value)} style={IS} />
+              </div>
+              <div>
+                <Lb>Signals</Lb>
+                <input value={signals} onChange={e => setSignals(e.target.value)} style={IS} />
+              </div>
+            </div>
+          </div>
+          <button onClick={runDemo} disabled={!!loading} style={{ height: 42, padding: "0 18px", borderRadius: 8, border: "none", background: T.accent, color: "#000", fontWeight: 900, fontSize: 13, display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+            {loading === "run" ? <RefreshCw size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Play size={15} />}
+            {loading === "run" ? "Running" : "Run update"}
+          </button>
+        </div>
+      </section>
+
+      <section style={{ marginTop: 28, display: "grid", gridTemplateColumns: "minmax(0,1.35fr) minmax(300px,.65fr)", gap: 22, alignItems: "start" }}>
+        <main style={{ minHeight: 560, display: "grid", gridTemplateRows: "auto 1fr auto", borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Brain size={17} color={T.accent} /><div style={{ fontSize: 16, fontWeight: 900 }}>Analyst</div></div>
+            </div>
+            <div style={{ display: "flex", gap: 12, color: T.dim, fontSize: 11 }}>
+              <span>{evidenceCount} evidence</span>
+              <span>{graphCount} graph nodes</span>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", paddingRight: 6 }}>
+            {!messages.length && (
+              <div style={{ alignSelf: "stretch", padding: "16px 0", borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, color: T.muted, fontSize: 13, lineHeight: 1.65 }}>
+                Try: <strong style={{ color: T.text }}>Which signal needs action?</strong>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "82%", padding: "11px 13px", borderRadius: m.role === "user" ? "14px 14px 3px 14px" : "14px 14px 14px 3px", background: m.role === "user" ? T.accent : T.bgSub, border: m.role === "user" ? "none" : `1px solid ${T.border}`, color: m.role === "user" ? "#000" : T.muted, fontSize: 13, lineHeight: 1.55 }}>
+                {m.content}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={question} placeholder="Ask Analyst..." onChange={e => setQuestion(e.target.value)} onKeyDown={e => { if (e.key === "Enter") askDemo(); }} style={{ ...IS, marginTop: 0, minWidth: 0, height: 42 }} />
+              <button onClick={askDemo} disabled={!!loading || !question.trim()} style={{ width: 46, borderRadius: 8, border: "none", background: T.accent, color: "#000", display: "grid", placeItems: "center" }} title="Ask Analyst">
+                {loading === "chat" ? <RefreshCw size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Send size={15} />}
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              {["What changed?", "Which source matters?", "What action would you propose?"].map(q => <button key={q} onClick={() => setQuestion(q)} style={{ padding: "6px 9px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 11 }}>{q}</button>)}
+            </div>
+          </div>
+        </main>
+
+        <aside style={{ borderTop: `1px solid ${T.border}`, paddingTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><Database size={16} color={T.accent} /><div style={{ fontSize: 16, fontWeight: 900 }}>Proof</div></div>
+
+          <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+            {[["Runs", session?.runs_used ?? 0], ["Evidence", evidenceCount], ["Graph", graphCount]].map(([label, value]) => (
+              <div key={label} style={{ paddingBottom: 10, borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</div>
+                <div style={{ marginTop: 4, fontSize: 18, color: label === "Graph" ? "#22c55e" : T.accent, fontWeight: 900 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 13, fontWeight: 900 }}>Receipt</div>
+            {report ? <p style={{ marginTop: 7, color: T.muted, fontSize: 12, lineHeight: 1.6 }}>{report.summary}</p> : <div style={{ marginTop: 7, color: T.dim, fontSize: 12, lineHeight: 1.55 }}>Run an update to create a receipt.</div>}
+            {!!loop.length && <div style={{ marginTop: 10, display: "grid", gap: 5 }}>{loop.slice(0, 5).map(item => <div key={item.step} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: `1px solid ${T.border}` }}><span style={{ fontSize: 11, color: T.muted }}>{item.step}</span><span style={{ fontSize: 10, color: statusColorLite(item.status), fontWeight: 800 }}>{item.status}</span></div>)}</div>}
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 900 }}>Evidence</div>
+            <div style={{ marginTop: 7, display: "grid", gap: 7 }}>
+              {evidence.slice(0, 3).map(record => <div key={record.id} style={{ paddingTop: 8, borderTop: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 900 }}>{record.entity_name || "Evidence"}</div><div style={{ marginTop: 4, color: T.dim, fontSize: 11, lineHeight: 1.45 }}>{record.summary}</div></div>)}
+              {!evidence.length && <div style={{ color: T.dim, fontSize: 12, paddingTop: 8, borderTop: `1px solid ${T.border}` }}>Evidence appears after the first successful run.</div>}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><GitBranch size={14} color="#22c55e" /><div style={{ fontSize: 13, fontWeight: 900 }}>Graph</div></div>
+            <GraphMini graph={graph} title={session?.workspace_id || "Demo graph"} />
+          </div>
+        </aside>
+      </section>
+    </div>
+  );
+}
+
 function PricingPage({ nav, tierId, setTierId, selDomains, toggleDomain, tier, user, auth }) {
   const go = user ? () => nav("Monitor") : auth;
   const rows = [
@@ -2998,26 +3316,141 @@ function Eye({ children }) { return <div style={{ fontSize: 10, fontWeight: 700,
 function Lb({ children, style }) { return <div style={{ fontSize: 10, fontWeight: 600, color: T.dim, ...style }}>{children}</div>; }
 function MC({ l, v, c }) { return <div style={{ padding: "6px 7px", borderRadius: 6, background: "rgba(255,255,255,.02)", border: `1px solid ${T.border}` }}><div style={{ fontSize: 8, color: T.dim, textTransform: "uppercase", letterSpacing: ".05em" }}>{l}</div><div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 1, fontFamily: "'JetBrains Mono'" }}>{v}</div></div>; }
 function GraphMini({ graph, title }) {
-  const nodes = (graph?.nodes || []).slice(0, 8);
-  const relationships = (graph?.relationships || []).slice(0, 8);
-  const short = value => String(value || "").replace(/^(Company|Workspace|Source|IntelligenceRecord|Product|Feature|PricingModel):/, "").slice(0, 46);
+  const [selectedId, setSelectedId] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  const nodes = (graph?.nodes || []).slice(0, 14);
+  const relationships = (graph?.relationships || []).slice(0, 18);
+  const short = (value, max = 28) => {
+    const text = String(value || "").replace(/^(Company|Workspace|Source|IntelligenceRecord|Product|Feature|PricingModel):/, "");
+    return text.length > max ? `${text.slice(0, max - 1)}...` : text;
+  };
+  const typeColor = type => ({
+    Workspace: T.accent,
+    Company: "#38bdf8",
+    IntelligenceRecord: "#818cf8",
+    Source: "#94a3b8",
+    Product: "#22c55e",
+    Feature: "#22c55e",
+    PricingModel: "#f59e0b",
+    Action: "#f59e0b",
+  }[type] || T.muted);
+  const layout = useMemo(() => {
+    const byId = new Map(nodes.map(node => [node.id, node]));
+    const typed = type => nodes.filter(node => node.type === type);
+    const workspaces = typed("Workspace");
+    const companies = typed("Company");
+    const records = typed("IntelligenceRecord");
+    const sources = typed("Source");
+    const others = nodes.filter(node => !["Workspace", "Company", "IntelligenceRecord", "Source"].includes(node.type));
+    const columns = [
+      { x: 56, items: workspaces.length ? workspaces : nodes.slice(0, 1) },
+      { x: 170, items: companies },
+      { x: 315, items: records },
+      { x: 455, items: [...sources, ...others] },
+    ].filter(col => col.items.length);
+    const placed = new Map();
+    const placeColumn = ({ x, items }) => {
+      const count = Math.max(items.length, 1);
+      const step = count === 1 ? 0 : Math.min(54, 170 / (count - 1));
+      const start = 130 - ((count - 1) * step) / 2;
+      items.forEach((node, index) => placed.set(node.id, { ...node, x, y: start + index * step }));
+    };
+    columns.forEach(placeColumn);
+    nodes.forEach((node, index) => {
+      if (!placed.has(node.id)) placed.set(node.id, { ...node, x: 70 + (index % 4) * 120, y: 70 + Math.floor(index / 4) * 52 });
+    });
+    const visibleRelationships = relationships.filter(rel => byId.has(rel.source) && byId.has(rel.target));
+    return { nodes: Array.from(placed.values()), relationships: visibleRelationships, byId };
+  }, [nodes, relationships]);
+  const selected = layout.byId.get(selectedId) || layout.nodes[0] || null;
+  const map = (
+    <div style={{ borderRadius: 8, background: "rgba(255,255,255,.018)", border: `1px solid ${T.border}`, overflow: "hidden" }}>
+      <svg viewBox="0 0 520 260" role="img" aria-label="Knowledge graph relationship map" style={{ width: "100%", display: "block" }}>
+        <defs>
+          <filter id="graphGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        {layout.relationships.map((rel, index) => {
+          const source = layout.nodes.find(node => node.id === rel.source);
+          const target = layout.nodes.find(node => node.id === rel.target);
+          if (!source || !target) return null;
+          const midX = (source.x + target.x) / 2;
+          const curve = Math.abs(target.y - source.y) > 18 ? 32 : 0;
+          return (
+            <g key={`${rel.source}-${rel.type}-${rel.target}-${index}`}>
+              <path d={`M ${source.x} ${source.y} C ${midX} ${source.y - curve}, ${midX} ${target.y + curve}, ${target.x} ${target.y}`} fill="none" stroke="rgba(148,163,184,.22)" strokeWidth="1.3" />
+              <title>{short(source.label, 42)} {rel.type.replace(/_/g, " ").toLowerCase()} {short(target.label, 42)}</title>
+            </g>
+          );
+        })}
+        {layout.nodes.map(node => {
+          const active = selected?.id === node.id;
+          const color = typeColor(node.type);
+          return (
+            <g key={node.id} transform={`translate(${node.x},${node.y})`} onClick={() => setSelectedId(node.id)} style={{ cursor: "pointer" }}>
+              <circle r={active ? 15 : 12} fill={active ? color : "rgba(10,15,24,.96)"} stroke={color} strokeWidth={active ? 2.4 : 1.6} filter={active ? "url(#graphGlow)" : undefined} />
+              <circle r={4} fill={color} opacity={active ? 1 : .75} />
+              <text x="0" y="28" textAnchor="middle" fill={active ? T.text : T.muted} fontSize="10" fontWeight={active ? 800 : 600}>{short(node.label, 18)}</text>
+              <title>{node.type}: {node.label}</title>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+  const selectedDetail = selected && (
+    <div style={{ marginTop: 9, padding: "8px 0", borderTop: `1px solid ${T.border}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+        <span style={{ fontSize: 11, color: typeColor(selected.type), fontWeight: 900 }}>{selected.type}</span>
+        <span style={{ fontSize: 10, color: T.dim }}>{layout.relationships.filter(rel => rel.source === selected.id || rel.target === selected.id).length} links</span>
+      </div>
+      <div style={{ marginTop: 4, color: T.text, fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selected.label}</div>
+      {(selected.properties?.summary || selected.properties?.url || selected.properties?.freshness_status) && (
+        <div style={{ marginTop: 5, color: T.dim, fontSize: 11, lineHeight: 1.45, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>
+          {selected.properties?.summary || selected.properties?.url || selected.properties?.freshness_status}
+        </div>
+      )}
+    </div>
+  );
   if (!nodes.length && !relationships.length) {
-    return <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: T.bgSub, border: `1px solid ${T.border}`, color: T.dim, fontSize: 11, lineHeight: 1.5 }}>No graph relationships yet. Saving fresh evidence will populate the relationship map.</div>;
+    return <div style={{ marginTop: 10, padding: "10px 0", borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, color: T.dim, fontSize: 11, lineHeight: 1.5 }}>Graph appears after evidence is saved.</div>;
   }
   return (
-    <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: T.bgSub, border: `1px solid ${T.border}` }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
-        <span style={{ fontSize: 9, color: T.dim }}>{nodes.length} nodes</span>
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginBottom: 8 }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{short(title, 32)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 9, color: T.dim }}>{nodes.length} nodes</span>
+          <button onClick={() => setExpanded(true)} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 10, fontWeight: 800 }}>Expand</button>
+        </div>
       </div>
-      <div style={{ marginTop: 9, display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {nodes.map(node => <span key={node.id} title={`${node.type}: ${node.label}`} style={{ maxWidth: "100%", padding: "4px 7px", borderRadius: 999, background: node.type === "Company" ? "rgba(18,181,203,.12)" : "rgba(255,255,255,.04)", border: `1px solid ${T.border}`, color: node.type === "Company" ? T.accent : T.muted, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{node.type}: {short(node.label)}</span>)}
+      {map}
+      {selectedDetail}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+        {["Workspace", "Company", "IntelligenceRecord", "Source"].map(type => (
+          <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 5, color: T.dim, fontSize: 9 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 99, background: typeColor(type) }} />
+            {type === "IntelligenceRecord" ? "Evidence" : type}
+          </span>
+        ))}
       </div>
-      <div style={{ marginTop: 10, display: "grid", gap: 5 }}>
-        {relationships.map((rel, i) => <div key={`${rel.source}-${rel.type}-${rel.target}-${i}`} style={{ fontSize: 10, color: T.dim, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          <span style={{ color: T.muted }}>{short(rel.source)}</span> <span style={{ color: T.accent }}>{rel.type.replace(/_/g, " ").toLowerCase()}</span> <span style={{ color: T.muted }}>{short(rel.target)}</span>
-        </div>)}
-      </div>
+      {expanded && (
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,.62)", display: "grid", placeItems: "center", padding: 24 }} onClick={() => setExpanded(false)}>
+          <div style={{ width: "min(980px, 96vw)", maxHeight: "88vh", overflow: "auto", borderRadius: 10, background: T.bgInset, border: `1px solid ${T.borderL}`, padding: 18, boxShadow: "0 24px 80px rgba(0,0,0,.5)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 15, color: T.text, fontWeight: 900 }}>{title}</div>
+                <div style={{ fontSize: 11, color: T.dim, marginTop: 3 }}>{nodes.length} nodes - {relationships.length} relationships</div>
+              </div>
+              <button onClick={() => setExpanded(false)} style={{ padding: "7px 10px", borderRadius: 7, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, fontSize: 12 }}>Close</button>
+            </div>
+            {map}
+            {selectedDetail}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3029,4 +3462,29 @@ const IS = { width: "100%", marginTop: 4, padding: "7px 10px", borderRadius: 7, 
 
 const CSS = `@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box;margin:0;padding:0}button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}::selection{background:rgba(6,182,212,.25)}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}.au{animation:fadeUp .5s ease both}.ai{animation:fadeIn .4s ease both}.s1{animation-delay:.08s}.s2{animation-delay:.16s}.s3{animation-delay:.24s}.hl{transition:transform .2s,box-shadow .2s}.hl:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.3)}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
 
-createRoot(document.getElementById("root")).render(<App />);
+function ClerkApp() {
+  const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
+  const { user } = useUser();
+  useEffect(() => {
+    let live = true;
+    if (!isLoaded || !isSignedIn) {
+      setApiBearerToken(null);
+      return;
+    }
+    getToken().then(token => { if (live) setApiBearerToken(token); }).catch(() => setApiBearerToken(null));
+    return () => { live = false; };
+  }, [isLoaded, isSignedIn, getToken]);
+  const appUser = isSignedIn && user ? {
+    name: user.fullName || user.primaryEmailAddress?.emailAddress || "Analyst",
+    initials: (user.firstName || user.primaryEmailAddress?.emailAddress || "A")[0].toUpperCase(),
+    email: user.primaryEmailAddress?.emailAddress || "",
+  } : null;
+  return <App externalUser={appUser} externalSignOut={signOut} clerkEnabled />;
+}
+
+function Root() {
+  if (!CLERK_KEY) return <App />;
+  return <ClerkProvider publishableKey={CLERK_KEY}><ClerkApp /></ClerkProvider>;
+}
+
+createRoot(document.getElementById("root")).render(<Root />);

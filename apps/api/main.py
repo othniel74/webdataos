@@ -6,7 +6,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import JSONResponse, Response
 from sqlalchemy import text
-from apps.api.db.models import Base, Topic
+from apps.api.db.models import Base, Tenant, Topic
 from apps.api.db.session import AsyncSessionLocal, engine
 from apps.api.routes.agent import router as agent_router
 from apps.api.routes.gateway import router as gateway_router
@@ -20,6 +20,7 @@ from apps.api.routes.graph import router as graph_router
 from apps.api.routes.monitor import router as monitor_router
 from apps.api.routes.chat import router as chat_router
 from apps.api.routes.triggerware import router as triggerware_router
+from apps.api.routes.demo import router as demo_router
 from packages.enterprise.packs import list_packs
 from packages.common.config import get_settings
 from packages.common.logging import configure_logging, get_logger
@@ -47,6 +48,13 @@ async def lifespan(app: FastAPI):
 
 async def seed_defaults() -> None:
     async with AsyncSessionLocal() as db:
+        for tenant_id, name, tenant_type in [
+            (settings.default_tenant_id, "Internal WebDataOS", "internal"),
+            (settings.demo_tenant_id, "Public Demo", "demo"),
+        ]:
+            tenant = await db.get(Tenant, tenant_id)
+            if not tenant:
+                db.add(Tenant(id=tenant_id, name=name, tenant_type=tenant_type))
         for pack in list_packs():
             topic_id = f"workspace_{pack.id}"
             existing = await db.get(Topic, topic_id)
@@ -55,6 +63,7 @@ async def seed_defaults() -> None:
             db.add(
                 Topic(
                     id=topic_id,
+                    tenant_id=settings.default_tenant_id,
                     name=pack.name,
                     description=f"package_id={pack.id}; {pack.description}",
                     entities=pack.entities,
@@ -76,7 +85,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins_list or ["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Demo-Session"],
 )
 
 
@@ -105,6 +114,7 @@ app.include_router(graph_router)
 app.include_router(monitor_router)
 app.include_router(chat_router)
 app.include_router(triggerware_router)
+app.include_router(demo_router)
 
 
 @app.get("/health")
@@ -143,6 +153,8 @@ async def health():
             "cognee_cloud": bool(settings.cognee_endpoint and settings.cognee_api_key),
         },
         "auth_enabled": settings.api_auth_enabled,
+        "auth_mode": settings.auth_mode,
+        "public_demo_enabled": settings.public_demo_enabled,
         "version": "0.5.0",
     }
 

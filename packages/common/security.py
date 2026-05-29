@@ -2,6 +2,8 @@ import hashlib
 import hmac
 from dataclasses import dataclass
 from fastapi import Header, HTTPException, Request, status
+from jwt import PyJWTError
+from packages.common.clerk import verify_clerk_token
 from packages.common.config import get_settings
 
 
@@ -10,6 +12,12 @@ class AuthContext:
     principal: str
     key_fingerprint: str
     auth_enabled: bool
+    tenant_id: str = "tenant_internal"
+    user_id: str | None = None
+    org_id: str | None = None
+    role: str = "admin"
+    auth_type: str = "api_key"
+    is_demo: bool = False
 
 
 def fingerprint(value: str) -> str:
@@ -31,8 +39,39 @@ async def require_api_key(
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> AuthContext:
     settings = get_settings()
+    bearer = _extract_bearer(authorization)
+    auth_mode = settings.auth_mode.lower()
+
+    if bearer and auth_mode in {"clerk", "mixed"}:
+        try:
+            claims = verify_clerk_token(bearer, settings)
+        except (PyJWTError, ValueError) as exc:
+            if auth_mode == "clerk":
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Clerk session") from exc
+        else:
+            user_id = claims.get("sub")
+            org_id = claims.get("org_id") or claims.get("orgid") or claims.get("azp")
+            tenant_id = f"clerk_org_{org_id}" if org_id else f"clerk_user_{user_id}"
+            role = claims.get("org_role") or claims.get("role") or "analyst"
+            return AuthContext(
+                principal=user_id or "clerk-user",
+                key_fingerprint=fingerprint(bearer),
+                auth_enabled=True,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                org_id=org_id,
+                role=role,
+                auth_type="clerk",
+            )
+
     if not settings.api_auth_enabled:
-        return AuthContext(principal="dev-anonymous", key_fingerprint="dev", auth_enabled=False)
+        return AuthContext(
+            principal="dev-anonymous",
+            key_fingerprint="dev",
+            auth_enabled=False,
+            tenant_id=settings.default_tenant_id,
+            auth_type="dev",
+        )
 
     configured = settings.api_key_set
     if not configured:
@@ -41,11 +80,17 @@ async def require_api_key(
             detail="API auth is enabled but no API_KEYS are configured.",
         )
 
-    provided = x_api_key or _extract_bearer(authorization)
+    provided = x_api_key or bearer
     if not provided:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing API key")
 
     if not any(hmac.compare_digest(provided, expected) for expected in configured):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
 
-    return AuthContext(principal="api-key", key_fingerprint=fingerprint(provided), auth_enabled=True)
+    return AuthContext(
+        principal="api-key",
+        key_fingerprint=fingerprint(provided),
+        auth_enabled=True,
+        tenant_id=settings.default_tenant_id,
+        auth_type="api_key",
+    )

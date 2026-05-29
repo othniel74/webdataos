@@ -12,9 +12,10 @@ from packages.schemas.reasoning import OutcomeRead, OutcomeRecord, OutcomeStats
 
 class OutcomeService:
 
-    async def record(self, db: AsyncSession, outcome: OutcomeRecord) -> OutcomeRead:
+    async def record(self, db: AsyncSession, outcome: OutcomeRecord, tenant_id: str = "tenant_internal") -> OutcomeRead:
         model = Outcome(
             id=str(uuid.uuid4()),
+            tenant_id=tenant_id,
             workspace_id=outcome.workspace_id,
             event_id=outcome.event_id,
             action_id=outcome.action_id,
@@ -30,19 +31,26 @@ class OutcomeService:
         await db.commit()
         return self._read(model)
 
-    async def list_outcomes(self, db: AsyncSession, workspace_id: str, limit: int = 50) -> list[OutcomeRead]:
+    async def list_outcomes(
+        self,
+        db: AsyncSession,
+        workspace_id: str,
+        tenant_id: str | None = None,
+        limit: int = 50,
+    ) -> list[OutcomeRead]:
+        stmt = select(Outcome).where(Outcome.workspace_id == workspace_id)
+        if tenant_id:
+            stmt = stmt.where(Outcome.tenant_id == tenant_id)
         result = await db.execute(
-            select(Outcome)
-            .where(Outcome.workspace_id == workspace_id)
-            .order_by(Outcome.created_at.desc())
-            .limit(limit)
+            stmt.order_by(Outcome.created_at.desc()).limit(limit)
         )
         return [self._read(o) for o in result.scalars().all()]
 
-    async def get_stats(self, db: AsyncSession, workspace_id: str) -> OutcomeStats:
-        result = await db.execute(
-            select(Outcome).where(Outcome.workspace_id == workspace_id)
-        )
+    async def get_stats(self, db: AsyncSession, workspace_id: str, tenant_id: str | None = None) -> OutcomeStats:
+        stmt = select(Outcome).where(Outcome.workspace_id == workspace_id)
+        if tenant_id:
+            stmt = stmt.where(Outcome.tenant_id == tenant_id)
+        result = await db.execute(stmt)
         outcomes = result.scalars().all()
 
         counts = defaultdict(int)

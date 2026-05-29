@@ -70,11 +70,22 @@ class Settings(BaseSettings):
 
     # API security. In development, auth can be disabled. In production, set API_AUTH_ENABLED=true
     # and provide one or more comma-separated keys in API_KEYS.
+    auth_mode: str = "api_key"
     api_auth_enabled: bool = False
     api_keys: str = ""
     api_key_header_name: str = "X-API-Key"
     cors_allowed_origins: str = "http://localhost:5173,http://localhost:3000"
     trusted_hosts: str = "localhost,127.0.0.1,api,web"
+    default_tenant_id: str = "tenant_internal"
+    clerk_publishable_key: str | None = None
+    clerk_secret_key: str | None = None
+    clerk_jwks_url: str | None = None
+    clerk_issuer: str | None = None
+    clerk_audience: str | None = None
+    public_demo_enabled: bool = True
+    demo_tenant_id: str = "tenant_demo"
+    demo_session_ttl_hours: int = Field(default=24, ge=1, le=168)
+    demo_rate_limit_per_hour: int = Field(default=6, ge=1, le=100)
 
     # In-memory edge controls for the demo deployment. Replace with Redis for multi-instance production.
     rate_limit_enabled: bool = True

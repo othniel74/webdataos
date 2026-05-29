@@ -56,6 +56,18 @@ User request or audio upload
 | Workflow automation | TriggerWare event delivery for downstream actions when a workflow endpoint is configured. |
 | Outcome learning | Recommendations can be scored against actual outcomes to measure hit rate, signal accuracy, and entity accuracy. |
 
+## Next Product Milestone
+
+The next implementation milestone is documented in `docs/TENANCY_DEMO_GRAPH_PLAN.md`.
+
+It covers:
+
+- Clerk-backed tenant sign-in and organization isolation;
+- a public demo that lets visitors configure a limited monitoring mission without signing in;
+- bounded demo Analyst chat grounded only in demo evidence;
+- tenant-scoped Neo4j knowledge graph visibility in Monitor and Evidence;
+- local-first implementation, verification, and deployment sequence.
+
 ## Partner Integrations
 
 | Partner | Responsibility | Notes |

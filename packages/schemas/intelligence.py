@@ -25,6 +25,7 @@ class SourceRecord(BaseModel):
 
 class IntelligenceRecordRead(BaseModel):
     id: str
+    tenant_id: str | None = None
     topic_id: str
     entity_name: str | None = None
     entity_type: str | None = None

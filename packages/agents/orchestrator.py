@@ -48,6 +48,7 @@ class ResearchAgentOrchestrator:
         partner_trace: list[str] = []
         topic = await db.get(Topic, topic_id)
         topic_entities = topic.entities if topic and topic.entities else []
+        tenant_id = topic.tenant_id if topic else "tenant_internal"
         previous_run_at = await self._previous_run_created_at(db, topic_id)
         previous_run_exists = previous_run_at is not None
         transcript = None
@@ -116,6 +117,7 @@ class ResearchAgentOrchestrator:
                     entities=topic_entities,
                     top_k=request.max_sources,
                 ),
+                tenant_id=tenant_id,
             )
             records = [
                 r.record for r in retrieval
@@ -139,6 +141,7 @@ class ResearchAgentOrchestrator:
                             topic_id,
                             max_sources=refresh_limit,
                             query=retrieval_query,
+                            tenant_id=tenant_id,
                         ),
                         timeout=min(40, max(15, self.settings.request_timeout_seconds + 5)),
                     )
@@ -177,6 +180,7 @@ class ResearchAgentOrchestrator:
                         entities=topic_entities,
                         top_k=request.max_sources,
                     ),
+                    tenant_id=tenant_id,
                 )
                 records = [
                     r.record for r in retrieval
@@ -186,6 +190,7 @@ class ResearchAgentOrchestrator:
                     fallback_records = await self.intelligence.list_records(
                         db,
                         topic_id=topic_id,
+                        tenant_id=tenant_id,
                         include_stale=False,
                         freshness_required_days=request.freshness_required_days,
                     )
@@ -254,6 +259,7 @@ class ResearchAgentOrchestrator:
                 for proposal in action_proposals:
                     db.add(AutonomousAction(
                         id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
                         workspace_id=topic_id,
                         run_id=run_id,
                         recommendation_id=proposal.recommendation_id,
@@ -395,7 +401,7 @@ class ResearchAgentOrchestrator:
                 org_context_used=org_context_used,
                 run_receipt=run_receipt,
             )
-            db.add(AgentRun(id=run_id, topic_id=topic_id, task=request.task, status="success", report_json=report.model_dump()))
+            db.add(AgentRun(id=run_id, tenant_id=tenant_id, topic_id=topic_id, task=request.task, status="success", report_json=report.model_dump()))
             await db.commit()
             AGENT_RUNS.labels(status="success").inc()
             return report

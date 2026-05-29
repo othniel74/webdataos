@@ -3,13 +3,14 @@ from __future__ import annotations
 import re
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.models import Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context
+from packages.common.security import AuthContext
 from packages.enterprise.packs import get_pack, list_packs, package_id_from_description
 from packages.schemas.workspace import IntelligencePackRead, WorkspaceCreate, WorkspaceRead
 
@@ -61,10 +62,18 @@ async def packages() -> list[IntelligencePackRead]:
 
 
 @router.post("", response_model=WorkspaceRead)
-async def create_workspace(payload: WorkspaceCreate, db: AsyncSession = Depends(get_db)) -> WorkspaceRead:
+async def create_workspace(
+    payload: WorkspaceCreate,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+) -> WorkspaceRead:
     pack = get_pack(payload.package_id)
     workspace_id = payload.id or _slug(payload.name)
     existing = await db.get(Topic, workspace_id)
+    if existing:
+        if existing.tenant_id != auth.tenant_id:
+            workspace_id = f"{auth.tenant_id}_{workspace_id}"
+            existing = await db.get(Topic, workspace_id)
     if existing:
         existing.name = payload.name
         existing.description = f"package_id={pack.id}; {payload.description or pack.description}"
@@ -75,6 +84,7 @@ async def create_workspace(payload: WorkspaceCreate, db: AsyncSession = Depends(
         return _workspace_read(existing)
     topic = Topic(
         id=workspace_id,
+        tenant_id=auth.tenant_id,
         name=payload.name,
         description=f"package_id={pack.id}; {payload.description or pack.description}",
         entities=payload.entities or pack.entities,
@@ -87,18 +97,30 @@ async def create_workspace(payload: WorkspaceCreate, db: AsyncSession = Depends(
 
 
 @router.get("", response_model=list[WorkspaceRead])
-async def list_workspaces(db: AsyncSession = Depends(get_db)) -> list[WorkspaceRead]:
-    result = await db.execute(select(Topic).order_by(Topic.created_at.desc()))
+async def list_workspaces(
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+) -> list[WorkspaceRead]:
+    result = await db.execute(
+        select(Topic).where(Topic.tenant_id == auth.tenant_id).order_by(Topic.created_at.desc())
+    )
     return [_workspace_read(topic) for topic in result.scalars().all()]
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceRead)
-async def get_workspace(workspace_id: str, db: AsyncSession = Depends(get_db)) -> WorkspaceRead:
+async def get_workspace(
+    workspace_id: str,
+    db: AsyncSession = Depends(get_db),
+    auth: AuthContext = Depends(authenticated_context),
+) -> WorkspaceRead:
     topic = await db.get(Topic, workspace_id)
+    if topic and topic.tenant_id != auth.tenant_id:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     if not topic:
         pack = get_pack("enterprise")
         topic = Topic(
             id=workspace_id,
+            tenant_id=auth.tenant_id,
             name=workspace_id.replace("_", " ").title(),
             description=f"package_id={pack.id}; {pack.description}",
             entities=pack.entities,

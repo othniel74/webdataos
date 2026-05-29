@@ -26,7 +26,7 @@ from typing import Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.db.models import MemoryEntry
+from apps.api.db.models import MemoryEntry, Topic
 from packages.common.logging import get_logger
 from packages.memory.embeddings import EmbeddingClient
 from packages.schemas.partners import MemoryRecord, MemorySearchRequest, MemoryUpsertRequest
@@ -94,6 +94,7 @@ class MemoryService:
 
         entry = MemoryEntry(
             id=f"mem_{uuid.uuid4().hex[:12]}",
+            tenant_id=await self._tenant_id(db, request.workspace_id),
             workspace_id=request.workspace_id,
             entity=request.entity,
             content=request.content,
@@ -105,6 +106,10 @@ class MemoryService:
         await db.commit()
         logger.info("memory_stored", id=entry.id, entity=request.entity, has_embedding=embedding is not None)
         return self._to_record(entry)
+
+    async def _tenant_id(self, db: AsyncSession, workspace_id: str) -> str:
+        topic = await db.get(Topic, workspace_id)
+        return topic.tenant_id if topic else "tenant_internal"
 
     async def search(self, db: AsyncSession, request: MemorySearchRequest) -> list[MemoryRecord]:
         """Search memory records by semantic similarity or keyword matching.

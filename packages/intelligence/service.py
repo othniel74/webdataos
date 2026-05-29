@@ -44,23 +44,30 @@ class IntelligenceService:
         self.graph = Neo4jGraphClient()
         self.settings = get_settings()
 
-    async def create_topic(self, db: AsyncSession, topic: TopicCreate) -> TopicRead:
+    async def create_topic(self, db: AsyncSession, topic: TopicCreate, tenant_id: str = "tenant_internal") -> TopicRead:
         existing = await db.get(Topic, topic.id)
         if existing:
+            if existing.tenant_id != tenant_id:
+                topic.id = f"{tenant_id}_{topic.id}"
+                existing = await db.get(Topic, topic.id)
+        if existing:
             existing.name = topic.name
+            existing.tenant_id = tenant_id
             existing.description = topic.description
             existing.entities = topic.entities
             existing.watch_types = topic.watch_types
             existing.refresh_frequency_minutes = topic.refresh_frequency_minutes
             await db.commit()
             return self._topic_read(existing)
-        model = Topic(**topic.model_dump())
+        model = Topic(**topic.model_dump(), tenant_id=tenant_id)
         db.add(model)
         await db.commit()
         return self._topic_read(model)
 
-    async def list_topics(self, db: AsyncSession) -> list[TopicRead]:
-        result = await db.execute(select(Topic).order_by(Topic.created_at.desc()))
+    async def list_topics(self, db: AsyncSession, tenant_id: str = "tenant_internal") -> list[TopicRead]:
+        result = await db.execute(
+            select(Topic).where(Topic.tenant_id == tenant_id).order_by(Topic.created_at.desc())
+        )
         return [self._topic_read(t) for t in result.scalars().all()]
 
     async def discover_sources(
@@ -69,12 +76,22 @@ class IntelligenceService:
         topic_id: str,
         limit: int = 8,
         query: str | None = None,
+        tenant_id: str | None = None,
     ) -> list[SourceRecord]:
         topic = await db.get(Topic, topic_id)
         if not topic:
-            topic = Topic(id=topic_id, name=topic_id.replace("_", " ").title(), entities=[], watch_types=[])
+            topic = Topic(
+                id=topic_id,
+                tenant_id=tenant_id or "tenant_internal",
+                name=topic_id.replace("_", " ").title(),
+                entities=[],
+                watch_types=[],
+            )
             db.add(topic)
             await db.commit()
+        if tenant_id and topic.tenant_id != tenant_id:
+            return []
+        tenant_id = topic.tenant_id
         entities = [x for x in (topic.entities or []) if x]
         signals = [x for x in (topic.watch_types or []) if x]
         queries = []
@@ -108,6 +125,7 @@ class IntelligenceService:
             if not source:
                 source = Source(
                     id=source_id,
+                    tenant_id=tenant_id,
                     topic_id=topic_id,
                     url=r.url,
                     title=r.title,
@@ -134,21 +152,32 @@ class IntelligenceService:
         topic_id: str,
         max_sources: int = 8,
         query: str | None = None,
+        tenant_id: str | None = None,
     ) -> dict[str, Any]:
         run_id = str(uuid.uuid4())
-        run = RefreshRun(id=run_id, topic_id=topic_id, status="running")
+        topic = await db.get(Topic, topic_id)
+        if tenant_id and topic and topic.tenant_id != tenant_id:
+            return {"run_id": run_id, "status": "not_found", "created": 0, "checked": 0}
+        if tenant_id and not topic:
+            topic = Topic(id=topic_id, tenant_id=tenant_id, name=topic_id.replace("_", " ").title(), entities=[], watch_types=[])
+            db.add(topic)
+            await db.commit()
+        tenant_id = topic.tenant_id if topic else "tenant_internal"
+        run = RefreshRun(id=run_id, tenant_id=tenant_id, topic_id=topic_id, status="running")
         db.add(run)
         await db.commit()
-        discovered = await self.discover_sources(db, topic_id, limit=max_sources, query=query)
+        discovered = await self.discover_sources(db, topic_id, limit=max_sources, query=query, tenant_id=tenant_id)
         discovered_urls = [source.url for source in discovered]
         if discovered_urls:
             result = await db.execute(
                 select(Source)
-                .where(Source.topic_id == topic_id, Source.url.in_(discovered_urls))
+                .where(Source.topic_id == topic_id, Source.tenant_id == tenant_id, Source.url.in_(discovered_urls))
                 .limit(max_sources)
             )
         else:
-            result = await db.execute(select(Source).where(Source.topic_id == topic_id).limit(max_sources))
+            result = await db.execute(
+                select(Source).where(Source.topic_id == topic_id, Source.tenant_id == tenant_id).limit(max_sources)
+            )
         sources = result.scalars().all()
         created = 0
         checked = 0
@@ -223,6 +252,7 @@ class IntelligenceService:
         else:
             model = IntelligenceRecord(
                 id=record_id,
+                tenant_id=topic.tenant_id if topic else "tenant_internal",
                 topic_id=topic_id,
                 source_id=source.id,
                 entity_name=entity_name,
@@ -275,6 +305,7 @@ class IntelligenceService:
         else:
             model = IntelligenceRecord(
                 id=record_id,
+                tenant_id=topic.tenant_id if topic else "tenant_internal",
                 topic_id=topic_id,
                 source_id=source.id,
                 entity_name=entity_name,
@@ -301,6 +332,7 @@ class IntelligenceService:
         try:
             self.graph.upsert_intelligence_record({
                 "id": payload.id,
+                "tenant_id": payload.tenant_id or "tenant_internal",
                 "topic_id": payload.topic_id,
                 "entity_name": payload.entity_name,
                 "entity_type": payload.entity_type,
@@ -323,12 +355,13 @@ class IntelligenceService:
         topic_id: str,
         include_stale: bool = False,
         freshness_required_days: int = 7,
+        tenant_id: str | None = None,
         limit: int = 500,
     ) -> dict[str, Any]:
         graph_status = self.graph.health()
         if graph_status != "ok":
             return {
-                "status": graph_status,
+            "status": graph_status,
                 "topic_id": topic_id,
                 "records_seen": 0,
                 "records_mirrored": 0,
@@ -337,12 +370,10 @@ class IntelligenceService:
                 "message": self.graph.message,
             }
 
-        result = await db.execute(
-            select(IntelligenceRecord)
-            .where(IntelligenceRecord.topic_id == topic_id)
-            .order_by(IntelligenceRecord.extracted_at.desc())
-            .limit(limit)
-        )
+        stmt = select(IntelligenceRecord).where(IntelligenceRecord.topic_id == topic_id)
+        if tenant_id:
+            stmt = stmt.where(IntelligenceRecord.tenant_id == tenant_id)
+        result = await db.execute(stmt.order_by(IntelligenceRecord.extracted_at.desc()).limit(limit))
         records = result.scalars().all()
         mirrored = 0
         skipped_stale = 0
@@ -374,10 +405,17 @@ class IntelligenceService:
                 return entity
         return None
 
-    async def retrieve_context(self, db: AsyncSession, req: RetrievalRequest) -> list[RetrievalResult]:
+    async def retrieve_context(
+        self,
+        db: AsyncSession,
+        req: RetrievalRequest,
+        tenant_id: str | None = None,
+    ) -> list[RetrievalResult]:
         stmt = select(IntelligenceRecord)
         if req.topic_id:
             stmt = stmt.where(IntelligenceRecord.topic_id == req.topic_id)
+        if tenant_id:
+            stmt = stmt.where(IntelligenceRecord.tenant_id == tenant_id)
         result = await db.execute(stmt)
         records = result.scalars().all()
         scored: list[RetrievalResult] = []
@@ -396,12 +434,15 @@ class IntelligenceService:
         self,
         db: AsyncSession,
         topic_id: str | None = None,
+        tenant_id: str | None = None,
         include_stale: bool = False,
         freshness_required_days: int = 7,
     ) -> list[IntelligenceRecordRead]:
         stmt = select(IntelligenceRecord).order_by(IntelligenceRecord.extracted_at.desc())
         if topic_id:
             stmt = stmt.where(IntelligenceRecord.topic_id == topic_id)
+        if tenant_id:
+            stmt = stmt.where(IntelligenceRecord.tenant_id == tenant_id)
         result = await db.execute(stmt)
         records = result.scalars().all()
         if not include_stale:
@@ -415,6 +456,7 @@ class IntelligenceService:
                 db.add(
                     ChangeEvent(
                         id=str(uuid.uuid4()),
+                        tenant_id=existing.tenant_id,
                         topic_id=topic_id,
                         record_id=existing.id,
                         change_type="field_updated",
@@ -488,6 +530,7 @@ class IntelligenceService:
     def _record_read(self, rec: IntelligenceRecord) -> IntelligenceRecordRead:
         return IntelligenceRecordRead(
             id=rec.id,
+            tenant_id=rec.tenant_id,
             topic_id=rec.topic_id,
             entity_name=rec.entity_name,
             entity_type=rec.entity_type,

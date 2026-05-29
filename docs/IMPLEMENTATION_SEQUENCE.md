@@ -43,3 +43,20 @@
 - CI workflow for Python and TypeScript SDK.
 - Production deployment checklist and API key documentation.
 - SDK endpoint alignment with `/intelligence/*` API routes.
+
+## Next sequence: tenancy, demo, and graph UX
+
+Follow `TENANCY_DEMO_GRAPH_PLAN.md` before implementation.
+
+Local-first order:
+
+1. Add tenant schema changes and migrations.
+2. Add tenant-aware authentication context.
+3. Add Clerk JWT verification behind a feature flag.
+4. Scope workspace, evidence, run, chat, memory, action, outcome, and graph queries by tenant.
+5. Add public demo sessions and rate-limited demo routes.
+6. Add demo mission setup and bounded Analyst chat.
+7. Add tenant-scoped graph snapshots and graph backfill controls.
+8. Add frontend Clerk sign-in/sign-up, tenant workspace routing, public demo entry, and graph inspector.
+9. Prove isolation and demo boundaries with tests.
+10. Push and deploy only after local API, frontend, and tests pass.

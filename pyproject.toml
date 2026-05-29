@@ -25,6 +25,7 @@ dependencies = [
   "cognee>=0.1.0",
   "APScheduler>=3.10.4",
   "selenium>=4.27.0",
+  "PyJWT[crypto]>=2.9.0",
 ]
 
 [project.optional-dependencies]

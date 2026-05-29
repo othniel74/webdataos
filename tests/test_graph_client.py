@@ -33,6 +33,7 @@ def test_upsert_tx_projects_enterprise_graph():
         {"company": "OpenAI", "product": "ChatGPT Enterprise", "features": ["admin controls"], "pricing_model": "usage"},
         {
             "id": "rec_1",
+            "tenant_id": "tenant_enterprise",
             "topic_id": "ws_enterprise",
             "entity_type": "company",
             "summary": "OpenAI enterprise signal",
@@ -45,9 +46,13 @@ def test_upsert_tx_projects_enterprise_graph():
 
     joined = "\n".join(query for query, _ in tx.queries)
     assert "MERGE (w:Workspace" in joined
+    assert "scoped_id" in joined
     assert "MERGE (r:IntelligenceRecord" in joined
     assert "MERGE (w)-[:MONITORS]->(c)" in joined
     assert "MERGE (c)-[:HAS_RECORD]->(r)" in joined
     assert "MERGE (c)-[:OFFERS]->(p)" in joined
     assert "MERGE (c)-[:HAS_FEATURE]->(f)" in joined
     assert "MERGE (c)-[:HAS_PRICING_MODEL]->(pm)" in joined
+    first_params = tx.queries[0][1]
+    assert first_params["tenant_id"] == "tenant_enterprise"
+    assert first_params["company_scoped_id"] == "tenant_enterprise:OpenAI"

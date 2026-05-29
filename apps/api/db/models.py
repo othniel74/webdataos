@@ -9,9 +9,46 @@ class Base(DeclarativeBase):
     pass
 
 
+class Tenant(Base):
+    __tablename__ = "tenants"
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    tenant_type: Mapped[str] = mapped_column(String(40), default="customer")
+    clerk_org_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TenantMembership(Base):
+    __tablename__ = "tenant_memberships"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), index=True)
+    clerk_user_id: Mapped[str] = mapped_column(String(255), index=True)
+    clerk_org_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    role: Mapped[str] = mapped_column(String(40), default="analyst")
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DemoSession(Base):
+    __tablename__ = "demo_sessions"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), index=True)
+    workspace_id: Mapped[str] = mapped_column(String(120), index=True)
+    mission: Mapped[str] = mapped_column(String(80), default="vendor_risk")
+    entities: Mapped[list] = mapped_column(JSONType, default=list)
+    watch_types: Mapped[list] = mapped_column(JSONType, default=list)
+    runs_used: Mapped[int] = mapped_column(Integer, default=0)
+    chat_turns_used: Mapped[int] = mapped_column(Integer, default=0)
+    expires_at = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class Topic(Base):
     __tablename__ = "topics"
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     entities: Mapped[list] = mapped_column(JSONType, default=list)
@@ -25,6 +62,7 @@ class Topic(Base):
 class Source(Base):
     __tablename__ = "sources"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id", ondelete="CASCADE"), index=True)
     url: Mapped[str] = mapped_column(Text, nullable=False)
     title: Mapped[str | None] = mapped_column(Text)
@@ -42,6 +80,7 @@ class Source(Base):
 class IntelligenceRecord(Base):
     __tablename__ = "intelligence_records"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     topic_id: Mapped[str] = mapped_column(String(120), index=True)
     source_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     entity_name: Mapped[str | None] = mapped_column(String(255), index=True)
@@ -60,6 +99,7 @@ class IntelligenceRecord(Base):
 class ChangeEvent(Base):
     __tablename__ = "change_events"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     topic_id: Mapped[str] = mapped_column(String(120), index=True)
     record_id: Mapped[str] = mapped_column(String(64), index=True)
     change_type: Mapped[str] = mapped_column(String(80))
@@ -72,6 +112,7 @@ class ChangeEvent(Base):
 class RefreshRun(Base):
     __tablename__ = "refresh_runs"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     topic_id: Mapped[str] = mapped_column(String(120), index=True)
     status: Mapped[str] = mapped_column(String(50))
     sources_checked: Mapped[int] = mapped_column(Integer, default=0)
@@ -84,6 +125,7 @@ class RefreshRun(Base):
 class AgentRun(Base):
     __tablename__ = "agent_runs"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     topic_id: Mapped[str] = mapped_column(String(120), index=True)
     task: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50))
@@ -101,6 +143,7 @@ class ChatMessage(Base):
     """
     __tablename__ = "chat_messages"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     workspace_id: Mapped[str] = mapped_column(String(120), index=True)
     role: Mapped[str] = mapped_column(String(24))
     content: Mapped[str] = mapped_column(Text)
@@ -118,6 +161,7 @@ class MemoryEntry(Base):
     """
     __tablename__ = "memory_entries"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     workspace_id: Mapped[str] = mapped_column(String(120), index=True)
     entity: Mapped[str] = mapped_column(String(255), index=True)
     content: Mapped[str] = mapped_column(Text)
@@ -134,6 +178,7 @@ class OrganizationalContext(Base):
     """Stores per-workspace organizational context for materiality assessment."""
     __tablename__ = "organizational_contexts"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     workspace_id: Mapped[str] = mapped_column(String(120), index=True, unique=True)
     contracts: Mapped[list] = mapped_column(JSONType, default=list)
     risk_thresholds: Mapped[dict] = mapped_column(JSONType, default=dict)
@@ -151,6 +196,7 @@ class AutonomousAction(Base):
     """Actions the system proposes or executes with human approval gates."""
     __tablename__ = "autonomous_actions"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     workspace_id: Mapped[str] = mapped_column(String(120), index=True)
     run_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     recommendation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -170,6 +216,7 @@ class Outcome(Base):
     """Records what happened after an alert/recommendation was acted on."""
     __tablename__ = "outcomes"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), default="tenant_internal", index=True)
     workspace_id: Mapped[str] = mapped_column(String(120), index=True)
     event_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
     action_id: Mapped[str | None] = mapped_column(String(64), index=True, nullable=True)
