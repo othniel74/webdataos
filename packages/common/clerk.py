@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from typing import Any
 
 import jwt
@@ -32,6 +33,30 @@ def _issuer_candidates(value: str | None) -> set[str]:
     return {_normalize_issuer(candidate) for candidate in candidates if candidate}
 
 
+def _domain_from_publishable_key(value: str | None) -> str | None:
+    if not value or not value.startswith("pk_"):
+        return None
+    try:
+        encoded = value.split("_", 2)[2]
+        decoded = base64.b64decode(encoded + "=" * (-len(encoded) % 4)).decode("utf-8")
+    except (IndexError, UnicodeDecodeError, ValueError):
+        return None
+    domain = decoded.strip().strip("$").strip()
+    return domain or None
+
+
+def _derived_issuer(settings: Settings) -> str | None:
+    domain = _domain_from_publishable_key(settings.clerk_publishable_key or settings.vite_clerk_publishable_key)
+    return f"https://{domain}" if domain else None
+
+
+def _jwks_url(settings: Settings) -> str | None:
+    if settings.clerk_jwks_url:
+        return settings.clerk_jwks_url
+    issuer = _derived_issuer(settings)
+    return f"{issuer}/.well-known/jwks.json" if issuer else None
+
+
 def _issuer_allowed(actual: str | None, expected: str | None) -> bool:
     expected_candidates = _issuer_candidates(expected)
     if not expected_candidates:
@@ -46,10 +71,12 @@ def verify_clerk_token(token: str, settings: Settings) -> dict[str, Any]:
     backend uses the verified `sub` and organization claims to build tenant
     context; route handlers remain responsible for enforcing permissions.
     """
-    if not settings.clerk_jwks_url:
-        raise ValueError("CLERK_JWKS_URL is required for Clerk auth mode.")
+    jwks_url = _jwks_url(settings)
+    issuer = settings.clerk_issuer or _derived_issuer(settings)
+    if not jwks_url:
+        raise ValueError("CLERK_JWKS_URL or CLERK_PUBLISHABLE_KEY is required for Clerk auth mode.")
 
-    signing_key = _client(settings.clerk_jwks_url).get_signing_key_from_jwt(token)
+    signing_key = _client(jwks_url).get_signing_key_from_jwt(token)
     options = {
         "verify_aud": bool(settings.clerk_audience),
         "verify_iss": False,
@@ -61,6 +88,6 @@ def verify_clerk_token(token: str, settings: Settings) -> dict[str, Any]:
         audience=settings.clerk_audience,
         options=options,
     )
-    if not _issuer_allowed(claims.get("iss"), settings.clerk_issuer):
+    if not _issuer_allowed(claims.get("iss"), issuer):
         raise jwt.InvalidIssuerError("Invalid issuer")
     return claims

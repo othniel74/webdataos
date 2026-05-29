@@ -184,7 +184,7 @@ const packIcon = (id, size = 18) => {
 const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
 const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Settings"];
 
-export default function App({ externalUser = null, externalSignOut = null, clerkEnabled = false, authUnavailable = false } = {}) {
+export default function App({ externalUser = null, externalSignOut = null, clerkEnabled = false, authUnavailable = false, authReady = true } = {}) {
   const [page, setPage] = useState("Home");
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -201,6 +201,7 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
   const pack = useMemo(() => PACKS.find(p => p.id === effectivePackId) || PACKS[3], [effectivePackId]);
   const toggleDomain = (id) => { if (tierId === "enterprise") return; setSelDomains(prev => { if (prev.includes(id)) return prev.filter(d => d !== id); if (prev.length >= tier.pick) return [...prev.slice(1), id]; return [...prev, id]; }); };
   const nav = useCallback(t => { if (PRIV.includes(t) && !user) { setShowAuth(true); return; } setPage(t); }, [user]);
+  const canUsePrivateApi = Boolean(user) && (!clerkEnabled || authReady);
   useEffect(() => {
     if (clerkEnabled) setUser(externalUser);
   }, [clerkEnabled, externalUser]);
@@ -222,9 +223,9 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
     if (cleanId !== ws.id) setWs(prev => ({ ...prev, id: cleanId }));
   }, [ws.id]);
   useEffect(() => {
-    if (!user || !["Analyst", "Actions", "Outcomes", "Monitor"].includes(page)) return;
+    if (!canUsePrivateApi || !["Analyst", "Actions", "Outcomes", "Monitor"].includes(page)) return;
     endpoints.listActions(ws.id).then(items => { if (items.length) setActions(items); }).catch(() => {});
-  }, [user, page, ws.id]);
+  }, [canUsePrivateApi, page, ws.id]);
   const saveWorkspace = async () => {
     const workspaceId = normalizeWorkspaceId(ws.id || ws.name);
     const payload = {
@@ -268,16 +269,17 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
       {page === "Pricing" && <PricingPage nav={nav} tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} user={user} auth={() => setShowAuth(true)} />}
       {page === "Docs" && <DocsManualPage />}
       {page === "Developer" && <DevPage />}
-      {page === "Monitor" && user && <MonitorPage ws={ws} nav={nav} saveWorkspace={saveWorkspace} report={report} setReport={setReport} setActions={setActions} backendOk={backendOk} />}
-      {page === "Workspace" && user && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
-      {page === "Settings" && user && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
-      {page === "Analyst" && user && <AgentWorkbenchPage pack={pack} ws={ws} actions={actions} setActions={setActions} runResearch={runResearch} report={report} backendOk={backendOk} />}
-      {page === "Agent" && user && <AgentWorkbenchPage pack={pack} ws={ws} actions={actions} setActions={setActions} runResearch={runResearch} report={report} backendOk={backendOk} />}
-      {page === "Evidence" && user && <EvidencePage ws={ws} />}
-      {page === "Intelligence" && user && <EvidencePage ws={ws} />}
-      {page === "Gateway" && user && <GwPage />}
-      {page === "Actions" && user && <ActPage actions={actions} setActions={setActions} />}
-      {page === "Outcomes" && user && <OutPage ws={ws} user={user} />}
+      {PRIV.includes(page) && user && !canUsePrivateApi && <AuthLoadingPage />}
+      {page === "Monitor" && canUsePrivateApi && <MonitorPage ws={ws} nav={nav} saveWorkspace={saveWorkspace} report={report} setReport={setReport} setActions={setActions} backendOk={backendOk} />}
+      {page === "Workspace" && canUsePrivateApi && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
+      {page === "Settings" && canUsePrivateApi && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
+      {page === "Analyst" && canUsePrivateApi && <AgentWorkbenchPage pack={pack} ws={ws} actions={actions} setActions={setActions} runResearch={runResearch} report={report} backendOk={backendOk} />}
+      {page === "Agent" && canUsePrivateApi && <AgentWorkbenchPage pack={pack} ws={ws} actions={actions} setActions={setActions} runResearch={runResearch} report={report} backendOk={backendOk} />}
+      {page === "Evidence" && canUsePrivateApi && <EvidencePage ws={ws} />}
+      {page === "Intelligence" && canUsePrivateApi && <EvidencePage ws={ws} />}
+      {page === "Gateway" && canUsePrivateApi && <GwPage />}
+      {page === "Actions" && canUsePrivateApi && <ActPage actions={actions} setActions={setActions} />}
+      {page === "Outcomes" && canUsePrivateApi && <OutPage ws={ws} user={user} />}
       {showAuth && <Auth clerkEnabled={clerkEnabled} onClose={() => setShowAuth(false)} onAuth={u => { setUser(u); setShowAuth(false); setPage("Monitor"); }} />}
     </div>
   );
@@ -308,6 +310,17 @@ function Auth({ onClose, onAuth, clerkEnabled = false }) {
     </div>
   );
 }
+
+function AuthLoadingPage() {
+  return (
+    <main style={{ maxWidth: 760, margin: "0 auto", padding: "120px 24px", textAlign: "center" }}>
+      <div style={{ width: 36, height: 36, borderRadius: 999, border: `2px solid ${T.borderL}`, borderTopColor: T.accent, margin: "0 auto 18px", animation: "spin .8s linear infinite" }} />
+      <h2 style={{ fontSize: 22 }}>Preparing your workspace</h2>
+      <p style={{ color: T.muted, marginTop: 8, fontSize: 13 }}>Connecting your signed-in session to the live API.</p>
+    </main>
+  );
+}
+
 function FI({ icon, ph, v, set, type = "text" }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderRadius: 10, background: T.bgSub, border: `1px solid ${T.borderL}` }}>
@@ -3509,13 +3522,26 @@ const CSS = `@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-bo
 function ClerkApp() {
   const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
   const { user } = useUser();
+  const [authReady, setAuthReady] = useState(false);
   useEffect(() => {
     let live = true;
     if (!isLoaded || !isSignedIn) {
       setApiBearerToken(null);
+      setAuthReady(false);
       return;
     }
-    getToken().then(token => { if (live) setApiBearerToken(token); }).catch(() => setApiBearerToken(null));
+    setAuthReady(false);
+    getToken()
+      .then(token => {
+        if (!live) return;
+        setApiBearerToken(token);
+        setAuthReady(Boolean(token));
+      })
+      .catch(() => {
+        if (!live) return;
+        setApiBearerToken(null);
+        setAuthReady(false);
+      });
     return () => { live = false; };
   }, [isLoaded, isSignedIn, getToken]);
   const appUser = isSignedIn && user ? {
@@ -3523,7 +3549,7 @@ function ClerkApp() {
     initials: (user.firstName || user.primaryEmailAddress?.emailAddress || "A")[0].toUpperCase(),
     email: user.primaryEmailAddress?.emailAddress || "",
   } : null;
-  return <App externalUser={appUser} externalSignOut={signOut} clerkEnabled />;
+  return <App externalUser={appUser} externalSignOut={signOut} clerkEnabled authReady={authReady} />;
 }
 
 function Root() {

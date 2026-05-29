@@ -78,6 +78,7 @@ class Settings(BaseSettings):
     trusted_hosts: str = "localhost,127.0.0.1,api,web"
     default_tenant_id: str = "tenant_internal"
     clerk_publishable_key: str | None = None
+    vite_clerk_publishable_key: str | None = None
     clerk_secret_key: str | None = None
     clerk_jwks_url: str | None = None
     clerk_issuer: str | None = None

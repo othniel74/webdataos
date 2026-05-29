@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from packages.brightdata.client import BrightDataClient
+from packages.common.clerk import _domain_from_publishable_key, _jwks_url
 from packages.common.config import get_settings
 from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import require_api_key
@@ -132,6 +133,19 @@ def test_normalize_workspace_id_repairs_legacy_clerk_azp_workspace_id():
 def test_normalize_workspace_id_keeps_normal_workspace_ids():
     assert normalize_workspace_id("workspace_enterprise") == "workspace_enterprise"
     assert normalize_workspace_id("customer_vendor_risk") == "customer_vendor_risk"
+
+
+def test_clerk_jwks_url_can_be_derived_from_publishable_key(monkeypatch):
+    monkeypatch.setenv("CLERK_PUBLISHABLE_KEY", "pk_test_cmVhbC1mZWxpbmUtMjAuY2xlcmsuYWNjb3VudHMuZGV2JA")
+    monkeypatch.delenv("CLERK_JWKS_URL", raising=False)
+    monkeypatch.delenv("CLERK_ISSUER", raising=False)
+    get_settings.cache_clear()
+
+    settings = get_settings()
+
+    assert _domain_from_publishable_key(settings.clerk_publishable_key) == "real-feline-20.clerk.accounts.dev"
+    assert _jwks_url(settings) == "https://real-feline-20.clerk.accounts.dev/.well-known/jwks.json"
+    get_settings.cache_clear()
 
 
 @pytest.mark.asyncio
