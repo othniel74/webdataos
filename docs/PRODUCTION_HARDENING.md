@@ -20,11 +20,11 @@ Replace in-memory rate limiting and circuit-breaker state with Redis if you depl
 
 ## Tenancy hardening milestone
 
-The next hardening pass is Clerk-backed tenancy and a safe public demo boundary. See `TENANCY_DEMO_GRAPH_PLAN.md`.
+The tenancy hardening pass now uses first-party WebDataOS sessions and a safe public demo boundary. See `TENANCY_DEMO_GRAPH_PLAN.md`.
 
 Production requirements for that milestone:
 
-- verify Clerk JWTs on the backend;
+- verify signed WebDataOS bearer sessions on the backend;
 - map every signed-in user to a tenant and role;
 - scope all customer-owned tables by `tenant_id`;
 - scope Neo4j nodes and relationships by `tenant_id`;

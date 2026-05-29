@@ -52,11 +52,11 @@ Local-first order:
 
 1. Add tenant schema changes and migrations.
 2. Add tenant-aware authentication context.
-3. Add Clerk JWT verification behind a feature flag.
+3. Add first-party WebDataOS session verification behind the auth context.
 4. Scope workspace, evidence, run, chat, memory, action, outcome, and graph queries by tenant.
 5. Add public demo sessions and rate-limited demo routes.
 6. Add demo mission setup and bounded Analyst chat.
 7. Add tenant-scoped graph snapshots and graph backfill controls.
-8. Add frontend Clerk sign-in/sign-up, tenant workspace routing, public demo entry, and graph inspector.
+8. Add frontend WebDataOS sign-in/sign-up, tenant workspace routing, public demo entry, and graph inspector.
 9. Prove isolation and demo boundaries with tests.
 10. Push and deploy only after local API, frontend, and tests pass.

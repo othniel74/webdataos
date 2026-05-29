@@ -382,6 +382,83 @@ function FI({ icon, ph, label, v, set, type = "text" }) {
   );
 }
 
+function SourceLink({ url, children }) {
+  if (!url) return <span style={{ color: T.dim }}>No source captured</span>;
+  return <a href={url} target="_blank" rel="noreferrer" style={{ color: T.accent, textDecoration: "none", overflowWrap: "anywhere" }}>{children || url}</a>;
+}
+
+function decisionFromReport(report, fallbackSummary = "") {
+  if (report?.decision_brief) return report.decision_brief;
+  const reasoning = report?.reasoning || {};
+  const recommendation = reasoning.recommendations?.[0];
+  const records = report?.records_used || [];
+  return {
+    headline: recommendation?.title || (report ? "Monitoring brief ready" : "Run monitoring to create a decision brief"),
+    answer: report?.summary || reasoning.executive_summary || fallbackSummary || "No brief has been generated yet.",
+    what_changed: report?.recent_changes?.length ? `${report.recent_changes.length} changes detected.` : records.length ? "Evidence baseline available; future runs will compare against it." : "No evidence baseline yet.",
+    business_impact: recommendation?.description || "Business impact appears once evidence and reasoning complete.",
+    severity: recommendation?.materiality || reasoning.risk_posture || "monitoring",
+    confidence: report?.confidence || reasoning.confidence || 0,
+    recommended_action: recommendation?.suggested_actions?.[0] || recommendation?.title || "Review the evidence and decide the next action.",
+    evidence: records.slice(0, 5).map(record => ({ id: record.id, entity_name: record.entity_name, source_url: record.source_url, summary: record.summary, confidence: record.confidence || 0, freshness_status: record.freshness_status })),
+    unknowns: records.length ? [] : ["No fresh evidence is available yet."],
+    graph_explanation: records.length ? `This run connects ${records.length} evidence records to monitored entities and recommendations.` : "Graph context appears after evidence exists.",
+    receipt_summary: report?.run_receipt?.counts ? `${report.run_receipt.counts.records_used || 0} records, ${report.run_receipt.counts.recommendations || 0} recommendations, ${report.run_receipt.counts.autonomous_actions || 0} actions.` : "",
+  };
+}
+
+function DecisionBriefPanel({ brief, onEvidence, compact = false }) {
+  const severity = brief?.severity || "monitoring";
+  return (
+    <section style={{ padding: compact ? 14 : 18, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}`, borderLeft: `3px solid ${matC(severity)}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: T.accent, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Decision brief</div>
+          <h3 style={{ margin: "6px 0 0", fontSize: compact ? 16 : 20, lineHeight: 1.25 }}>{brief?.headline || "No decision brief yet"}</h3>
+        </div>
+        <span style={{ padding: "3px 8px", borderRadius: 999, background: `${matC(severity)}18`, color: matC(severity), fontSize: 10, fontWeight: 900, textTransform: "uppercase" }}>{severity}</span>
+      </div>
+      <p style={{ marginTop: 10, color: T.muted, fontSize: 13, lineHeight: 1.65 }}>{brief?.answer}</p>
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: compact ? "1fr" : "repeat(3,1fr)", gap: 10 }}>
+        {[["What changed", brief?.what_changed], ["Why it matters", brief?.business_impact], ["Recommended action", brief?.recommended_action]].map(([label, text]) => (
+          <div key={label} style={{ paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+            <div style={{ color: T.dim, fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</div>
+            <div style={{ marginTop: 5, color: T.text, fontSize: 12, lineHeight: 1.55 }}>{text || "Pending"}</div>
+          </div>
+        ))}
+      </div>
+      {!!brief?.evidence?.length && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <div style={{ fontSize: 12, fontWeight: 900 }}>Proof</div>
+            {onEvidence && <button onClick={onEvidence} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 11, fontWeight: 800 }}>Open evidence</button>}
+          </div>
+          <div style={{ marginTop: 8, display: "grid", gap: 7 }}>
+            {brief.evidence.slice(0, compact ? 2 : 4).map(item => (
+              <div key={item.id || item.source_url} style={{ fontSize: 11, lineHeight: 1.45, color: T.muted }}>
+                <b style={{ color: T.text }}>{item.entity_name || "Evidence"}</b>: <SourceLink url={item.source_url}>{item.source_title || item.source_url}</SourceLink>
+                {item.summary && <div style={{ marginTop: 2 }}>{item.summary}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {!!brief?.unknowns?.length && <div style={{ marginTop: 10, color: T.dim, fontSize: 11, lineHeight: 1.45 }}>Gaps: {brief.unknowns.join(" ")}</div>}
+      {brief?.receipt_summary && <div style={{ marginTop: 8, color: T.dim, fontSize: 11 }}>{brief.receipt_summary}</div>}
+    </section>
+  );
+}
+
+function explainGraph(graph, selected, fallbackTitle = "workspace") {
+  const nodes = graph?.nodes || [];
+  const rels = graph?.relationships || [];
+  if (!nodes.length) return `Graph appears after evidence is saved and synced for ${fallbackTitle}.`;
+  const byType = nodes.reduce((acc, node) => ({ ...acc, [node.type]: (acc[node.type] || 0) + 1 }), {});
+  const entity = selected?.entity_name || selected?.label || fallbackTitle;
+  const proofCount = (byType.Source || 0) + (byType.IntelligenceRecord || 0);
+  return `${entity} is connected to ${proofCount || nodes.length} proof nodes across ${rels.length} relationships. Use it to see which sources support each entity, signal, and action.`;
+}
+
 /* ═══════ NAV ═══════ */
 function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const navItems = user ? PRIV : PUB;
@@ -691,7 +768,8 @@ function DemoPage({ nav }) {
       const active = await saveDemoScope();
       const result = await endpoints.demoChat(active.session_id, q, messages.slice(-8));
       setReport(result);
-      setMessages(prev => [...prev, { role: "assistant", content: result.summary || "No answer returned." }]);
+      const brief = decisionFromReport(result);
+      setMessages(prev => [...prev, { role: "assistant", content: brief.answer || result.summary || "No answer returned.", report: result }]);
       await loadEvidence(active.session_id);
     } catch (e) {
       setError(e.message || "Demo Analyst failed.");
@@ -700,6 +778,7 @@ function DemoPage({ nav }) {
     }
   };
   const loop = report?.run_receipt?.value_loop || [];
+  const brief = decisionFromReport(report);
   const missionIcon = id => id === "vendor_risk" ? <Shield size={17} /> : id === "gtm" ? <TrendingUp size={17} /> : <BarChart3 size={17} />;
   const evidenceCount = evidence.length;
   const graphCount = graph?.counts?.nodes || graph?.nodes?.length || 0;
@@ -777,6 +856,7 @@ function DemoPage({ nav }) {
             {messages.map((m, i) => (
               <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "82%", padding: "11px 13px", borderRadius: m.role === "user" ? "14px 14px 3px 14px" : "14px 14px 14px 3px", background: m.role === "user" ? T.accent : T.bgSub, border: m.role === "user" ? "none" : `1px solid ${T.border}`, color: m.role === "user" ? "#000" : T.muted, fontSize: 13, lineHeight: 1.55 }}>
                 {m.content}
+                {m.report && <div style={{ marginTop: 10 }}><DecisionBriefPanel brief={decisionFromReport(m.report)} compact /></div>}
               </div>
             ))}
           </div>
@@ -808,14 +888,14 @@ function DemoPage({ nav }) {
 
           <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: 13, fontWeight: 900 }}>Receipt</div>
-            {report ? <p style={{ marginTop: 7, color: T.muted, fontSize: 12, lineHeight: 1.6 }}>{report.summary}</p> : <div style={{ marginTop: 7, color: T.dim, fontSize: 12, lineHeight: 1.55 }}>Run an update to create a receipt.</div>}
+            {report ? <div style={{ marginTop: 8 }}><DecisionBriefPanel brief={brief} compact /></div> : <div style={{ marginTop: 7, color: T.dim, fontSize: 12, lineHeight: 1.55 }}>Run an update to create a receipt.</div>}
             {!!loop.length && <div style={{ marginTop: 10, display: "grid", gap: 5 }}>{loop.slice(0, 5).map(item => <div key={item.step} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: `1px solid ${T.border}` }}><span style={{ fontSize: 11, color: T.muted }}>{item.step}</span><span style={{ fontSize: 10, color: statusColorLite(item.status), fontWeight: 800 }}>{item.status}</span></div>)}</div>}
           </div>
 
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 13, fontWeight: 900 }}>Evidence</div>
             <div style={{ marginTop: 7, display: "grid", gap: 7 }}>
-              {evidence.slice(0, 3).map(record => <div key={record.id} style={{ paddingTop: 8, borderTop: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 900 }}>{record.entity_name || "Evidence"}</div><div style={{ marginTop: 4, color: T.dim, fontSize: 11, lineHeight: 1.45 }}>{record.summary}</div></div>)}
+              {evidence.slice(0, 3).map(record => <div key={record.id} style={{ paddingTop: 8, borderTop: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 900 }}>{record.entity_name || "Evidence"}</div><div style={{ marginTop: 4, color: T.dim, fontSize: 11, lineHeight: 1.45 }}>{record.summary}</div><div style={{ marginTop: 4, fontSize: 10 }}><SourceLink url={record.source_url}>{record.source_url || record.source_type}</SourceLink></div></div>)}
               {!evidence.length && <div style={{ color: T.dim, fontSize: 12, paddingTop: 8, borderTop: `1px solid ${T.border}` }}>Evidence appears after the first successful run.</div>}
             </div>
           </div>
@@ -823,6 +903,7 @@ function DemoPage({ nav }) {
           <div style={{ marginTop: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><GitBranch size={14} color="#22c55e" /><div style={{ fontSize: 13, fontWeight: 900 }}>Graph</div></div>
             <GraphMini graph={graph} title={session?.workspace_id || "Demo graph"} />
+            <div style={{ marginTop: 8, color: T.dim, fontSize: 11, lineHeight: 1.45 }}>{brief.graph_explanation || explainGraph(graph, null, "demo workspace")}</div>
           </div>
         </aside>
       </section>
@@ -1450,6 +1531,7 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
   const s = summary || {};
   const counts = s.counts || {};
   const latest = s.latest_run || (report ? { summary: report.summary, risk_posture: report.reasoning?.risk_posture, counts: report.run_receipt?.counts || {} } : null);
+  const monitorBrief = latest?.decision_brief || decisionFromReport(report, latest?.summary);
   const status = s.status || {};
   const nextDue = status.next_due_at ? new Date(status.next_due_at).toLocaleString() : "After first run";
   const lastRun = status.last_run_at ? new Date(status.last_run_at).toLocaleString() : "No run yet";
@@ -1529,7 +1611,7 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
 
       <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 14, alignItems: "start" }}>
         <main style={{ display: "grid", gap: 14 }}>
-          <section style={{ padding: 18, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+          <section style={{ display: "grid", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start" }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 800 }}>Current update</div>
@@ -1537,10 +1619,9 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
               </div>
               <span style={{ padding: "4px 8px", borderRadius: 999, background: status.due ? "rgba(245,158,11,.12)" : "rgba(34,197,94,.1)", color: status.due ? "#f59e0b" : "#22c55e", fontSize: 11, fontWeight: 800 }}>{status.due ? "due" : "on schedule"}</span>
             </div>
-            {latest ? <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.35 }}>{latest.risk_posture ? `Posture: ${latest.risk_posture}` : "Latest monitoring brief"}</div>
-              <p style={{ marginTop: 10, color: T.muted, fontSize: 14, lineHeight: 1.75 }}>{latest.summary || "The latest run did not include a summary."}</p>
-            </div> : <div style={{ marginTop: 14, color: T.dim, fontSize: 13 }}>No monitoring brief yet. Run monitoring now to create the first update.</div>}
+            {latest || report
+              ? <DecisionBriefPanel brief={monitorBrief} onEvidence={() => nav("Evidence")} />
+              : <div style={{ color: T.dim, fontSize: 13 }}>No monitoring brief yet. Run monitoring now to create the first update.</div>}
           </section>
 
           <section style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
@@ -1584,6 +1665,7 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
                   <span style={{ fontSize: 10, color: T.accent }}>{fmt(record.confidence || 0)}</span>
                 </div>
                 <div style={{ marginTop: 5, color: T.muted, fontSize: 12, lineHeight: 1.5 }}>{record.summary || "No summary saved."}</div>
+                <div style={{ marginTop: 5, fontSize: 10 }}><SourceLink url={record.source_url}>{record.source_url || record.source_type}</SourceLink></div>
               </div>)}
               {!records.length && <div style={{ color: T.dim, fontSize: 12 }}>No evidence yet. Monitoring will populate this from live retrieval.</div>}
             </div>
@@ -2220,6 +2302,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
     mode: run.input_mode || run.report?.run_receipt?.input_mode || "text",
     at: run.created_at ? new Date(run.created_at).toLocaleString() : "",
     summary: run.summary || run.report?.summary || "",
+    decision_brief: run.decision_brief || run.report?.decision_brief || null,
     counts: run.counts || run.report?.run_receipt?.counts || {},
     providers: run.providers || run.report?.run_receipt?.providers || {},
     report: run.report || null,
@@ -2241,7 +2324,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
   useEffect(() => { loadRunHistory(); }, [loadRunHistory]);
   useEffect(() => {
     if (!report?.run_id) return;
-    setRuns(prev => prev.some(run => run.id === report.run_id) ? prev : [{ id: report.run_id, task: report.task, status: "success", mode: report.transcript ? "voice/audio" : "text", at: new Date().toLocaleString(), summary: report.summary, counts: report.run_receipt?.counts || {}, providers: report.run_receipt?.providers || {}, report }, ...prev].slice(0, 50));
+    setRuns(prev => prev.some(run => run.id === report.run_id) ? prev : [{ id: report.run_id, task: report.task, status: "success", mode: report.transcript ? "voice/audio" : "text", at: new Date().toLocaleString(), summary: report.summary, decision_brief: decisionFromReport(report), counts: report.run_receipt?.counts || {}, providers: report.run_receipt?.providers || {}, report }, ...prev].slice(0, 50));
     setSelectedRunId(report.run_id);
   }, [report]);
 
@@ -2249,6 +2332,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
   const activeReport = activeRun?.report || (activeRun ? null : report);
   const r = activeReport?.reasoning || { executive_summary: "", risk_posture: "waiting", materiality_assessments: [], recommendations: [], confidence: 0, reasoning_trace: [] };
   const summary = activeReport?.summary || r.executive_summary;
+  const activeBrief = activeReport ? decisionFromReport(activeReport) : (activeRun?.decision_brief || null);
   const reportActions = activeReport ? actions.filter(a => a.run_id === activeReport.run_id) : [];
   const receipt = activeReport?.run_receipt || null;
   const stageByName = name => receipt?.stages?.find(stage => stage.name === name);
@@ -2339,12 +2423,13 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
     try {
       setTask("");
       const result = await runResearch(cleanTask, { conversation_context: context, input_mode: "text" });
-      setRuns(prev => prev.map(run => run.id === tempId ? { id: result.run_id, task: cleanTask, status: "success", mode, at: run.at, summary: result.summary, counts: result.run_receipt?.counts || {}, providers: result.run_receipt?.providers || {}, report: result } : run));
+      const brief = decisionFromReport(result);
+      setRuns(prev => prev.map(run => run.id === tempId ? { id: result.run_id, task: cleanTask, status: "success", mode, at: run.at, summary: result.summary, decision_brief: brief, counts: result.run_receipt?.counts || {}, providers: result.run_receipt?.providers || {}, report: result } : run));
       setSelectedRunId(result.run_id);
       const assistantMessage = {
         id: `${result.run_id}-assistant`,
         role: "assistant",
-        content: result.summary || result.reasoning?.executive_summary || "Analysis completed.",
+        content: brief.answer || result.summary || result.reasoning?.executive_summary || "Analysis completed.",
         at: new Date().toLocaleTimeString(),
         runId: result.run_id,
         report: result,
@@ -2356,7 +2441,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
         run_id: result.run_id,
         metadata: { report: result },
       }).catch(() => {});
-      if (readAloud) await speakText(result?.summary || result?.reasoning?.executive_summary || "Analysis completed.");
+      if (readAloud) await speakText(brief.answer || result?.summary || result?.reasoning?.executive_summary || "Analysis completed.");
       endpoints.graphStatus().then(setGraphStatus).catch(() => {});
       return result;
     } catch (e) {
@@ -2447,7 +2532,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
     activeReport ? {
       id: `${activeRun.id}-saved-assistant`,
       role: "assistant",
-      content: summary || activeReport.reasoning?.executive_summary || "Saved analysis completed.",
+      content: activeBrief?.answer || summary || activeReport.reasoning?.executive_summary || "Saved analysis completed.",
       at: activeRun.at || "",
       runId: activeRun.id,
       report: activeReport,
@@ -2520,12 +2605,13 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
                 <div style={{ minWidth: 0 }}>
                   <div style={{ color: T.text, fontSize: 14, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{message.content}</div>
                   {messageReport && <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                    <DecisionBriefPanel brief={decisionFromReport(messageReport)} compact />
                     {!!messageReport.key_findings?.length && <div style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>Key findings</div>{messageReport.key_findings.slice(0, 4).map((finding, i) => <div key={i} style={{ color: T.muted, fontSize: 12, lineHeight: 1.6, padding: "4px 0" }}>{finding}</div>)}</div>}
                     {!!messageReasoning?.recommendations?.length && <div style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>Recommended actions</div>{messageReasoning.recommendations.slice(0, 3).map((item, i) => <div key={i} style={{ color: T.muted, fontSize: 12, lineHeight: 1.6, padding: "4px 0" }}>{item.action || item.title || item.recommendation || JSON.stringify(item)}</div>)}</div>}
                     <details style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
                       <summary style={{ cursor: "pointer", color: T.muted, fontSize: 12 }}>Evidence and receipt</summary>
                       <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                        {(messageReport.records_used || []).slice(0, 4).map(rec => <div key={rec.id} style={{ fontSize: 11, color: T.dim, lineHeight: 1.45, wordBreak: "break-word" }}>{rec.entity_name || "Evidence"} - {rec.source_url}</div>)}
+                        {(messageReport.records_used || []).slice(0, 4).map(rec => <div key={rec.id} style={{ fontSize: 11, color: T.dim, lineHeight: 1.45, wordBreak: "break-word" }}>{rec.entity_name || "Evidence"} - <SourceLink url={rec.source_url}>{rec.source_url}</SourceLink></div>)}
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
                           {(messageReport.run_receipt?.stages || []).slice(0, 6).map(stage => <div key={`${stage.name}-${stage.status}`} style={{ padding: 7, borderRadius: 7, background: T.bgCard, border: `1px solid ${T.border}` }}><div style={{ fontSize: 9, color: T.dim }}>{stage.name}</div><div style={{ marginTop: 3, color: statusColor(stage.status), fontSize: 10, fontWeight: 800 }}>{stage.status}</div></div>)}
                         </div>
@@ -2600,7 +2686,8 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
               <div style={{ justifySelf: "end", maxWidth: "78%", padding: 14, borderRadius: "14px 14px 3px 14px", background: T.accent, color: "#001018", fontSize: 13, lineHeight: 1.6, fontWeight: 700 }}>{activeRun?.task || task}</div>
               {lastTranscript && activeRun?.mode !== "text" && <div style={{ justifySelf: "start", maxWidth: "78%", padding: 14, borderRadius: "14px 14px 14px 3px", background: T.bgSub, border: `1px solid ${T.border}`, color: T.muted, fontSize: 13, lineHeight: 1.6 }}><b style={{ color: T.text }}>Speechmatics transcript</b><br />{lastTranscript.text}</div>}
               {!activeReport && <div style={{ padding: 24, borderRadius: 14, background: T.bgSub, border: `1px solid ${T.border}`, color: T.muted, lineHeight: 1.7 }}><div style={{ color: T.text, fontWeight: 800, marginBottom: 6 }}>{activeRun ? "Loading saved run" : "Ready"}</div>{activeRun ? "Opening the saved report." : "Run an analysis to generate sourced evidence, reasoning, actions, and a receipt."}</div>}
-              {activeReport && <div style={{ padding: 18, borderRadius: 14, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}><div><div style={{ fontSize: 13, fontWeight: 800 }}>Sourced intelligence brief</div><div style={{ fontSize: 11, color: T.dim, marginTop: 3 }}>Run {activeReport.run_id}</div></div><span style={{ fontSize: 10, padding: "4px 8px", borderRadius: 999, color: matC(r.risk_posture), background: `${matC(r.risk_posture)}12` }}>{r.risk_posture}</span></div><p style={{ color: T.muted, fontSize: 14, lineHeight: 1.8, marginTop: 12 }}>{summary}</p><div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}><MC l="Confidence" v={fmt(r.confidence)} c="#22c55e" /><MC l="Evidence" v={activeReport.records_used?.length || 0} c={T.accent} /><MC l="Memory" v={activeReport.memories_used?.length || 0} c="#818cf8" /><MC l="Actions" v={reportActions.length} c="#f59e0b" /></div></div>}
+              {activeReport && <DecisionBriefPanel brief={activeBrief} />}
+              {activeReport && <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}><MC l="Confidence" v={fmt(r.confidence)} c="#22c55e" /><MC l="Evidence" v={activeReport.records_used?.length || 0} c={T.accent} /><MC l="Memory" v={activeReport.memories_used?.length || 0} c="#818cf8" /><MC l="Actions" v={reportActions.length} c="#f59e0b" /></div>}
               {activeReport && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}><div style={{ padding: 14, borderRadius: 14, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>Material findings</div>{(r.materiality_assessments || []).slice(0, 4).map((a, i) => <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 12, color: T.text, lineHeight: 1.5 }}>{a.finding}</div><div style={{ marginTop: 3, fontSize: 10, color: matC(a.materiality) }}>{a.materiality}</div></div>)}{!r.materiality_assessments?.length && <div style={{ fontSize: 12, color: T.dim }}>No material findings for this run.</div>}</div><div style={{ padding: 14, borderRadius: 14, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>Actions</div>{reportActions.map(a => <div key={a.id} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><span style={{ fontSize: 12, color: T.text }}>{a.title}</span><span style={{ fontSize: 10, color: stC(a.status) }}>{a.status}</span></div>{a.status === "pending_approval" && <div style={{ display: "flex", gap: 4, marginTop: 7 }}><button onClick={() => approve(a.id)} style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "#22c55e", color: "#000", fontSize: 10, fontWeight: 800 }}>Approve</button><button onClick={() => reject(a.id)} style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.dim, fontSize: 10 }}>Reject</button></div>}</div>)}{!reportActions.length && <div style={{ fontSize: 12, color: T.dim }}>No workflow actions proposed.</div>}</div></div>}
             </div>
           </div>
@@ -2610,7 +2697,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
           <div style={{ padding: 14, borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 13, fontWeight: 800 }}>Live inspector</div><div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>Transcript, memory, evidence, graph, workflow</div></div>
           <div style={{ padding: 12, display: "grid", gap: 10, maxHeight: 650, overflowY: "auto" }}>
             <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Providers</Lb><div style={{ marginTop: 8, display: "grid", gap: 6 }}>{providerRows.map(([label, value]) => <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11 }}><span style={{ color: T.dim }}>{label}</span><span style={{ color: value === "disabled" || value === "not used" ? T.dim : T.text }}>{value}</span></div>)}</div></div>
-            <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Evidence used</Lb>{(activeReport?.records_used || []).slice(0, 5).map(rec => <div key={rec.id} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 11, color: T.text }}>{rec.entity_name || "Evidence"}</div><div style={{ fontSize: 10, color: T.dim, wordBreak: "break-all" }}>{rec.source_url}</div></div>)}{!activeReport?.records_used?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>No evidence selected yet.</div>}</div>
+            <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Evidence used</Lb>{(activeReport?.records_used || []).slice(0, 5).map(rec => <div key={rec.id} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 11, color: T.text }}>{rec.entity_name || "Evidence"}</div><div style={{ fontSize: 10, wordBreak: "break-all" }}><SourceLink url={rec.source_url}>{rec.source_url}</SourceLink></div></div>)}{!activeReport?.records_used?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>No evidence selected yet.</div>}</div>
             <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Reasoning trace</Lb>{(r.reasoning_trace || []).slice(0, 8).map((trace, i) => <div key={i} style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", padding: "4px 0", borderBottom: `1px solid ${T.border}` }}>{trace}</div>)}{!r.reasoning_trace?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>Trace appears after reasoning.</div>}</div>
             {receipt && <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Run receipt</Lb><pre style={{ margin: "8px 0 0", maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: T.muted, fontSize: 10, lineHeight: 1.5, fontFamily: "'JetBrains Mono'" }}>{JSON.stringify(receipt, null, 2)}</pre></div>}
           </div>
@@ -2794,7 +2881,7 @@ function EvidencePage({ ws }) {
                     <span style={{ fontSize: 10, color: active ? T.accent : T.dim, fontFamily: "'JetBrains Mono'" }}>{fmt(item.confidence || 0)}</span>
                   </div>
                   <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.45, color: T.muted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.summary || "No summary captured."}</div>
-                  <div style={{ marginTop: 6, fontSize: 10, color: T.dim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.source_url || item.source_type || "source pending"}</div>
+                  <div style={{ marginTop: 6, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><SourceLink url={item.source_url}>{item.source_url || item.source_type || "source pending"}</SourceLink></div>
                 </button>
               );
             })}
@@ -2819,7 +2906,7 @@ function EvidencePage({ ws }) {
             </div>
             <div style={{ marginTop: 14 }}>
               <Lb>Source</Lb>
-              <a href={selected.source_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 5, color: T.accent, fontSize: 12, wordBreak: "break-all" }}>{selected.source_url || "No source URL captured"}</a>
+              <div style={{ display: "block", marginTop: 5, fontSize: 12, wordBreak: "break-all" }}><SourceLink url={selected.source_url}>{selected.source_url}</SourceLink></div>
             </div>
             <div style={{ marginTop: 14 }}>
               <Lb>Payload</Lb>
@@ -2844,7 +2931,7 @@ function EvidencePage({ ws }) {
             <div style={{ fontSize: 12, fontWeight: 800 }}>Discovered sources</div>
             {sources.slice(0, 5).map((source, i) => <div key={`${source.url}-${i}`} style={{ marginTop: 10 }}>
               <div style={{ fontSize: 11, color: T.text, fontWeight: 700, overflowWrap: "anywhere" }}>{source.title || source.url}</div>
-              <div style={{ marginTop: 3, fontSize: 10, color: T.dim, overflowWrap: "anywhere" }}>{source.url}</div>
+              <div style={{ marginTop: 3, fontSize: 10, overflowWrap: "anywhere" }}><SourceLink url={source.url}>{source.url}</SourceLink></div>
             </div>)}
             {!sources.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.5 }}>No source discovery run yet.</div>}
           </div>
@@ -2855,7 +2942,7 @@ function EvidencePage({ ws }) {
               <div><Lb>Edges</Lb><div style={{ marginTop: 4, color: (graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.relationships, topicGraphCounts.relationships)}</div></div>
             </div>
             <GraphMini graph={graphView} title={graphLabel} />
-            <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.45 }}>{graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}`}</div>
+            <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.45 }}>{explainGraph(graphView, selected, graphLabel)} {graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}.`}</div>
           </div>
         </aside>
       </div>

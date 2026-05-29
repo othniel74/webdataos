@@ -38,6 +38,7 @@ def _run_summary(run: AgentRun) -> dict:
         "status": run.status,
         "created_at": _iso(run.created_at),
         "summary": report.get("summary"),
+        "decision_brief": report.get("decision_brief"),
         "risk_posture": reasoning.get("risk_posture"),
         "value_loop": receipt.get("value_loop") or [],
         "recommendations": reasoning.get("recommendations") or [],
@@ -144,9 +145,12 @@ async def monitor_summary(
                 "entity_name": record.entity_name,
                 "summary": record.summary,
                 "source_url": record.source_url,
+                "source_type": record.source_type,
                 "confidence": record.confidence,
                 "freshness_status": record.freshness_status,
+                "facts": record.facts_json or {},
                 "extracted_at": _iso(record.extracted_at),
+                "last_checked": _iso(record.last_checked),
             }
             for record in records
         ],

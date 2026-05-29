@@ -9,7 +9,7 @@ This folder contains the product and implementation documentation required to mo
 - `ENTERPRISE_PRODUCT_IMPLEMENTATION.md` — Implementation notes for the enterprise package/workspace direction.
 - `IMPLEMENTATION_SEQUENCE.md` — Build order and engineering sequence.
 - `PRODUCTION_HARDENING.md` — Production hardening notes.
-- `TENANCY_DEMO_GRAPH_PLAN.md` — Local-first plan for Clerk tenancy, public demo sessions, Analyst demo boundaries, and tenant-scoped knowledge graph UX.
+- `TENANCY_DEMO_GRAPH_PLAN.md` — Local-first plan for first-party WebDataOS tenancy, public demo sessions, Analyst demo boundaries, and tenant-scoped knowledge graph UX.
 
 ## Word document artifacts
 

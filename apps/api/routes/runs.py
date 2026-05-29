@@ -36,6 +36,7 @@ async def list_runs(
                 "task": run.task,
                 "status": run.status,
                 "summary": report.get("summary"),
+                "decision_brief": report.get("decision_brief"),
                 "created_at": str(run.created_at),
                 "input_mode": receipt.get("input_mode"),
                 "counts": counts,

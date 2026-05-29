@@ -14,7 +14,14 @@ from packages.observability.metrics import AGENT_RUN_DURATION, AGENT_RUNS
 from packages.partners.speechmatics import SpeechmaticsService
 from packages.partners.triggerware import TriggerWareService
 from packages.reasoning.engine import ReasoningEngine
-from packages.schemas.agent import ResearchReport, ResearchRequest, ResearchRunReceipt, ResearchRunStage
+from packages.schemas.agent import (
+    DecisionBrief,
+    DecisionEvidence,
+    ResearchReport,
+    ResearchRequest,
+    ResearchRunReceipt,
+    ResearchRunStage,
+)
 from packages.schemas.intelligence import RetrievalRequest
 from packages.schemas.partners import MemorySearchRequest, MemoryUpsertRequest, TranscriptionRequest, WorkflowTriggerRequest
 from packages.schemas.reasoning import ActionProposal, OrgContextRead
@@ -397,6 +404,18 @@ class ResearchAgentOrchestrator:
                 fallbacks_used=fallbacks_used,
                 errors=[s.detail or s.name for s in stages if s.status in {"failed", "error", "timeout"}],
             )
+            decision_brief = self._decision_brief(
+                topic=topic,
+                package_id=request.package_id,
+                summary=summary,
+                records=records,
+                db_changes=db_changes,
+                reasoning_output=reasoning_output,
+                action_proposals=action_proposals,
+                confidence=confidence,
+                receipt=run_receipt,
+                previous_run_exists=previous_run_exists,
+            )
 
             report = ResearchReport(
                 run_id=run_id,
@@ -419,6 +438,7 @@ class ResearchAgentOrchestrator:
                 autonomous_actions=[p.model_dump() for p in action_proposals],
                 org_context_used=org_context_used,
                 run_receipt=run_receipt,
+                decision_brief=decision_brief,
             )
             db.add(AgentRun(id=run_id, tenant_id=tenant_id, topic_id=topic_id, task=request.task, status="success", report_json=report.model_dump()))
             await db.commit()
@@ -481,6 +501,111 @@ class ResearchAgentOrchestrator:
             }
             for change in result.scalars().all()
         ]
+
+    def _decision_brief(
+        self,
+        topic: Topic | None,
+        package_id: str,
+        summary: str,
+        records: list,
+        db_changes: list[dict],
+        reasoning_output,
+        action_proposals: list,
+        confidence: float,
+        receipt: ResearchRunReceipt,
+        previous_run_exists: bool,
+    ) -> DecisionBrief:
+        entities = [entity for entity in (topic.entities if topic else []) if entity]
+        signals = [signal for signal in (topic.watch_types if topic else []) if signal]
+        entity_label = ", ".join(entities[:3]) or (topic.name if topic else "this workspace")
+        signal_label = ", ".join(signals[:3]) or "external signals"
+        recommendations = reasoning_output.recommendations if reasoning_output else []
+        first_recommendation = recommendations[0] if recommendations else None
+        first_action = action_proposals[0] if action_proposals else None
+        if db_changes:
+            headline = f"{len(db_changes)} monitored change{'s' if len(db_changes) != 1 else ''} need review"
+            what_changed = f"{len(db_changes)} saved evidence fields changed since the previous run."
+        elif previous_run_exists and records:
+            headline = f"No material change detected for {entity_label}"
+            what_changed = "No material change was detected against the previous saved evidence state."
+        elif records:
+            headline = f"Baseline created for {entity_label}"
+            what_changed = f"{len(records)} evidence records were saved as the baseline for future comparisons."
+        else:
+            headline = f"No evidence found yet for {entity_label}"
+            what_changed = "No usable evidence was retrieved for this run."
+
+        if first_recommendation:
+            business_impact = first_recommendation.description or first_recommendation.reasoning
+            recommended_action = (first_recommendation.suggested_actions or [first_recommendation.title])[0]
+            severity = first_recommendation.materiality
+        elif first_action:
+            business_impact = first_action.description
+            recommended_action = first_action.title
+            severity = first_action.urgency or "monitoring"
+        elif records:
+            business_impact = f"{entity_label} is now backed by saved evidence for {signal_label}; review whether it affects the current decision cycle."
+            recommended_action = "Review the evidence baseline and decide whether to adjust monitoring scope or ownership."
+            severity = "monitoring"
+        else:
+            business_impact = "There is not enough evidence yet to assess business impact."
+            recommended_action = "Add or refresh sources, then run monitoring again."
+            severity = "unknown"
+
+        evidence = []
+        for record in records[:5]:
+            source_url = getattr(record, "source_url", None)
+            if not source_url:
+                continue
+            facts = getattr(record, "facts", None) or {}
+            evidence.append(
+                DecisionEvidence(
+                    id=getattr(record, "id", source_url),
+                    entity_name=getattr(record, "entity_name", None),
+                    source_url=source_url,
+                    source_title=facts.get("evidence_title"),
+                    summary=getattr(record, "summary", None),
+                    confidence=getattr(record, "confidence", None) or 0.0,
+                    freshness_status=getattr(record, "freshness_status", None),
+                    why_it_matters=(
+                        f"Supports {getattr(record, 'entity_name', None) or 'the monitored entity'} for {signal_label}."
+                    ),
+                )
+            )
+        unknowns = []
+        if not records:
+            unknowns.append("No fresh evidence is available yet.")
+        if not reasoning_output:
+            unknowns.append("Reasoning could not run because evidence was missing or insufficient.")
+        if not topic:
+            unknowns.append("Workspace configuration was not found for this run.")
+        if not previous_run_exists:
+            unknowns.append("This is the first baseline; change detection becomes stronger after the next run.")
+        graph_explanation = (
+            f"{topic.name if topic else 'The workspace'} connects {len(records)} evidence record"
+            f"{'s' if len(records) != 1 else ''} to {len({r.entity_name for r in records if r.entity_name})} monitored entit"
+            f"{'ies' if len({r.entity_name for r in records if r.entity_name}) != 1 else 'y'} and {len(action_proposals)} proposed action"
+            f"{'s' if len(action_proposals) != 1 else ''}."
+        )
+        receipt_summary = (
+            f"{receipt.counts.get('records_used', 0)} records, "
+            f"{receipt.counts.get('recommendations', 0)} recommendations, "
+            f"{receipt.counts.get('autonomous_actions', 0)} actions, "
+            f"{receipt.counts.get('workflow_events', 0)} workflow events."
+        )
+        return DecisionBrief(
+            headline=headline,
+            answer=summary,
+            what_changed=what_changed,
+            business_impact=business_impact,
+            severity=severity,
+            confidence=confidence,
+            recommended_action=recommended_action,
+            evidence=evidence,
+            unknowns=unknowns,
+            graph_explanation=graph_explanation,
+            receipt_summary=receipt_summary,
+        )
 
     async def _outcome_count(self, db: AsyncSession, topic_id: str | None, run_id: str) -> int:
         if not topic_id:

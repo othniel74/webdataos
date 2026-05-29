@@ -25,6 +25,8 @@ The product is not only a chat surface. It supports both:
 - **Monitor**: scheduled or manual intelligence updates without asking in chat every time.
 - **Analyst**: multi-turn investigation over workspace evidence and prior runs.
 
+Every successful run now returns a **decision brief**: a concise answer, what changed, why it matters, the recommended next action, cited evidence links, unresolved gaps, graph context, and a run receipt. This is the user-facing value contract across Monitor, Analyst, Demo, and Evidence.
+
 ## Live Deployments
 
 | Surface | URL |

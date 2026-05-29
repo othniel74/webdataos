@@ -46,6 +46,31 @@ class ResearchRunReceipt(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class DecisionEvidence(BaseModel):
+    id: str
+    entity_name: str | None = None
+    source_url: str
+    source_title: str | None = None
+    summary: str | None = None
+    confidence: float = 0.0
+    freshness_status: str | None = None
+    why_it_matters: str | None = None
+
+
+class DecisionBrief(BaseModel):
+    headline: str
+    answer: str
+    what_changed: str
+    business_impact: str
+    severity: str = "monitoring"
+    confidence: float = 0.0
+    recommended_action: str
+    evidence: list[DecisionEvidence] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    graph_explanation: str | None = None
+    receipt_summary: str | None = None
+
+
 class ResearchReport(BaseModel):
     run_id: str
     task: str
@@ -68,3 +93,4 @@ class ResearchReport(BaseModel):
     autonomous_actions: list[dict] = Field(default_factory=list, description="Proposed actions with approval status")
     org_context_used: bool = Field(default=False, description="Whether organizational context was applied")
     run_receipt: ResearchRunReceipt | None = None
+    decision_brief: DecisionBrief | None = None

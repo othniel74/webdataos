@@ -7,7 +7,7 @@ This document defines the next implementation milestone for WebDataOS: move from
 WebDataOS should support two clear operating modes:
 
 1. **Public demo mode**: a real, limited, safe product experience without sign-in.
-2. **Authenticated tenant mode**: Clerk-backed sign-in/sign-up with organization-level isolation.
+2. **Authenticated tenant mode**: first-party WebDataOS sign-in/sign-up with organization-level isolation.
 
 Both modes must demonstrate the same value loop:
 
@@ -72,15 +72,15 @@ Recommended public demo behavior:
 
 ### Authenticated Tenant Mode
 
-Authenticated users should sign in through Clerk and operate inside an organization.
+Authenticated users should sign in through WebDataOS accounts and operate inside an organization or personal tenant.
 
 Core identity fields:
 
 | Field | Purpose |
 | --- | --- |
 | `tenant_id` | Internal WebDataOS tenant boundary. |
-| `clerk_user_id` | Clerk user identifier. |
-| `clerk_org_id` | Clerk organization identifier when organization mode is used. |
+| `user_id` | Internal WebDataOS user identifier. |
+| `org_id` | Organization identifier when organization mode is used. |
 | `workspace_id` | Workspace within the tenant. |
 | `role` | Owner, admin, analyst, or viewer. |
 
@@ -122,23 +122,22 @@ Implementation approach:
 
 The existing API-key auth can remain for internal service access, local development, and controlled demo API access, but it should not be the primary customer identity system.
 
-## Clerk Integration Plan
+## First-Party Auth Integration Plan
 
-The current frontend is Vite/React, so the local implementation should use Clerk's React SDK. If the app later moves to Next.js, the frontend SDK can change while the backend tenancy model remains the same.
+The current frontend uses WebDataOS sign-in/sign-up screens and signed bearer sessions. If the app later moves to a managed identity provider, the frontend SDK can change while the backend tenancy model remains the same.
 
 Frontend responsibilities:
 
-- initialize Clerk provider;
 - expose sign-in and sign-up screens;
-- support Clerk organizations if enabled;
-- send the Clerk session token with API requests;
+- support organizations when enabled;
+- send the WebDataOS bearer session with API requests;
 - route unauthenticated visitors to the public demo or sign-in;
 - hide tenant-only navigation from demo users.
 
 Backend responsibilities:
 
-- verify Clerk JWTs through Clerk JWKS;
-- map Clerk identity to a WebDataOS tenant;
+- verify signed WebDataOS bearer sessions;
+- map WebDataOS identity to a tenant;
 - create tenant membership records on first sign-in where appropriate;
 - enforce role-based authorization;
 - reject requests that lack tenant scope except for approved public demo routes.
@@ -147,11 +146,9 @@ Suggested environment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `CLERK_PUBLISHABLE_KEY` | Frontend Clerk publishable key. |
-| `CLERK_SECRET_KEY` | Backend Clerk secret key. |
-| `CLERK_JWKS_URL` | JWKS endpoint used for JWT verification. |
-| `CLERK_ISSUER` | Expected JWT issuer. |
-| `AUTH_MODE` | `api_key`, `clerk`, or `mixed` during transition. |
+| `AUTH_JWT_SECRET` | Backend secret used to sign WebDataOS sessions. |
+| `AUTH_TOKEN_TTL_HOURS` | Session lifetime. |
+| `AUTH_MODE` | `api_key`, `custom`, or `mixed` during transition. |
 | `PUBLIC_DEMO_ENABLED` | Enables demo routes and demo UI. |
 | `DEMO_TENANT_ID` | Dedicated tenant for demo activity. |
 | `DEMO_RATE_LIMIT_PER_HOUR` | Controls demo run cost and abuse. |
@@ -278,12 +275,12 @@ The implementation should be developed and verified locally before any GitHub pu
 
 1. Add tenant schema changes and migrations.
 2. Add tenant-aware auth context.
-3. Add Clerk JWT verification behind a feature flag.
+3. Add WebDataOS signed-session verification behind the auth context.
 4. Add tenant scoping to backend routes.
 5. Add demo session model and public demo routes.
 6. Add demo workspace configuration and Analyst chat boundary.
 7. Add graph tenant scoping and graph snapshot APIs.
-8. Add frontend Clerk sign-in/sign-up and organization selection.
+8. Add frontend WebDataOS sign-in/sign-up and organization selection.
 9. Add public demo entry, demo mission setup, demo Analyst chat, and demo graph.
 10. Add tests for tenant isolation, demo isolation, graph scoping, and route permissions.
 11. Run local API and frontend verification.
@@ -298,7 +295,7 @@ Local implementation is acceptable when:
 - demo visitors can choose a mission, entities, and signal types;
 - demo visitors can run a limited update or replay cached-live evidence;
 - demo Analyst chat responds only from demo evidence;
-- signed-in Clerk users can create tenant workspaces;
+- signed-in WebDataOS users can create tenant workspaces;
 - users cannot access another tenant's data;
 - tenant users can see Monitor, Evidence, Analyst, Actions, Outcomes, and Settings for their tenant only;
 - graph views show tenant-scoped relationships;
@@ -311,7 +308,7 @@ Local implementation is acceptable when:
 
 These should be confirmed before implementation:
 
-1. Should Clerk organizations be mandatory from day one, or should solo users get an automatic personal tenant?
+1. Should organizations be mandatory from day one, or should solo users get an automatic personal tenant?
 2. Should public demo refresh use live providers every time, or cached-live evidence with a rate-limited live refresh button?
 3. What demo retention window should be used: 1 hour, 24 hours, or 7 days?
 4. Should TriggerWare be disabled in demo mode, or replaced with simulated workflow receipts?
@@ -319,7 +316,7 @@ These should be confirmed before implementation:
 
 Recommended defaults:
 
-- allow automatic personal tenant plus optional Clerk organization;
+- allow automatic personal tenant plus optional organization;
 - use cached-live demo evidence with rate-limited refresh;
 - expire demo sessions after 24 hours;
 - disable real TriggerWare in demo mode and show a simulated workflow receipt;

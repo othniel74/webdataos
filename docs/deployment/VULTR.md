@@ -24,13 +24,15 @@ Edit `.env` for production:
 
 ```env
 APP_ENV=production
+AUTH_MODE=mixed
+AUTH_JWT_SECRET=replace-with-a-long-random-session-secret
+AUTH_TOKEN_TTL_HOURS=24
 API_AUTH_ENABLED=true
 API_KEYS=replace-with-a-long-random-key
 VITE_API_KEY=replace-with-the-same-or-public-demo-key
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_or_pk_live_from_clerk
-CLERK_PUBLISHABLE_KEY=pk_test_or_pk_live_from_clerk
-CLERK_ISSUER=https://your-clerk-instance.clerk.accounts.dev
-CLERK_JWKS_URL=https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json
+PUBLIC_DEMO_ENABLED=true
+DEMO_SESSION_TTL_HOURS=24
+DEMO_RATE_LIMIT_PER_HOUR=6
 
 # Leave PUBLIC_API_BASE_URL empty when serving the frontend and API from the same Vultr host.
 # Set it only when the browser should call a separate API domain.
