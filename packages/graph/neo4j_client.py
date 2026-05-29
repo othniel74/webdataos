@@ -663,10 +663,14 @@ class Neo4jGraphClient:
     def _entity_graph_tx(
         cls, tx, entity: str, limit: int, tenant_id: str | None
     ) -> GraphSnapshot:
+        # Match Entity nodes (both :Entity-labeled and typed Company/Vendor/etc)
+        entity_labels = ['Entity', 'Company', 'Vendor', 'Competitor', 'Supplier',
+                         'Account', 'Market', 'Domain', 'Regulator', 'Product']
         rows = tx.run(
             """
-            MATCH (e:Entity)
-            WHERE toLower(e.name) = toLower($entity)
+            MATCH (e)
+            WHERE any(l IN labels(e) WHERE l IN $entity_labels)
+              AND toLower(e.name) = toLower($entity)
               AND ($tenant_id IS NULL OR e.tenant_id = $tenant_id)
             OPTIONAL MATCH (e)-[r1]-(n)
             WHERE n IS NULL OR $tenant_id IS NULL OR n.tenant_id = $tenant_id
@@ -676,15 +680,17 @@ class Neo4jGraphClient:
             LIMIT $limit
             """,
             entity=entity, tenant_id=tenant_id, limit=limit,
+            entity_labels=entity_labels,
         )
         snap = cls._snapshot_from_rows(rows, "ok")
         if snap.nodes:
             return snap
-        # Fuzzy fallback: partial name match
+        # Fuzzy fallback: partial name match across all entity-type nodes
         rows2 = tx.run(
             """
-            MATCH (e:Entity)
-            WHERE toLower(e.name) CONTAINS toLower($entity)
+            MATCH (e)
+            WHERE any(l IN labels(e) WHERE l IN $entity_labels)
+              AND toLower(e.name) CONTAINS toLower($entity)
               AND ($tenant_id IS NULL OR e.tenant_id = $tenant_id)
             OPTIONAL MATCH (e)-[r1]-(n)
             WHERE n IS NULL OR $tenant_id IS NULL OR n.tenant_id = $tenant_id
@@ -692,6 +698,7 @@ class Neo4jGraphClient:
             LIMIT $limit
             """,
             entity=entity, tenant_id=tenant_id, limit=limit,
+            entity_labels=entity_labels,
         )
         return cls._snapshot_from_rows(rows2, "ok")
 
@@ -737,19 +744,24 @@ class Neo4jGraphClient:
         if co_rows:
             return cls._snapshot_from_rows(iter(co_rows), "ok")
 
-        # Fallback: entities co-monitored in the same workspace
+        # Fallback: entities co-monitored in the same workspace (works for both
+        # :Entity-labeled nodes and typed Company/Vendor/etc without :Entity)
+        entity_labels = ['Entity', 'Company', 'Vendor', 'Competitor', 'Supplier',
+                         'Account', 'Market', 'Domain', 'Regulator', 'Product']
         ws_rows = tx.run(
             """
-            MATCH (w:Workspace)-[:MONITORS]->(ea:Entity)
-            MATCH (w)-[:MONITORS]->(eb:Entity)
+            MATCH (w:Workspace)-[:MONITORS]->(ea)
+            MATCH (w)-[:MONITORS]->(eb)
             WHERE ea <> eb
+              AND any(la IN labels(ea) WHERE la IN $entity_labels)
+              AND any(lb IN labels(eb) WHERE lb IN $entity_labels)
               AND ($tenant_id IS NULL OR w.tenant_id = $tenant_id)
             OPTIONAL MATCH (ea)-[ra:HAS_RECORD]->(rec_a:IntelligenceRecord)
             OPTIONAL MATCH (eb)-[rb:HAS_RECORD]->(rec_b:IntelligenceRecord)
             RETURN ea, eb, w, rec_a, rec_b
             LIMIT $limit
             """,
-            tenant_id=tenant_id, limit=limit,
+            tenant_id=tenant_id, limit=limit, entity_labels=entity_labels,
         )
         return cls._snapshot_from_rows(ws_rows, "ok")
 
