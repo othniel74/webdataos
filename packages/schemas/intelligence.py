@@ -81,3 +81,13 @@ class GraphStatus(BaseModel):
     counts: dict[str, int] = Field(default_factory=dict)
     top_entities: list[dict[str, Any]] = Field(default_factory=list)
     message: str | None = None
+
+
+class GraphBackfillResult(BaseModel):
+    status: str
+    topic_id: str
+    records_seen: int = 0
+    records_mirrored: int = 0
+    records_skipped_stale: int = 0
+    records_failed: int = 0
+    message: str | None = None

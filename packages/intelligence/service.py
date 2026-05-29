@@ -269,7 +269,7 @@ class IntelligenceService:
         self._mirror_graph(payload)
         return payload
 
-    def _mirror_graph(self, payload: IntelligenceRecordRead) -> None:
+    def _mirror_graph(self, payload: IntelligenceRecordRead) -> bool:
         try:
             self.graph.upsert_intelligence_record({
                 "id": payload.id,
@@ -284,8 +284,59 @@ class IntelligenceService:
                 "freshness_status": payload.freshness_status,
                 "last_checked": payload.last_checked,
             })
+            return True
         except Exception as exc:
             logger.warning("neo4j_mirror_failed", error=str(exc)[:300], topic_id=payload.topic_id, source_url=payload.source_url)
+            return False
+
+    async def backfill_graph(
+        self,
+        db: AsyncSession,
+        topic_id: str,
+        include_stale: bool = False,
+        freshness_required_days: int = 7,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        graph_status = self.graph.health()
+        if graph_status != "ok":
+            return {
+                "status": graph_status,
+                "topic_id": topic_id,
+                "records_seen": 0,
+                "records_mirrored": 0,
+                "records_skipped_stale": 0,
+                "records_failed": 0,
+                "message": self.graph.message,
+            }
+
+        result = await db.execute(
+            select(IntelligenceRecord)
+            .where(IntelligenceRecord.topic_id == topic_id)
+            .order_by(IntelligenceRecord.extracted_at.desc())
+            .limit(limit)
+        )
+        records = result.scalars().all()
+        mirrored = 0
+        skipped_stale = 0
+        failed = 0
+        for record in records:
+            if not include_stale and not self._record_is_current(record, freshness_required_days):
+                skipped_stale += 1
+                continue
+            if self._mirror_graph(self._record_read(record)):
+                mirrored += 1
+            else:
+                failed += 1
+
+        return {
+            "status": "ok",
+            "topic_id": topic_id,
+            "records_seen": len(records),
+            "records_mirrored": mirrored,
+            "records_skipped_stale": skipped_stale,
+            "records_failed": failed,
+            "message": None,
+        }
 
     def _infer_entity_name(self, topic: Topic | None, source: Source) -> str | None:
         haystack = " ".join([source.title or "", source.snippet or "", source.url or ""]).lower()

@@ -4,7 +4,8 @@ import {
   Shield, Globe, TrendingUp, Layers, Mic, Brain, Zap, ArrowRight,
   CheckCircle, RefreshCw, Send, LogOut, User, Mail, KeyRound,
   ThumbsUp, ThumbsDown, BarChart3, Target, Briefcase, Play,
-  AlertTriangle, Database, Search, Clock, Eye as EyeIcon, ChevronRight
+  AlertTriangle, Database, Search, Clock, Eye as EyeIcon, ChevronRight,
+  GitBranch
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -63,6 +64,7 @@ const endpoints = {
   gatewayFetch: data => api("POST", "/gateway/fetch", data),
   graphStatus: () => api("GET", "/graph/status"),
   graphTopic: topicId => api("GET", `/graph/topics/${encodeURIComponent(topicId)}`),
+  graphBackfill: topicId => api("POST", `/graph/topics/${encodeURIComponent(topicId)}/backfill`),
   graphEntity: entity => api("GET", `/graph/entities/${encodeURIComponent(entity)}`),
   monitorSummary: workspaceId => api("GET", `/monitor/${encodeURIComponent(workspaceId)}`),
   runMonitor: workspaceId => api("POST", `/monitor/${encodeURIComponent(workspaceId)}/run`, null, 70000),
@@ -2136,6 +2138,8 @@ function IntelPage({ ws }) {
   const [graphStatus, setGraphStatus] = useState(null);
   const [graph, setGraph] = useState(null);
   const [topicGraph, setTopicGraph] = useState(null);
+  const [graphBackfill, setGraphBackfill] = useState(null);
+  const [graphSyncing, setGraphSyncing] = useState(false);
   const [query, setQuery] = useState(`vendor risk and market signals for ${ws.entities || ws.name}`);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -2147,6 +2151,7 @@ function IntelPage({ ws }) {
     setSources([]);
     setGraph(null);
     setTopicGraph(null);
+    setGraphBackfill(null);
     setQuery(`vendor risk and market signals for ${ws.entities || ws.name}`);
   }, [ws.id, ws.entities, ws.name]);
   const loadRecords = useCallback(async () => {
@@ -2188,6 +2193,24 @@ function IntelPage({ ws }) {
       setLoading(false);
     }
   };
+  const syncGraph = async () => {
+    setGraphSyncing(true);
+    setErr("");
+    try {
+      const result = await endpoints.graphBackfill(ws.id);
+      setGraphBackfill(result);
+      const [status, snapshot] = await Promise.all([
+        endpoints.graphStatus().catch(() => ({ status: "unavailable" })),
+        endpoints.graphTopic(ws.id).catch(() => null),
+      ]);
+      setGraphStatus(status);
+      if (snapshot) setTopicGraph(snapshot);
+    } catch (e) {
+      setErr(e.message || "Could not sync evidence graph");
+    } finally {
+      setGraphSyncing(false);
+    }
+  };
   const retrievalRecords = retrieval.map(item => item.record);
   const displayRecords = records.length ? records : retrievalRecords;
   const selected = displayRecords.find(r => r.id === selectedId) || displayRecords[0] || null;
@@ -2219,9 +2242,14 @@ function IntelPage({ ws }) {
           <h2 style={{ fontSize: 22, marginTop: 4 }}>Evidence workspace</h2>
           <div style={{ color: T.dim, fontSize: 12, marginTop: 6 }}>{ws.name} - {displayRecords.length} fresh records - Neo4j {graphStatus?.status || "checking"}</div>
         </div>
-        <button onClick={loadRecords} disabled={loading} title="Reload evidence" style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.muted, display: "grid", placeItems: "center" }}>
-          <RefreshCw size={14} style={loading ? { animation: "spin 1s linear infinite" } : null} />
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={syncGraph} disabled={graphSyncing || loading || !records.length} title="Sync fresh evidence to Neo4j" style={{ height: 34, padding: "0 12px", borderRadius: 9, border: `1px solid ${T.borderL}`, background: T.bgSub, color: records.length ? T.text : T.dim, display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 800 }}>
+            <GitBranch size={14} style={graphSyncing ? { animation: "spin 1s linear infinite" } : null} /> Sync graph
+          </button>
+          <button onClick={loadRecords} disabled={loading} title="Reload evidence" style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.muted, display: "grid", placeItems: "center" }}>
+            <RefreshCw size={14} style={loading ? { animation: "spin 1s linear infinite" } : null} />
+          </button>
+        </div>
       </div>
 
       {err && <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", color: "#ef4444", fontSize: 12 }}>{err}</div>}
@@ -2243,6 +2271,9 @@ function IntelPage({ ws }) {
           <MC l="Graph nodes" v={Math.max(graphCounts.nodes, topicGraphCounts.nodes)} c={(graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim} />
           <MC l="Graph edges" v={Math.max(graphCounts.relationships, topicGraphCounts.relationships)} c={(graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim} />
         </div>
+        {graphBackfill && <div style={{ marginTop: 9, fontSize: 11, color: graphBackfill.status === "ok" ? T.muted : "#f59e0b" }}>
+          Graph sync: {graphBackfill.records_mirrored} mirrored from {graphBackfill.records_seen} fresh records{graphBackfill.records_skipped_stale ? `, ${graphBackfill.records_skipped_stale} stale skipped` : ""}{graphBackfill.records_failed ? `, ${graphBackfill.records_failed} failed` : ""}.
+        </div>}
       </div>
 
       <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "360px 1fr", gap: 12, alignItems: "start" }}>
@@ -2276,14 +2307,14 @@ function IntelPage({ ws }) {
                 <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em" }}>Selected record</div>
                 <h3 style={{ margin: "5px 0 0", fontSize: 18 }}>{selected?.entity_name || "Select evidence"}</h3>
               </div>
-              {selected && <span style={{ fontSize: 10, padding: "3px 7px", borderRadius: 999, background: "rgba(6,182,212,.1)", color: T.accent }}>{selected.record_type || "signal"}</span>}
+              {selected && <span style={{ fontSize: 10, padding: "3px 7px", borderRadius: 999, background: "rgba(6,182,212,.1)", color: T.accent }}>{selected.freshness_status || "unknown"}</span>}
             </div>
             {selected ? <>
               <p style={{ marginTop: 14, fontSize: 13, lineHeight: 1.75, color: T.muted }}>{selected.summary || "No summary available for this record."}</p>
               <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
                 <MC l="Confidence" v={fmt(selected.confidence || 0)} c={T.accent} />
                 <MC l="Type" v={selected.source_type || "web"} c={T.muted} />
-                <MC l="Observed" v={selected.observed_at ? new Date(selected.observed_at).toLocaleDateString() : "saved"} c={T.muted} />
+                <MC l="Checked" v={selected.last_checked ? new Date(selected.last_checked).toLocaleDateString() : "unknown"} c={T.muted} />
               </div>
               <div style={{ marginTop: 14 }}>
                 <Lb>Source</Lb>
@@ -2291,7 +2322,7 @@ function IntelPage({ ws }) {
               </div>
               <div style={{ marginTop: 14 }}>
                 <Lb>Payload</Lb>
-                <pre style={{ marginTop: 6, maxHeight: 190, overflow: "auto", padding: 10, borderRadius: 9, background: T.bgInset, border: `1px solid ${T.border}`, color: T.muted, fontSize: 11 }}>{JSON.stringify(selected.metadata || {}, null, 2)}</pre>
+                <pre style={{ marginTop: 6, maxHeight: 190, overflow: "auto", padding: 10, borderRadius: 9, background: T.bgInset, border: `1px solid ${T.border}`, color: T.muted, fontSize: 11 }}>{JSON.stringify(selected.facts || {}, null, 2)}</pre>
               </div>
             </> : <div style={{ marginTop: 14, color: T.dim, fontSize: 12 }}>The detail panel appears after evidence exists.</div>}
           </div>
