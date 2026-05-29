@@ -114,7 +114,7 @@ docker compose \
 Run migrations:
 
 ```bash
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec api alembic upgrade head
+docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml exec api alembic upgrade head
 ```
 
 ## 4. Verify
@@ -137,8 +137,8 @@ Point DNS at the Vultr server first. Then put a TLS reverse proxy in front of ng
 ## Operations
 
 ```bash
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml ps
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml logs -f api
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml pull
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml up -d --build
+docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml ps
+docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml logs -f api
+docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml pull
+docker compose --env-file .env -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml up -d --build
 ```
