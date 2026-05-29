@@ -18,8 +18,20 @@
       "destination": "http://45.77.89.209/workspaces/:path*"
     },
     {
+      "source": "/auth/:path*",
+      "destination": "http://45.77.89.209/auth/:path*"
+    },
+    {
       "source": "/agent/:path*",
       "destination": "http://45.77.89.209/agent/:path*"
+    },
+    {
+      "source": "/monitor/:path*",
+      "destination": "http://45.77.89.209/monitor/:path*"
+    },
+    {
+      "source": "/chat/:path*",
+      "destination": "http://45.77.89.209/chat/:path*"
     },
     {
       "source": "/gateway/:path*",
@@ -52,6 +64,10 @@
     {
       "source": "/workflows/:path*",
       "destination": "http://45.77.89.209/workflows/:path*"
+    },
+    {
+      "source": "/triggerware/:path*",
+      "destination": "http://45.77.89.209/triggerware/:path*"
     },
     {
       "source": "/context/:path*",

@@ -9,6 +9,7 @@ from sqlalchemy import text
 from apps.api.db.models import Base, Tenant, Topic
 from apps.api.db.session import AsyncSessionLocal, engine
 from apps.api.routes.agent import router as agent_router
+from apps.api.routes.auth import router as auth_router
 from apps.api.routes.gateway import router as gateway_router
 from apps.api.routes.intelligence import router as intelligence_router
 from apps.api.routes.runs import router as runs_router
@@ -34,7 +35,7 @@ settings = get_settings()
 
 
 def auth_is_enforced() -> bool:
-    return settings.api_auth_enabled or settings.auth_mode.lower() in {"clerk", "mixed"}
+    return settings.api_auth_enabled or settings.auth_mode.lower() in {"clerk", "custom", "mixed"}
 
 
 @asynccontextmanager
@@ -111,6 +112,7 @@ async def brightdata_exception_handler(_: Request, exc: BrightDataError):
     return JSONResponse(status_code=502, content={"detail": str(exc), "type": "brightdata_upstream_error"})
 
 
+app.include_router(auth_router)
 app.include_router(workspaces_router)
 app.include_router(gateway_router)
 app.include_router(intelligence_router)

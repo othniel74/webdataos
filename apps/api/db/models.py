@@ -30,6 +30,19 @@ class TenantMembership(Base):
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class UserAccount(Base):
+    __tablename__ = "user_accounts"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(String(40), default="admin")
+    status: Mapped[str] = mapped_column(String(40), default="active")
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class DemoSession(Base):
     __tablename__ = "demo_sessions"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

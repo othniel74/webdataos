@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { ClerkProvider, SignInButton, SignUpButton, useAuth, useUser, UserButton } from "@clerk/clerk-react";
 import {
   Shield, Globe, TrendingUp, Layers, Mic, Brain, Zap, ArrowRight,
   CheckCircle, RefreshCw, Send, LogOut, User, Mail, KeyRound,
@@ -41,10 +40,13 @@ const normalizeWorkspaceId = value => {
 const workspacePath = value => encodeURIComponent(normalizeWorkspaceId(value));
 const API = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 const KEY = import.meta.env.VITE_API_KEY || "dev-local-key-change-me";
-const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
-const CLERK_CONFIGURED = CLERK_KEY.startsWith("pk_");
-let apiBearerToken = null;
-const setApiBearerToken = token => { apiBearerToken = token || null; };
+const AUTH_STORAGE_KEY = "webdataos.auth.session";
+let apiBearerToken = localStorage.getItem(AUTH_STORAGE_KEY) || null;
+const setApiBearerToken = token => {
+  apiBearerToken = token || null;
+  if (token) localStorage.setItem(AUTH_STORAGE_KEY, token);
+  else localStorage.removeItem(AUTH_STORAGE_KEY);
+};
 const authHeaders = () => (apiBearerToken ? { "Authorization": `Bearer ${apiBearerToken}` } : { "X-API-Key": KEY });
 const headers = () => ({ "Content-Type": "application/json", ...authHeaders() });
 const demoHeaders = sessionId => ({ "Content-Type": "application/json", ...(sessionId ? { "X-Demo-Session": sessionId } : {}) });
@@ -93,6 +95,9 @@ async function demoApi(method, path, sessionId, body, timeoutMs = 70000) {
 }
 const endpoints = {
   health: () => api("GET", "/health"),
+  login: data => api("POST", "/auth/login", data, 20000),
+  signup: data => api("POST", "/auth/signup", data, 20000),
+  me: () => api("GET", "/auth/me", null, 20000),
   listPacks: () => api("GET", "/workspaces/packages"),
   createWorkspace: data => api("POST", "/workspaces", data),
   research: data => api("POST", "/agent/research", data, 70000),
@@ -182,8 +187,20 @@ const packIcon = (id, size = 18) => {
    ═══════════════════════════════════════════════════════════════════════ */
 const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
 const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Settings"];
+const toAppUser = account => {
+  const email = account?.email || "";
+  const name = account?.name || email || "Analyst";
+  return {
+    id: account?.id,
+    tenantId: account?.tenant_id,
+    name,
+    email,
+    role: account?.role || "analyst",
+    initials: name.trim()[0]?.toUpperCase() || "A",
+  };
+};
 
-export default function App({ externalUser = null, externalSignOut = null, clerkEnabled = false, authUnavailable = false, authReady = true } = {}) {
+export default function App() {
   const [page, setPage] = useState("Home");
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -200,15 +217,21 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
   const pack = useMemo(() => PACKS.find(p => p.id === effectivePackId) || PACKS[3], [effectivePackId]);
   const toggleDomain = (id) => { if (tierId === "enterprise") return; setSelDomains(prev => { if (prev.includes(id)) return prev.filter(d => d !== id); if (prev.length >= tier.pick) return [...prev.slice(1), id]; return [...prev, id]; }); };
   const nav = useCallback(t => { if (PRIV.includes(t) && !user) { setShowAuth(true); return; } setPage(t); }, [user]);
-  const canUsePrivateApi = Boolean(user) && (!clerkEnabled || authReady);
-  useEffect(() => {
-    if (clerkEnabled) setUser(externalUser);
-  }, [clerkEnabled, externalUser]);
+  const canUsePrivateApi = Boolean(user);
   useEffect(() => {
     if (packId !== effectivePackId) setPackId(effectivePackId);
   }, [packId, effectivePackId]);
   useEffect(() => {
     endpoints.health().then(status => setBackendOk(status)).catch(() => setBackendOk(false));
+  }, []);
+  useEffect(() => {
+    if (!apiBearerToken) return;
+    endpoints.me()
+      .then(({ user: account }) => setUser(toAppUser(account)))
+      .catch(() => {
+        setApiBearerToken(null);
+        setUser(null);
+      });
   }, []);
   useEffect(() => {
     try {
@@ -261,14 +284,13 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'DM Sans','Manrope',system-ui,sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <style>{CSS}</style>
-      <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { if (externalSignOut) externalSignOut(); setUser(null); setPage("Home"); }} backendOk={backendOk} clerkEnabled={clerkEnabled} authUnavailable={authUnavailable} />
+      <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { setApiBearerToken(null); setUser(null); setPage("Home"); }} backendOk={backendOk} />
       {page === "Home" && <HomePage nav={nav} user={user} auth={() => setShowAuth(true)} />}
       {page === "Demo" && <DemoPage nav={nav} />}
       {page === "Solution" && <SolutionManualPage nav={nav} />}
       {page === "Pricing" && <PricingPage nav={nav} tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} user={user} auth={() => setShowAuth(true)} />}
       {page === "Docs" && <DocsManualPage />}
       {page === "Developer" && <DevPage />}
-      {PRIV.includes(page) && user && !canUsePrivateApi && <AuthLoadingPage />}
       {page === "Monitor" && canUsePrivateApi && <MonitorPage ws={ws} nav={nav} saveWorkspace={saveWorkspace} report={report} setReport={setReport} setActions={setActions} backendOk={backendOk} />}
       {page === "Workspace" && canUsePrivateApi && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
       {page === "Settings" && canUsePrivateApi && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
@@ -279,31 +301,57 @@ export default function App({ externalUser = null, externalSignOut = null, clerk
       {page === "Gateway" && canUsePrivateApi && <GwPage />}
       {page === "Actions" && canUsePrivateApi && <ActPage actions={actions} setActions={setActions} />}
       {page === "Outcomes" && canUsePrivateApi && <OutPage ws={ws} user={user} />}
-      {showAuth && <Auth clerkEnabled={clerkEnabled} onClose={() => setShowAuth(false)} onAuth={u => { setUser(u); setShowAuth(false); setPage("Monitor"); }} />}
+      {showAuth && <Auth onClose={() => setShowAuth(false)} onAuth={u => { setUser(u); setShowAuth(false); setPage("Monitor"); }} />}
     </div>
   );
 }
 
 /* ═══════ AUTH ═══════ */
-function Auth({ onClose, onAuth, clerkEnabled = false }) {
-  const [email, setEmail] = useState("analyst@company.com"); const [name, setName] = useState("Analyst");
+function Auth({ onClose, onAuth }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [organization, setOrganization] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const submit = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const payload = mode === "signup"
+        ? await endpoints.signup({ name, email, password, organization: organization || name })
+        : await endpoints.login({ email, password });
+      setApiBearerToken(payload.token);
+      onAuth(toAppUser(payload.user));
+    } catch (e) {
+      setError(e.message || "Authentication failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,.6)", backdropFilter: "blur(10px)", display: "grid", placeItems: "center" }}>
       <div onClick={e => e.stopPropagation()} className="au" style={{ width: 400, maxWidth: "92vw", padding: "32px 28px", borderRadius: 22, background: T.bgCard, border: `1px solid ${T.border}`, position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,.5)" }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, margin: "0 auto 12px", background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center" }}><Layers size={18} color="#fff" /></div>
           <h2 style={{ fontSize: 20 }}>Sign in to WebDataOS</h2>
-          <p style={{ color: T.dim, fontSize: 13, marginTop: 6 }}>Access your intelligence workspaces</p>
+          <p style={{ color: T.dim, fontSize: 13, marginTop: 6 }}>Access your tenant workspace</p>
         </div>
-        {clerkEnabled ? <div style={{ display: "grid", gap: 10 }}>
-          <SignInButton mode="modal"><button style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontWeight: 800, fontSize: 14, cursor: "pointer", width: "100%" }}>Sign in with Clerk</button></SignInButton>
-          <SignUpButton mode="modal"><button style={{ padding: "12px", borderRadius: 12, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 14, cursor: "pointer", width: "100%" }}>Create tenant account</button></SignUpButton>
-          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>Tenant workspaces are isolated by Clerk identity. The public demo works without sign-in.</div>
-        </div> : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <FI icon={<User size={14} />} ph="Name" v={name} set={setName} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: 3, borderRadius: 12, border: `1px solid ${T.border}`, background: T.bgSub, marginBottom: 14 }}>
+          {[["login", "Sign in"], ["signup", "Create account"]].map(([id, label]) => (
+            <button key={id} onClick={() => { setMode(id); setError(""); }} style={{ border: "none", borderRadius: 9, padding: "8px 10px", background: mode === id ? T.accent : "transparent", color: mode === id ? "#000" : T.muted, fontSize: 12, fontWeight: 800 }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {mode === "signup" && <FI icon={<User size={14} />} ph="Full name" v={name} set={setName} />}
+          {mode === "signup" && <FI icon={<Briefcase size={14} />} ph="Organization" v={organization} set={setOrganization} />}
           <FI icon={<Mail size={14} />} ph="Email" v={email} set={setEmail} type="email" />
-          <button onClick={() => onAuth({ name: name || "Analyst", initials: (name || "A")[0].toUpperCase(), email: email || "analyst@company.com" })} style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", width: "100%" }}>Sign in</button>
-        </div>}
+          <FI icon={<KeyRound size={14} />} ph="Password" v={password} set={setPassword} type="password" />
+          {error && <div style={{ color: "#fca5a5", fontSize: 12, lineHeight: 1.45, padding: "8px 10px", borderRadius: 10, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>{error}</div>}
+          <button onClick={submit} disabled={loading || !email || !password || (mode === "signup" && !name)} style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontWeight: 800, fontSize: 14, cursor: loading ? "wait" : "pointer", width: "100%", opacity: loading ? .7 : 1 }}>{loading ? "Working..." : mode === "signup" ? "Create account" : "Sign in"}</button>
+          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>Public demo remains available without an account. Private workspaces are tenant-scoped.</div>
+        </div>
         <button onClick={onClose} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer" }}>&times;</button>
       </div>
     </div>
@@ -330,7 +378,7 @@ function FI({ icon, ph, v, set, type = "text" }) {
 }
 
 /* ═══════ NAV ═══════ */
-function Nav({ page, setPage, user, onAuth, onOut, backendOk, clerkEnabled = false, authUnavailable = false }) {
+function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const navItems = user ? PRIV : PUB;
   const brandTarget = user ? "Monitor" : "Home";
   return (
@@ -346,7 +394,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk, clerkEnabled = fal
         })}
       </nav>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {user ? <><div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 6px", borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}><div style={{ width: 24, height: 24, borderRadius: 999, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div><span style={{ fontSize: 12, color: T.muted }}>{user.name}</span></div>{clerkEnabled && <UserButton afterSignOutUrl="/" />}<button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}><LogOut size={12} /></button></> : clerkEnabled ? <><SignInButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button></SignInButton><SignUpButton mode="modal"><button style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Create account</button></SignUpButton><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button></> : authUnavailable ? <><button disabled title="Clerk is not configured for this deployment" style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid rgba(239,68,68,.28)`, background: "rgba(239,68,68,.08)", fontSize: 12, color: "#fca5a5", cursor: "not-allowed" }}>Auth not configured</button><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Demo</button></> : <><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Local sign in</button><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Try demo</button></>}
+        {user ? <><div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 6px", borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}><div style={{ width: 24, height: 24, borderRadius: 999, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div><span style={{ fontSize: 12, color: T.muted }}>{user.name}</span></div><button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}><LogOut size={12} /></button></> : <><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button><button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0891b2)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Create account</button><button onClick={() => setPage("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button></>}
       </div>
     </header>
   );
@@ -1059,7 +1107,7 @@ function DocsPage() {
           {s === "journey" && <DS t="User Journey">{["Sign up and create a workspace with a package", "Enter entities to monitor and signals to watch", "Set refresh cadence (daily, weekly, every 6 hours, manual)", "Submit research task via text, voice, or audio upload", "Speechmatics transcribes voice/audio to structured text", "Cognee checks graph memory; self-hosted memory provides fallback context", "Intelligence Engine checks existing records for freshness", "If stale → Bright Data gateway fetches with self-healing recovery", "FailureDetector classifies errors → RecoveryRouter escalates tools", "ResultNormalizer produces clean JSON evidence records", "Change detection compares old vs new facts, logs ChangeEvents", "LLM synthesizes contextual brief from evidence + memory", "Reasoning Engine assesses materiality against org context", "Autonomous actions proposed for material findings", "TriggerWare fires workflow actions for material signals", "User receives brief, companies, changes, partner trace, receipts"].map((step, i) => <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0", borderBottom: i < 15 ? `1px solid ${T.border}` : "none" }}><span style={{ width: 22, height: 22, borderRadius: 999, display: "grid", placeItems: "center", background: `${T.accent}10`, color: T.accent, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span><span style={{ fontSize: 13, color: T.muted }}>{step}</span></div>)}</DS>}
           {s === "gateway" && <DS t="Gateway & Recovery"><p>The self-healing gateway detects failure modes and routes to the next Bright Data tool automatically.</p><DC t="ToolName enum">serp_api, web_scraper_api, web_unlocker, scraping_browser, mock</DC><DC t="FailureType enum">none, blocked, captcha, geo_blocked, rate_limited, javascript_required, selector_failed, empty_response, timeout, unknown</DC><DC t="Recovery routing">{"blocked/captcha/geo_blocked/rate_limited -> web_unlocker -> scraping_browser. javascript_required/empty_response/selector_failed -> scraping_browser -> web_unlocker. web_scraper_api failure -> scraping_browser. scraping_browser failure -> web_unlocker."}</DC><DC t="SourceType enum">search_result, company_page, pricing_page, docs_page, news_page, filing, social_public, unknown</DC></DS>}
           {s === "memory" && <DS t="Dual Memory: Cognee + Self-Hosted"><p>Cognee is the default open-source knowledge-graph memory layer. WebDataOS also writes to a self-hosted PostgreSQL memory store and falls back to it when Cognee is unavailable.</p><DC t="How it works">On upsert: memory writes to self-hosted storage and, when installed/configured, to Cognee. On search: Cognee graph recall is queried first, then merged with self-hosted embedding or keyword results.</DC><DC t="Key files">packages/memory/provider.py — MemoryProvider routes Cognee + self-hosted. packages/partners/cognee.py — Cognee adapter. packages/memory/service.py — PostgreSQL/OpenAI fallback memory.</DC><DC t="Graceful degradation">With Cognee installed: graph memory + self-hosted vector search. Without Cognee: self-hosted embeddings via OpenAI. Without OpenAI: keyword matching. The system works at every level of integration.</DC></DS>}
-          {s === "api" && <DS t="API Reference"><p>Tenant endpoints require either a Clerk bearer token or a configured API key. Public demo routes use a demo session header.</p><div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${T.border}`, marginTop: 10 }}>{[
+          {s === "api" && <DS t="API Reference"><p>Tenant endpoints require either a WebDataOS bearer session or a configured API key. Public demo routes use a demo session header.</p><div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${T.border}`, marginTop: 10 }}>{[
             { m: "GET", p: "/health", d: "Health check with partner status" }, { m: "GET", p: "/workspaces/packages", d: "List intelligence packages" },
             { m: "POST", p: "/workspaces", d: "Create workspace" }, { m: "GET", p: "/workspaces", d: "List workspaces" },
             { m: "POST", p: "/agent/research", d: "Run LLM-powered research (text/voice/audio)" },
@@ -1199,7 +1247,7 @@ function DocsManualPage() {
               <section style={{ borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
                 <div style={{ padding: "11px 14px", borderBottom: `1px solid ${T.border}`, fontSize: 13, fontWeight: 800 }}>Request</div>
                 <pre style={{ margin: 0, padding: 14, color: T.muted, fontSize: 11, lineHeight: 1.65, fontFamily: "'JetBrains Mono'", overflow: "auto" }}>{`POST /agent/research
-Authorization: Bearer <clerk-session-token>
+Authorization: Bearer <webdataos-session-token>
 
 {
   "workspace_id": "workspace_enterprise",
@@ -1274,7 +1322,7 @@ function DevPage() {
           <div style={{ padding: "11px 14px", borderBottom: `1px solid ${T.border}`, fontSize: 13, fontWeight: 800 }}>Quick request</div>
           <pre style={{ margin: 0, padding: 14, color: T.muted, fontSize: 11, lineHeight: 1.65, fontFamily: "'JetBrains Mono'", overflow: "auto" }}>{`curl -X POST "$WEBDATAOS_API/agent/research" \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer $CLERK_SESSION_TOKEN" \\
+  -H "Authorization: Bearer $WEBDATAOS_SESSION_TOKEN" \\
   -d '{
     "workspace_id": "workspace_enterprise",
     "topic_id": "workspace_enterprise",
@@ -3521,42 +3569,4 @@ const IS = { width: "100%", marginTop: 4, padding: "7px 10px", borderRadius: 7, 
 
 const CSS = `@keyframes spin{to{transform:rotate(360deg)}}*{box-sizing:border-box;margin:0;padding:0}button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}::selection{background:rgba(6,182,212,.25)}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:3px}.au{animation:fadeUp .5s ease both}.ai{animation:fadeIn .4s ease both}.s1{animation-delay:.08s}.s2{animation-delay:.16s}.s3{animation-delay:.24s}.hl{transition:transform .2s,box-shadow .2s}.hl:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.3)}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}`;
 
-function ClerkApp() {
-  const { isLoaded, isSignedIn, getToken, signOut } = useAuth();
-  const { user } = useUser();
-  const [authReady, setAuthReady] = useState(false);
-  useEffect(() => {
-    let live = true;
-    if (!isLoaded || !isSignedIn) {
-      setApiBearerToken(null);
-      setAuthReady(false);
-      return;
-    }
-    setAuthReady(false);
-    getToken()
-      .then(token => {
-        if (!live) return;
-        setApiBearerToken(token);
-        setAuthReady(Boolean(token));
-      })
-      .catch(() => {
-        if (!live) return;
-        setApiBearerToken(null);
-        setAuthReady(false);
-      });
-    return () => { live = false; };
-  }, [isLoaded, isSignedIn, getToken]);
-  const appUser = isSignedIn && user ? {
-    name: user.fullName || user.primaryEmailAddress?.emailAddress || "Analyst",
-    initials: (user.firstName || user.primaryEmailAddress?.emailAddress || "A")[0].toUpperCase(),
-    email: user.primaryEmailAddress?.emailAddress || "",
-  } : null;
-  return <App externalUser={appUser} externalSignOut={signOut} clerkEnabled authReady={authReady} />;
-}
-
-function Root() {
-  if (!CLERK_CONFIGURED) return <App authUnavailable={!import.meta.env.DEV} />;
-  return <ClerkProvider publishableKey={CLERK_KEY}><ClerkApp /></ClerkProvider>;
-}
-
-createRoot(document.getElementById("root")).render(<Root />);
+createRoot(document.getElementById("root")).render(<App />);

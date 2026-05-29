@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from fastapi import Header, HTTPException, Request, status
 from jwt import PyJWTError
+from packages.common.auth import verify_session_token
 from packages.common.clerk import verify_clerk_token
 from packages.common.config import get_settings
 
@@ -47,14 +48,29 @@ async def require_api_key(
     settings = get_settings()
     bearer = _extract_bearer(authorization)
     auth_mode = settings.auth_mode.lower()
-    protected_auth_mode = auth_mode in {"clerk", "mixed"}
+    protected_auth_mode = auth_mode in {"clerk", "custom", "mixed"}
 
     if bearer and protected_auth_mode:
+        try:
+            claims = verify_session_token(bearer, settings)
+        except PyJWTError:
+            pass
+        else:
+            return AuthContext(
+                principal=claims.get("email") or claims.get("sub") or "webdataos-user",
+                key_fingerprint=fingerprint(bearer),
+                auth_enabled=True,
+                tenant_id=claims["tenant_id"],
+                user_id=claims.get("sub"),
+                role=claims.get("role") or "analyst",
+                auth_type="session",
+            )
+
         try:
             claims = verify_clerk_token(bearer, settings)
         except (PyJWTError, ValueError) as exc:
             if auth_mode == "clerk" or not x_api_key:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Clerk session") from exc
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session") from exc
         else:
             user_id = claims.get("sub")
             org_id = claims.get("org_id") or claims.get("orgid")
@@ -76,7 +92,7 @@ async def require_api_key(
             )
 
     if auth_mode == "clerk":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Clerk session")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing session")
 
     if not settings.api_auth_enabled and not protected_auth_mode:
         return AuthContext(
@@ -90,12 +106,12 @@ async def require_api_key(
     configured = settings.api_key_set
     if not configured:
         if protected_auth_mode:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Clerk session")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing session")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="API auth is enabled but no API_KEYS are configured.")
 
     provided = x_api_key or bearer
     if not provided:
-        detail = "Missing Clerk session or API key" if auth_mode == "mixed" else "Missing API key"
+        detail = "Missing session or API key" if auth_mode in {"mixed", "custom"} else "Missing API key"
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
     if not any(hmac.compare_digest(provided, expected) for expected in configured):

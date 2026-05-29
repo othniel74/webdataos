@@ -43,7 +43,7 @@ The product is not only a chat surface. It supports both:
 | --- | --- |
 | Frontend | React/Vite UI deployed on Vercel and Vultr. |
 | Backend | FastAPI API deployed on Vultr behind Nginx. |
-| Tenancy | Clerk sign-in/sign-up is wired on the frontend; backend tenant context scopes customer data. |
+| Tenancy | First-party WebDataOS sign-in/sign-up is wired on the frontend; backend tenant context scopes customer data. |
 | Public demo | Demo sessions, demo workspace setup, demo monitor runs, demo Analyst chat, demo evidence, demo graph, and demo receipts are implemented. |
 | Bright Data | Live retrieval is configured for SERP, Web Scraper, Web Unlocker, and Scraping Browser routes. |
 | LLM routing | OpenAI is primary; AI/ML API is available as an OpenAI-compatible fallback and model catalog source. |
@@ -146,10 +146,10 @@ WebDataOS supports three runtime auth modes:
 | Mode | Purpose |
 | --- | --- |
 | `api_key` | Local development and SDK/service access. |
-| `clerk` | Clerk-authenticated customer access. |
-| `mixed` | Production mode that supports Clerk customers plus approved public demo routes. |
+| `custom` | WebDataOS email/password customer access with signed bearer sessions. |
+| `mixed` | Production mode that supports WebDataOS sessions, API keys, and approved public demo routes. |
 
-Tenant-owned data is scoped by tenant context. Clerk users are mapped to an internal WebDataOS tenant and, where available, organization context.
+Tenant-owned data is scoped by tenant context. WebDataOS accounts are mapped to an internal tenant. API keys remain available for SDK and service access.
 
 ## Partner Integrations
 
@@ -178,8 +178,7 @@ Important variables:
 | `APP_ENV`, `LOG_LEVEL` | Runtime environment and logging. |
 | `AUTH_MODE`, `DEFAULT_TENANT_ID` | Auth mode and fallback tenant. |
 | `API_AUTH_ENABLED`, `API_KEYS`, `API_KEY_HEADER_NAME` | API-key authentication controls. |
-| `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_JWKS_URL`, `CLERK_ISSUER`, `CLERK_AUDIENCE` | Clerk tenancy and JWT verification. |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Frontend Clerk key embedded at build time. |
+| `AUTH_JWT_SECRET`, `AUTH_TOKEN_TTL_HOURS` | First-party WebDataOS session signing and session lifetime. |
 | `PUBLIC_DEMO_ENABLED`, `DEMO_TENANT_ID`, `DEMO_SESSION_TTL_HOURS`, `DEMO_RATE_LIMIT_PER_HOUR` | Public demo controls. |
 | `DATABASE_URL`, `SYNC_DATABASE_URL` | Async and sync PostgreSQL connection strings. |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | Primary LLM provider. |
@@ -393,7 +392,7 @@ tests/                  Automated test suite
 | Requirement | Status |
 | --- | --- |
 | Public demo without sign-in | Implemented with scoped demo sessions and demo-only routes. |
-| Clerk tenancy | Implemented for sign-in/sign-up and tenant-scoped backend access. |
+| Custom tenancy | Implemented for sign-in/sign-up and tenant-scoped backend access. |
 | Tenant isolation | Tenant context is wired through customer routes and graph queries. |
 | Live monitoring dashboard | Implemented through Monitor and `/monitor/{workspace_id}` routes. |
 | Multi-turn Analyst chat | Implemented through `/chat/{workspace_id}` history and message routes. |

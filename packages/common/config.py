@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = "http://localhost:5173,http://localhost:3000"
     trusted_hosts: str = "localhost,127.0.0.1,api,web"
     default_tenant_id: str = "tenant_internal"
+    auth_jwt_secret: str | None = None
+    auth_token_ttl_hours: int = Field(default=24, ge=1, le=720)
     clerk_publishable_key: str | None = None
     vite_clerk_publishable_key: str | None = None
     clerk_secret_key: str | None = None
