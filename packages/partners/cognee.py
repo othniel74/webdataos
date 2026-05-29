@@ -53,6 +53,10 @@ class CogneeMemoryService:
     def available(self) -> bool:
         return self._available
 
+    def disable(self, reason: str) -> None:
+        self._available = False
+        logger.warning("cognee_disabled", reason=reason[:300])
+
     @property
     def _has_runtime_config(self) -> bool:
         return bool(

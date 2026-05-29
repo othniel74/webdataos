@@ -1,9 +1,10 @@
 import pytest
 from packages.common.config import get_settings
+from packages.memory.provider import MemoryProvider
 from packages.partners.speechmatics import SpeechmaticsService
 from packages.partners.cognee import CogneeMemoryService
 from packages.partners.triggerware import TriggerWareService
-from packages.schemas.partners import MemorySearchRequest, MemoryUpsertRequest, TranscriptionRequest, WorkflowTriggerRequest
+from packages.schemas.partners import MemoryRecord, MemorySearchRequest, MemoryUpsertRequest, TranscriptionRequest, WorkflowTriggerRequest
 
 
 @pytest.mark.asyncio
@@ -20,6 +21,7 @@ async def test_cognee_memory_requires_runtime_configuration(monkeypatch):
     for key in ("OPENAI_API_KEY", "AIMLAPI_API_KEY", "LLM_API_KEY", "COGNEE_ENDPOINT", "COGNEE_API_KEY"):
         monkeypatch.setenv(key, "")
     get_settings.cache_clear()
+
     service = CogneeMemoryService()
     record = await service.upsert(MemoryUpsertRequest(workspace_id="ws", entity="Okta", content="Okta vendor risk context"))
     results = await service.search(MemorySearchRequest(workspace_id="ws", query="Okta", entities=["Okta"]))
@@ -27,6 +29,74 @@ async def test_cognee_memory_requires_runtime_configuration(monkeypatch):
     assert record.memory_id.startswith("cog_mock_")
     assert results == []
     get_settings.cache_clear()
+
+
+class SlowCognee:
+    def __init__(self):
+        self._available = True
+        self.settings = type("Settings", (), {"cognee_timeout_seconds": 0.01})()
+
+    @property
+    def available(self):
+        return self._available
+
+    def disable(self, reason: str):
+        self._available = False
+
+    async def upsert(self, request):
+        import asyncio
+        await asyncio.sleep(1)
+
+    async def search(self, request):
+        import asyncio
+        await asyncio.sleep(1)
+        return []
+
+
+class FakeSelfHostedMemory:
+    async def upsert(self, db, request):
+        return MemoryRecord(
+            memory_id="self_hosted_1",
+            provider="webdataos_memory",
+            workspace_id=request.workspace_id,
+            entity=request.entity,
+            content=request.content,
+            evidence_urls=request.evidence_urls,
+        )
+
+    async def search(self, db, request):
+        return [
+            MemoryRecord(
+                memory_id="self_hosted_1",
+                provider="webdataos_memory",
+                workspace_id=request.workspace_id,
+                entity=request.entities[0] if request.entities else "entity",
+                content="Self-hosted fallback memory",
+                evidence_urls=[],
+                score=0.8,
+            )
+        ]
+
+    async def clear_workspace(self, db, workspace_id):
+        return 1
+
+
+@pytest.mark.asyncio
+async def test_memory_provider_falls_back_when_cognee_times_out():
+    provider = MemoryProvider(cognee=SlowCognee(), self_hosted=FakeSelfHostedMemory())
+
+    record = await provider.upsert(
+        None,
+        MemoryUpsertRequest(workspace_id="ws", entity="Okta", content="Vendor risk context"),
+    )
+    results = await provider.search(
+        None,
+        MemorySearchRequest(workspace_id="ws", query="vendor risk", entities=["Okta"]),
+    )
+
+    assert provider.cognee.available is False
+    assert record.provider == "webdataos_memory"
+    assert results[0].provider == "webdataos_memory"
 
 
 @pytest.mark.asyncio

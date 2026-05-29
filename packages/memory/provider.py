@@ -15,6 +15,8 @@ can use Cognee's graph reasoning AND self-hosted embedding similarity.
 """
 from __future__ import annotations
 
+import asyncio
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from packages.common.logging import get_logger
@@ -58,11 +60,18 @@ class MemoryProvider:
         # Also store in Cognee if available (knowledge graph)
         if self.cognee.available:
             try:
-                await self.cognee.upsert(request)
+                await asyncio.wait_for(
+                    self.cognee.upsert(request),
+                    timeout=self.cognee.settings.cognee_timeout_seconds,
+                )
                 logger.info("memory_dual_write", cognee=True, self_hosted=True)
                 # Return the Cognee record ID but with self-hosted content
                 record.provider = "cognee+self_hosted"
+            except TimeoutError:
+                self.cognee.disable("upsert_timeout")
+                logger.warning("cognee_upsert_timeout_in_provider")
             except Exception as exc:
+                self.cognee.disable(str(exc))
                 logger.warning("cognee_upsert_failed_in_provider", error=str(exc))
 
         return record
@@ -75,11 +84,18 @@ class MemoryProvider:
         # Try Cognee first
         if self.cognee.available:
             try:
-                cognee_results = await self.cognee.search(request)
+                cognee_results = await asyncio.wait_for(
+                    self.cognee.search(request),
+                    timeout=self.cognee.settings.cognee_timeout_seconds,
+                )
                 if cognee_results:
                     results.extend(cognee_results)
                     logger.info("memory_search_cognee", results=len(cognee_results))
+            except TimeoutError:
+                self.cognee.disable("search_timeout")
+                logger.warning("cognee_search_timeout_in_provider")
             except Exception as exc:
+                self.cognee.disable(str(exc))
                 logger.warning("cognee_search_failed_in_provider", error=str(exc))
 
         # Also search self-hosted (embeddings or keyword)

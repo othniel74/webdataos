@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     cognee_endpoint: str | None = None
     cognee_llm_model: str | None = None
     cognee_embedding_model: str = "openai/text-embedding-3-small"
+    cognee_timeout_seconds: float = Field(default=8.0, ge=0.5, le=60.0)
     triggerware_api_key: str | None = None
     triggerware_endpoint: str | None = None
     triggerware_webhook_secret: str | None = None
