@@ -3436,6 +3436,7 @@ function EvidencePage({ ws }) {
   const [graph, setGraph] = useState(null);
   const [topicGraph, setTopicGraph] = useState(null);
   const [graphBackfill, setGraphBackfill] = useState(null);
+  const [latestRunId, setLatestRunId] = useState(null);
   const [query, setQuery] = useState(`vendor risk and market signals for ${ws.entities || ws.name}`);
   const [loading, setLoading] = useState(false);
   const [graphSyncing, setGraphSyncing] = useState(false);
@@ -3450,18 +3451,21 @@ function EvidencePage({ ws }) {
     setGraph(null);
     setTopicGraph(null);
     setGraphBackfill(null);
+    setLatestRunId(null);
     setQuery(`vendor risk and market signals for ${ws.entities || ws.name}`);
   }, [ws.id, ws.entities, ws.name]);
 
   const loadRecords = useCallback(async () => {
     setErr("");
     try {
-      const [items, topicSnapshot] = await Promise.all([
+      const [items, topicSnapshot, runs] = await Promise.all([
         endpoints.listTopicRecords(ws.id),
         endpoints.graphTopic(ws.id).catch(() => null),
+        endpoints.listRuns(ws.id, 1).catch(() => []),
       ]);
       setRecords(items);
       if (topicSnapshot) setTopicGraph(topicSnapshot);
+      if (runs?.[0]?.run_id) setLatestRunId(runs[0].run_id);
     } catch (e) {
       setErr(e.message || "Could not load evidence records");
     }
@@ -3661,7 +3665,7 @@ function EvidencePage({ ws }) {
               <div><Lb>Nodes</Lb><div style={{ marginTop: 4, color: (graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.nodes, topicGraphCounts.nodes)}</div></div>
               <div><Lb>Edges</Lb><div style={{ marginTop: 4, color: (graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.relationships, topicGraphCounts.relationships)}</div></div>
             </div>
-            <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} latestRunId={activeReport?.run_id} />
+            <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} latestRunId={latestRunId} />
             <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.45 }}>{explainGraph(graphView, selected, graphLabel)} {graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}.`}</div>
           </div>
         </aside>
