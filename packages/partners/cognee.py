@@ -103,7 +103,7 @@ class CogneeMemoryService:
     async def search(self, request: MemorySearchRequest) -> list[MemoryRecord]:
         """Search Cognee's knowledge graph via cognee.recall()."""
         if not self._available:
-            return [self._mock_search_record(request)]
+            return []
 
         await self._ensure_init()
 
@@ -132,7 +132,7 @@ class CogneeMemoryService:
             return records[:request.top_k]
         except Exception as exc:
             logger.error("cognee_recall_failed", error=str(exc))
-            return [self._mock_search_record(request)]
+            return []
 
     async def forget(self, workspace_id: str) -> None:
         """Clear memory for a workspace via cognee.forget()."""
