@@ -713,7 +713,7 @@ class Neo4jGraphClient:
               AND ($signal_type IS NULL OR sig.signal_type = $signal_type)
             OPTIONAL MATCH (sig)-[r1:AFFECTS]->(e:Entity)
             WHERE e IS NULL OR $tenant_id IS NULL OR e.tenant_id = $tenant_id
-            OPTIONAL MATCH (sig)-[r2:CREATES]->(rk:Risk)
+            OPTIONAL MATCH (sig)-[r2:PRODUCED|CREATES]->(rk:Risk)
             WHERE rk IS NULL OR $tenant_id IS NULL OR rk.tenant_id = $tenant_id
             OPTIONAL MATCH (run:IntelligenceRun)-[r3:DETECTED]->(sig)
             WHERE run IS NULL OR $tenant_id IS NULL OR run.tenant_id = $tenant_id
