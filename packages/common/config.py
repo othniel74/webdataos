@@ -91,7 +91,8 @@ class Settings(BaseSettings):
     demo_session_ttl_hours: int = Field(default=24, ge=1, le=168)
     demo_rate_limit_per_hour: int = Field(default=6, ge=1, le=100)
 
-    # In-memory edge controls for the demo deployment. Replace with Redis for multi-instance production.
+    redis_url: str | None = None  # e.g. redis://localhost:6379/0 — enables multi-instance rate limiting
+
     rate_limit_enabled: bool = True
     rate_limit_requests_per_minute: int = Field(default=120, ge=1)
     request_body_max_bytes: int = Field(default=2_000_000, ge=10_000)

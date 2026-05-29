@@ -1,9 +1,17 @@
-from fastapi import Depends, Request
+from datetime import datetime, timezone
+from hashlib import sha256
+
+from fastapi import Depends, Header, HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from apps.api.db.models import ManagedAPIKey
+from apps.api.db.session import get_db
 from packages.gateway.service import GatewayService
 from packages.intelligence.service import IntelligenceService
 from packages.agents.orchestrator import ResearchAgentOrchestrator
 from packages.common.rate_limit import enforce_rate_limit
-from packages.common.security import AuthContext, require_api_key
+from packages.common.security import AuthContext, _extract_bearer, require_api_key
 from packages.llm.client import LLMClient
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.memory.embeddings import EmbeddingClient
@@ -25,14 +33,54 @@ _triggerware = TriggerWareService()
 _reasoning = ReasoningEngine()
 _llm = LLMClient()
 _graph = Neo4jGraphClient()
-_agent = ResearchAgentOrchestrator(_intelligence, _speechmatics, _memory, _triggerware, _reasoning, _llm)
+_agent = ResearchAgentOrchestrator(_intelligence, _speechmatics, _memory, _triggerware, _reasoning, _llm, _graph)
 
 
 async def authenticated_context(
     request: Request,
-    auth: AuthContext = Depends(require_api_key),
+    db: AsyncSession = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> AuthContext:
+    provided = x_api_key or _extract_bearer(authorization)
+    if provided and provided.startswith("wdos_"):
+        key_hash = sha256(provided.encode()).hexdigest()
+        result = await db.execute(
+            select(ManagedAPIKey).where(
+                ManagedAPIKey.key_hash == key_hash,
+                ManagedAPIKey.revoked.is_(False),
+            )
+        )
+        managed = result.scalar_one_or_none()
+        if not managed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
+        now = datetime.now(timezone.utc)
+        if managed.expires_at and managed.expires_at.replace(tzinfo=timezone.utc) < now:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="API key has expired")
+        managed.last_used_at = now
+        await db.commit()
+        auth = AuthContext(
+            principal=f"managed:{managed.name}",
+            key_fingerprint=managed.key_prefix,
+            auth_enabled=True,
+            tenant_id=managed.tenant_id,
+            auth_type="managed_api_key",
+        )
+        request.state.auth_context = auth
+        await enforce_rate_limit(request, auth)
+        return auth
+
+    auth = await require_api_key(request, authorization, x_api_key)
     await enforce_rate_limit(request, auth)
+    return auth
+
+
+def require_admin(auth: AuthContext = Depends(authenticated_context)) -> AuthContext:
+    if auth.role not in {"admin", "owner"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required for this operation",
+        )
     return auth
 
 

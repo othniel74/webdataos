@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -67,6 +67,7 @@ class Topic(Base):
     entities: Mapped[list] = mapped_column(JSONType, default=list)
     watch_types: Mapped[list] = mapped_column(JSONType, default=list)
     refresh_frequency_minutes: Mapped[int] = mapped_column(Integer, default=1440)
+    next_run_at = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     sources: Mapped[list["Source"]] = relationship(back_populates="topic", cascade="all, delete-orphan")
@@ -240,4 +241,39 @@ class Outcome(Base):
     outcome_value: Mapped[dict] = mapped_column(JSONType, default=dict)  # e.g. {"savings": 47000, "risk_mitigated": true}
     feedback_text: Mapped[str | None] = mapped_column(Text)
     recorded_by: Mapped[str | None] = mapped_column(String(255))
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ── Audit Logging ─────────────────────────────────────────────────────
+
+class AuditLog(Base):
+    """Immutable record of who accessed or mutated what and when."""
+    __tablename__ = "audit_logs"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), index=True)
+    principal: Mapped[str] = mapped_column(String(255))
+    auth_type: Mapped[str] = mapped_column(String(40))
+    method: Mapped[str] = mapped_column(String(10))
+    path: Mapped[str] = mapped_column(String(500))
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ── API Key Management ────────────────────────────────────────────────
+
+class ManagedAPIKey(Base):
+    """Per-tenant API keys that can be created, listed, and revoked via the API."""
+    __tablename__ = "managed_api_keys"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(120), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    key_prefix: Mapped[str] = mapped_column(String(20))
+    created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_used_at = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())

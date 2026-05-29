@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.models import Topic
 from apps.api.db.session import get_db
-from apps.api.dependencies import authenticated_context
+from apps.api.dependencies import authenticated_context, require_admin
 from apps.api.workspace_resolution import ensure_workspace, resolve_workspace, workspace_id_for_tenant
 from packages.common.security import AuthContext
+from packages.common.time import utc_now
 from packages.enterprise.packs import get_pack, list_packs, package_id_from_description
 from packages.schemas.workspace import IntelligencePackRead, WorkspaceCreate, WorkspaceRead
 
@@ -66,7 +67,7 @@ async def packages() -> list[IntelligencePackRead]:
 async def create_workspace(
     payload: WorkspaceCreate,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(authenticated_context),
+    auth: AuthContext = Depends(require_admin),
 ) -> WorkspaceRead:
     pack = get_pack(payload.package_id)
     workspace_id = workspace_id_for_tenant(payload.id or _slug(payload.name), auth)
@@ -79,6 +80,7 @@ async def create_workspace(
         existing.refresh_frequency_minutes = payload.refresh_frequency_minutes
         await db.commit()
         return _workspace_read(existing)
+    from datetime import timedelta
     topic = Topic(
         id=workspace_id,
         tenant_id=auth.tenant_id,
@@ -87,6 +89,7 @@ async def create_workspace(
         entities=payload.entities or pack.entities,
         watch_types=payload.signals or pack.signals,
         refresh_frequency_minutes=payload.refresh_frequency_minutes,
+        next_run_at=utc_now() + timedelta(minutes=payload.refresh_frequency_minutes),
     )
     db.add(topic)
     await db.commit()

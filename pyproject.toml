@@ -27,6 +27,7 @@ dependencies = [
   "APScheduler>=3.10.4",
   "selenium>=4.27.0",
   "PyJWT[crypto]>=2.9.0",
+  "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]

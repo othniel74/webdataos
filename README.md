@@ -1,413 +1,574 @@
 # WebDataOS
 
-WebDataOS is an enterprise intelligence operating system for monitoring the public web, proving what changed, reasoning over the impact, and turning the result into actions.
+WebDataOS is an enterprise intelligence operating system. It monitors the public web, detects what changed, reasons over business impact, and turns results into actions.
 
-It is built for teams that need continuous intelligence across vendor risk, compliance, competitors, market movement, supplier signals, and account intelligence. The system combines live web retrieval, evidence storage, LLM reasoning, graph memory, workflow hooks, and outcome tracking in one deployable platform.
+The core loop: **configure scope → collect live evidence → compare against history → reason → propose actions → show a decision brief → record outcomes.**
+
+---
 
 ## What It Solves
 
-Most teams already know useful signals exist on the public web. The hard part is making those signals current, sourced, explainable, and operational.
+Most teams already know useful signals exist on the public web. The hard part is making those signals current, sourced, explainable, and operational — without rebuilding the same research every quarter.
 
-WebDataOS provides this loop:
+WebDataOS delivers:
 
-```text
-Configure monitoring scope
-  -> collect live evidence
-  -> compare against saved history
-  -> reason over business impact
-  -> propose actions
-  -> show a receipt
-  -> record outcomes
-```
+- **Continuous monitoring** across vendors, competitors, markets, suppliers, and accounts
+- **Source-backed decision briefs** with cited evidence, materiality assessments, and recommended next steps
+- **Persistent knowledge graph** that accumulates organizational memory across every run
+- **Action approval workflows** with human-in-the-loop gates before anything executes
+- **Outcome tracking** that closes the loop between recommendations and results
 
-The product is not only a chat surface. It supports both:
+There are two primary interaction modes:
 
-- **Monitor**: scheduled or manual intelligence updates without asking in chat every time.
-- **Analyst**: multi-turn investigation over workspace evidence and prior runs.
+- **Monitor** — scheduled or manual intelligence updates that run without asking in chat
+- **Analyst** — multi-turn investigation grounded in workspace evidence and run history
 
-Every successful run now returns a **decision brief**: a concise answer, what changed, why it matters, the recommended next action, cited evidence links, unresolved gaps, graph context, and a run receipt. This is the user-facing value contract across Monitor, Analyst, Demo, and Evidence.
+Every successful run produces a **decision brief**: a concise answer, what changed, why it matters, the recommended next action, cited evidence links, unresolved gaps, graph context, and a run receipt.
+
+---
 
 ## Live Deployments
 
 | Surface | URL |
-| --- | --- |
+|---|---|
 | Production frontend | https://webdataos.vercel.app |
 | Full-stack Vultr deployment | http://45.77.89.209 |
 | API health | http://45.77.89.209/health |
 | API readiness | http://45.77.89.209/ready |
 | Public demo catalog | http://45.77.89.209/demo/catalog |
-| Cognee Local UI | http://45.77.89.209:3200 |
+| Cognee local UI | http://45.77.89.209:3200 |
 | Cognee reverse proxy | http://45.77.89.209/cognee/ |
 
-## Current Production Status
+---
+
+## Production Status
 
 | Layer | Status |
-| --- | --- |
-| Frontend | React/Vite UI deployed on Vercel and Vultr. |
-| Backend | FastAPI API deployed on Vultr behind Nginx. |
-| Tenancy | First-party WebDataOS sign-in/sign-up is wired on the frontend; backend tenant context scopes customer data. |
-| Public demo | Demo sessions, demo workspace setup, demo monitor runs, demo Analyst chat, demo evidence, demo graph, and demo receipts are implemented. |
-| Bright Data | Live retrieval is configured for SERP, Web Scraper, Web Unlocker, and Scraping Browser routes. |
-| LLM routing | OpenAI is primary; AI/ML API is available as an OpenAI-compatible fallback and model catalog source. |
-| Memory | Cognee local is deployed; self-hosted PostgreSQL memory remains available as fallback. |
-| Graph | Neo4j is enabled and exposed through graph status, topic, entity, and backfill APIs. |
-| Speechmatics | Speech-to-text and text-to-speech adapters are implemented. |
-| TriggerWare | Workflow event adapter is implemented; remote delivery is used when an endpoint is configured, otherwise events are recorded locally. |
-| Outcomes | Outcome records and stats are database-backed. They populate as actions and recommendations are recorded. |
+|---|---|
+| Frontend | React/Vite SPA deployed on Vercel and Vultr with professional scroll-reveal animations and interactive knowledge graph |
+| Backend | FastAPI on Vultr behind Nginx; 40/40 tests passing |
+| Tenancy | Full tenant isolation; first-party sign-in/sign-up; workspace ID prefixing for non-default tenants |
+| Auth | Three modes: `api_key`, `custom` (WebDataOS JWT), `mixed` (production); Clerk JWT support; managed API keys with SHA-256 hash storage |
+| RBAC | Role-based access control enforced on write operations; `analyst` role blocked from action approval, execution, workspace creation, and API key management |
+| Audit logging | Every write and sensitive read logged to `audit_logs` with principal, auth type, path, status code, and duration |
+| Public demo | Demo sessions, workspace setup, monitor runs, Analyst chat, evidence, knowledge graph, and run receipts — all scoped to demo tenant |
+| Bright Data | Live retrieval configured for SERP, Web Scraper, Web Unlocker, and Scraping Browser with self-healing gateway |
+| LLM routing | OpenAI primary; AI/ML API OpenAI-compatible fallback |
+| Memory | Cognee local deployed; self-hosted PostgreSQL + pgvector embeddings available as fallback |
+| Graph | Neo4j enabled with enterprise fact projection, cross-entity relationships, signal timeline, risk posture, and run lineage APIs |
+| Rate limiting | Redis-backed per-tenant rate limiting |
+| Observability | OpenTelemetry + Prometheus metrics per gateway tool and agent run; Grafana dashboards |
+| Speechmatics | Speech-to-text and text-to-speech adapters implemented |
+| TriggerWare | Workflow event adapter with local recording and remote delivery |
+| Outcomes | Database-backed outcome records and statistics |
 
-## Product Surfaces
-
-| Surface | Purpose |
-| --- | --- |
-| Home | Explains the WebDataOS value loop for buyers, developers, and evaluators. |
-| Solution | Shows the three intelligence domains and how teams run each one. |
-| Pricing | Describes package tiers without changing runtime capability. |
-| Docs | Product and developer documentation entry point. |
-| Developer | SDK, API, gateway, and infrastructure explanation for technical users. |
-| Demo | Public, limited experience without sign-in. Visitors can choose a mission, enter entities, run a bounded update, chat with Analyst, inspect evidence, and view a graph. |
-| Monitor | Operational dashboard for configured intelligence updates and "what changed" reporting. |
-| Analyst | Multi-turn chat for asking follow-up questions grounded in workspace evidence and run history. |
-| Evidence | Evidence list, detail view, retrieval inspector, and Neo4j knowledge graph view. |
-| Actions | Approval queue for recommended operational actions. |
-| Outcomes | Feedback loop for measuring whether recommendations were useful. |
-| Settings | Workspace context, organization profile, integrations, and tenant configuration. |
+---
 
 ## Intelligence Domains
 
 | Domain | Monitors | Typical Signals | Output |
-| --- | --- | --- | --- |
-| Security & Compliance | Vendors, regulators, domains, security pages | Vendor risk, breach exposure, compliance updates, policy changes | Risk brief, source-backed evidence, recommended mitigation actions. |
-| GTM Intelligence | Competitors, accounts, products, markets | Competitor moves, messaging shifts, pricing changes, hiring signals, buying intent | Market brief, account intelligence, competitive movement, sales actions. |
-| Finance & Market Intelligence | Companies, suppliers, sectors, market pages | Filings, supplier signals, market movement, alternative data | Market signal, supplier risk, company brief, financial exposure notes. |
-| Enterprise Intelligence OS | Cross-domain entities and signals | Shared signals across security, GTM, and finance | Executive brief, cross-domain alerts, shared evidence, action receipt. |
+|---|---|---|---|
+| Security & Compliance | Vendors, regulators, domains, security pages | Vendor risk, breach exposure, compliance updates, policy changes | Risk brief, source-backed evidence, recommended mitigation actions |
+| GTM Intelligence | Competitors, accounts, products, markets | Competitor moves, messaging shifts, pricing changes, hiring signals, buying intent | Market brief, account intelligence, competitive movement, sales actions |
+| Finance & Market Intelligence | Companies, suppliers, sectors, market pages | Filings, supplier signals, market movement, alternative data | Market signal, supplier risk, company brief, financial exposure notes |
+| Enterprise Intelligence OS | Cross-domain entities and signals | Shared signals across security, GTM, and finance | Executive brief, cross-domain alerts, shared evidence, action receipt |
+
+---
 
 ## Architecture
 
 ```text
-Browser or SDK client
-  -> Vercel frontend or Vultr-hosted frontend
-  -> Vultr Nginx
-  -> FastAPI backend
-  -> PostgreSQL persistence
-  -> Bright Data gateway for live retrieval
-  -> Cognee plus self-hosted memory
-  -> Neo4j relationship graph
-  -> OpenAI with AI/ML API fallback
-  -> Speechmatics transcription and speech synthesis
-  -> TriggerWare workflow delivery
+Browser / SDK
+  → React/Vite SPA (apps/web)
+  → FastAPI backend (apps/api)
+  → PostgreSQL (primary persistence + pgvector embeddings)
+  → Redis (rate limiting)
+  → GatewayService → Bright Data (SERP, Web Scraper, Web Unlocker, Scraping Browser)
+  → IntelligenceService (evidence records, source discovery, freshness)
+  → LLMClient (OpenAI primary → AI/ML API fallback)
+  → ReasoningEngine (materiality + action proposals)
+  → MemoryProvider → Cognee (graph) + self-hosted (embeddings/keyword)
+  → Neo4j (relationship graph, tenant-scoped)
+  → TriggerWareService (workflow events, local or remote)
+  → SpeechmaticsService (transcription + TTS)
 ```
 
-Runtime intelligence flow:
+### Runtime intelligence flow
+
+Every monitor run and analyst chat turn goes through `ResearchAgentOrchestrator.run`:
 
 ```text
-Workspace scope or demo mission
-  -> optional Speechmatics transcription
-  -> memory recall from Cognee/self-hosted memory
-  -> source discovery and evidence retrieval
-  -> freshness filtering and stale-data exclusion
-  -> Neo4j graph sync for fresh evidence
-  -> LLM synthesis and materiality reasoning
-  -> action proposal and workflow receipt
-  -> outcome recording
+1. Transcribe         — Speechmatics transcribes audio input if present
+2. Memory search      — Cognee graph + self-hosted embedding search for prior context
+3. Retrieve context   — rank existing IntelligenceRecords by query relevance; freshness-filtered
+4. Live refresh       — if <2 matching records, call Bright Data through GatewayService
+5. Synthesize         — ReportSynthesizer calls LLM with evidence + memory; rule-based fallback
+6. Reason             — ReasoningEngine evaluates against org context; produces materiality + recommendations
+7. Propose actions    — AutonomousAction records written to DB; require admin approval before execution
+8. Memory upsert      — write synthesis result back to Cognee + self-hosted memory
+9. Workflow trigger   — send material signal event to TriggerWare
+10. Decision brief    — assembled from all of the above; primary user-facing output
+11. AgentRun record   — full ResearchReport JSON persisted to DB
 ```
+
+### Package responsibilities
+
+| Package | Role |
+|---|---|
+| `packages/agents` | `ResearchAgentOrchestrator` (run loop), `ResearchPlanner` (task decomposition), `ReportSynthesizer` (LLM + rule-based synthesis) |
+| `packages/brightdata` | Thin `BrightDataClient` wrapping SERP, Web Scraper, Web Unlocker, and Scraping Browser endpoints |
+| `packages/gateway` | Self-healing retrieval gateway: failure detection → tool rotation → normalization. Routes: SERP → Web Scraper → Web Unlocker → Scraping Browser |
+| `packages/intelligence` | `IntelligenceService`: topic/source/record CRUD, source discovery, evidence refresh, freshness scoring, Neo4j graph sync, retrieval ranking |
+| `packages/llm` | `LLMClient`: async OpenAI-compatible client. OpenAI primary → AI/ML API fallback. `available` property gates all LLM paths |
+| `packages/reasoning` | `ReasoningEngine`: package-specific frameworks (security/gtm/finance/enterprise), materiality assessments, action proposals. Mock mode when no LLM |
+| `packages/memory` | `MemoryProvider`: routes between Cognee and self-hosted. Writes to both; reads Cognee first then merges self-hosted results |
+| `packages/partners` | `CogneeMemoryService`, `SpeechmaticsService`, `TriggerWareService` adapters |
+| `packages/graph` | `Neo4jGraphClient`: tenant-scoped graph snapshots, entity neighborhoods, enterprise fact projection (products, features, pricing), backfill from evidence records |
+| `packages/enterprise` | `IntelligencePack` definitions (security, gtm, finance, enterprise). Packs define default entities, signals, and reasoning framework |
+| `packages/schemas` | Pydantic v2 models for all cross-package contracts |
+| `packages/common` | `Settings` (pydantic-settings, `.env`-backed), auth, security, RBAC, rate limiting, circuit breaker, logging |
+| `packages/observability` | OpenTelemetry wiring, Prometheus metrics (`AGENT_RUNS`, `GATEWAY_LATENCY`, etc.) |
+
+---
 
 ## Knowledge Graph
 
-Neo4j is used to make evidence relationships visible instead of hiding them behind summaries.
+Neo4j makes evidence relationships visible instead of hiding them behind summaries. Every intelligence run writes into a tenant-scoped graph of workspaces, entities, evidence records, sources, signals, actions, and outcomes.
 
-It stores tenant-scoped relationships among workspaces, entities, evidence records, sources, signals, actions, and outcomes. The frontend exposes the graph in:
+**Node types**: `Workspace`, `Company`, `Vendor`, `Competitor`, `Regulation`, `Supplier`, `Market`, `IntelligenceRecord`, `Source`, `Signal`, `Risk`, `IntelligenceRun`, `WorkflowAction`, `Recommendation`, `Product`, `Feature`, `PricingModel`
 
-- **Monitor**: compact graph context for the current workspace.
-- **Evidence**: larger evidence graph and selected entity neighborhood.
-- **Analyst**: graph status and cited relationship context during runs.
-- **Settings/Developer**: graph health and integration visibility.
+**Relationship types**: `MONITORS`, `HAS_RECORD`, `FROM_SOURCE`, `HAS_SIGNAL`, `INDICATES_RISK`, `TRIGGERED_ACTION`, `SUPPORTED_BY`, `OFFERS`, `HAS_FEATURE`, `HAS_PRICING_MODEL`, `CO_OCCURS_WITH`
 
-Graph APIs return only tenant-scoped data. Demo graph routes use the demo tenant/session scope and do not expose customer data.
+The frontend graph viewer supports:
+- Force-directed canvas layout with physics simulation
+- Zoom in/out/fit-all buttons + pinch-to-zoom on touch devices
+- Double-click to focus on a node's immediate neighborhood
+- Search with live node highlighting and match counter
+- Node type filter (Workspace, Company, Risk, Signal, etc.)
+- Click to select and inspect any node
+
+Graph APIs return only tenant-scoped data. Demo graph routes use the demo tenant/session scope and never expose customer data.
+
+---
+
+## Security and Enterprise Readiness
+
+### Authentication
+
+Three runtime modes controlled by `AUTH_MODE`:
+
+| Mode | Purpose |
+|---|---|
+| `api_key` | Dev/SDK access; `API_AUTH_ENABLED=false` disables all auth in dev |
+| `custom` | First-party WebDataOS email/password; JWT signed by `AUTH_JWT_SECRET` |
+| `mixed` | Production: accepts WebDataOS sessions, API keys, Clerk JWTs, and unauthenticated public demo routes |
+
+### Managed API Keys
+
+Tenant admins can create named API keys via `POST /api-keys`. Keys use a `wdos_` prefix, are stored as SHA-256 hashes (raw value returned once, never stored), are capped at 20 per tenant, and can be revoked instantly. Managed keys are validated against the database on every request and update `last_used_at` automatically.
+
+### Role-Based Access Control
+
+Every route dependency uses `AuthContext.role`. Admin-only operations raise `403` for `analyst` role:
+
+| Operation | Required role |
+|---|---|
+| Create workspace | `admin` |
+| Create / revoke API key | `admin` |
+| Approve action | `admin` |
+| Execute action | `admin` |
+| Erase tenant (GDPR) | `admin` |
+
+### Audit Logging
+
+Every write operation and sensitive read (`/runs`, `/receipt`, `/agent`, `/intelligence`, `/audit`) is logged to `audit_logs` with:
+- `tenant_id`, `principal`, `auth_type`
+- `method`, `path`, `status_code`, `duration_ms`
+- `ip_address`, `user_agent`
+
+Audit logging is middleware-level — a logging failure never breaks the request.
+
+### GDPR Tenant Erasure
+
+`DELETE /auth/tenants/{tenant_id}` — admin-only, own-tenant-only. Deletes all content data (intelligence records, agent runs, actions, chat messages, memory entries, outcomes, org context, managed API keys, workspaces), anonymizes user accounts, and soft-deletes the tenant. Audit logs are retained for compliance.
+
+### Graceful Degradation
+
+The system degrades by capability, not by failure:
+
+| Missing dependency | Behavior |
+|---|---|
+| Bright Data credentials | Mock responses in dev; live required in production |
+| OpenAI key | AI/ML API fallback; rule-based synthesis if neither is configured |
+| Cognee runtime | Self-hosted PostgreSQL + pgvector memory |
+| Redis | In-memory rate limiting |
+| Neo4j | PostgreSQL-only mode; graph APIs return disabled status |
+| Speechmatics | Text-only workflows continue |
+| TriggerWare endpoint | Events recorded locally |
+
+---
 
 ## Public Demo
 
-The public demo is designed for judges, buyers, and developers who need to understand the system without signing in.
+The public demo lets buyers, judges, and developers experience the full product loop without signing in.
 
 Demo users can:
-
-- create a short-lived demo session;
-- choose a monitoring mission;
-- enter a limited set of entities and signals;
-- run a rate-limited monitoring update;
-- ask bounded Analyst chat questions;
-- inspect sourced evidence;
-- view the knowledge graph;
-- see a run receipt that explains what happened.
+- Create a short-lived anonymous session
+- Choose a monitoring mission (Vendor Risk, GTM Intelligence, Finance & Market)
+- Enter a limited set of entities and signals
+- Run a rate-limited monitoring update
+- Ask bounded Analyst chat questions
+- Inspect sourced evidence
+- Explore the knowledge graph
+- Read a run receipt explaining exactly what happened
 
 Demo users cannot access tenant workspaces, private history, production workflows, or customer data.
 
-## Tenancy and Auth
-
-WebDataOS supports three runtime auth modes:
-
-| Mode | Purpose |
-| --- | --- |
-| `api_key` | Local development and SDK/service access. |
-| `custom` | WebDataOS email/password customer access with signed bearer sessions. |
-| `mixed` | Production mode that supports WebDataOS sessions, API keys, and approved public demo routes. |
-
-Tenant-owned data is scoped by tenant context. WebDataOS accounts are mapped to an internal tenant. API keys remain available for SDK and service access.
-
-## Partner Integrations
-
-| Partner | Responsibility | Behavior |
-| --- | --- | --- |
-| Bright Data | Live public-web retrieval | Routes through SERP, Web Scraper, Web Unlocker, and Scraping Browser. SERP responses preserve full JSON where available. |
-| OpenAI | Primary LLM provider | Used for synthesis, reasoning, and embeddings when configured. |
-| AI/ML API | OpenAI-compatible fallback | Lets the system route to additional model vendors through one compatible provider surface. |
-| Cognee | Knowledge memory | Runs locally on Vultr; Cloud credentials are optional. |
-| Neo4j | Relationship graph | Stores and returns tenant-scoped graph snapshots for evidence and entity neighborhoods. |
-| Speechmatics | Voice input/output | Supports transcription for audio input and speech synthesis for spoken responses. |
-| TriggerWare | Workflow automation | Sends material action events to an external workflow endpoint when configured. |
+---
 
 ## Environment Configuration
-
-Copy the template and fill only the credentials needed for the environment:
 
 ```bash
 cp .env.example .env
 ```
 
-Important variables:
+Key variables for local dev:
+
+| Variable | Local default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/webdata` | Async PostgreSQL |
+| `MOCK_BRIGHTDATA` | `true` | Skip live Bright Data calls |
+| `AUTH_MODE` | `api_key` | Auth mode |
+| `API_AUTH_ENABLED` | `false` | Disable auth in dev |
+| `NEO4J_ENABLED` | `false` | Skip Neo4j in dev |
+| `OPENAI_API_KEY` | unset | LLM (falls back to rule-based) |
+| `VITE_API_BASE_URL` | `http://localhost:8000` | Frontend API target |
+| `REDIS_URL` | unset | Rate limiting (in-memory fallback) |
+
+Production-only variables:
 
 | Variable | Purpose |
-| --- | --- |
-| `APP_ENV`, `LOG_LEVEL` | Runtime environment and logging. |
-| `AUTH_MODE`, `DEFAULT_TENANT_ID` | Auth mode and fallback tenant. |
-| `API_AUTH_ENABLED`, `API_KEYS`, `API_KEY_HEADER_NAME` | API-key authentication controls. |
-| `AUTH_JWT_SECRET`, `AUTH_TOKEN_TTL_HOURS` | First-party WebDataOS session signing and session lifetime. |
-| `PUBLIC_DEMO_ENABLED`, `DEMO_TENANT_ID`, `DEMO_SESSION_TTL_HOURS`, `DEMO_RATE_LIMIT_PER_HOUR` | Public demo controls. |
-| `DATABASE_URL`, `SYNC_DATABASE_URL` | Async and sync PostgreSQL connection strings. |
-| `OPENAI_API_KEY`, `OPENAI_MODEL` | Primary LLM provider. |
-| `AIMLAPI_API_KEY`, `AIMLAPI_BASE_URL`, `AIMLAPI_MODELS_URL`, `AIMLAPI_MODEL` | AI/ML API fallback and model catalog configuration. |
-| `BRIGHTDATA_API_KEY`, `BRIGHTDATA_API_ENDPOINT`, `BRIGHTDATA_SCRAPER_ENDPOINT`, `BRIGHTDATA_*_ZONE` | Bright Data live retrieval and recovery routes. |
-| `COGNEE_ENDPOINT`, `COGNEE_API_KEY`, `COGNEE_UI_PORT`, `COGNEE_LLM_MODEL`, `COGNEE_EMBEDDING_MODEL` | Cognee Cloud/local memory configuration. |
-| `NEO4J_ENABLED`, `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j Aura or self-hosted graph configuration. |
-| `SPEECHMATICS_API_KEY`, `SPEECHMATICS_ENDPOINT` | Speechmatics speech-to-text configuration. |
-| `SPEECHMATICS_TTS_ENDPOINT`, `SPEECHMATICS_TTS_VOICE` | Speechmatics text-to-speech configuration. |
-| `TRIGGERWARE_API_KEY`, `TRIGGERWARE_ENDPOINT`, `TRIGGERWARE_WEBHOOK_SECRET` | TriggerWare workflow delivery and optional signing. |
-| `VITE_API_BASE_URL`, `VITE_API_KEY` | Frontend API connection settings. |
+|---|---|
+| `AUTH_JWT_SECRET` | Signs first-party WebDataOS sessions |
+| `BRIGHTDATA_API_KEY` | Live web retrieval |
+| `COGNEE_ENDPOINT`, `COGNEE_API_KEY` | Cognee Cloud (or leave unset for local) |
+| `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j Aura or self-hosted |
+| `SPEECHMATICS_API_KEY` | Voice input/output |
+| `TRIGGERWARE_ENDPOINT`, `TRIGGERWARE_API_KEY` | Workflow delivery |
+| `CLERK_JWKS_URL` | Clerk JWT verification (mixed mode) |
 
-Do not commit real secrets. Production credentials should live in Vultr, Vercel, or a dedicated secret manager.
+Do not commit real secrets. Production credentials belong in Vultr environment variables, Vercel project settings, or a secrets manager.
+
+---
 
 ## Local Development
 
-### Docker Compose
+### Option A — Docker Compose (recommended)
 
 ```bash
+# Core services: PostgreSQL + API + web
 docker compose -f infra/docker-compose.yml up --build
+
+# With observability: Prometheus + Grafana
+docker compose -f infra/docker-compose.yml --profile monitoring up --build
+
+# Full stack including Neo4j
+docker compose -f infra/docker-compose.yml --profile full up --build
 ```
 
-This starts the API, web UI, PostgreSQL, Neo4j, Prometheus, and Grafana services defined in the local Compose stack.
+### Option B — Direct
 
-### Backend
+**Backend**
 
 ```bash
 python -m venv .venv
-. .venv/Scripts/activate
+source .venv/Scripts/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
+alembic upgrade head
 uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Frontend
+**Frontend**
 
 ```bash
 cd apps/web
 npm install
-npm run dev
+npm run dev     # dev server on http://localhost:5173
 ```
 
-The frontend lives in `apps/web`. For local API access, set `VITE_API_BASE_URL=http://localhost:8000`.
+**Useful commands**
+
+```bash
+# Lint
+python -m ruff check apps packages tests
+
+# Test suite (40 tests)
+python -m pytest -q
+
+# Single test file
+python -m pytest tests/test_agent_value_loop.py -q
+
+# Single test by name
+python -m pytest -k "test_value_loop_marks_first_successful_run_as_baseline" -q
+
+# DB migrations (local)
+alembic upgrade head
+
+# psql
+docker compose -f infra/docker-compose.yml exec postgres psql -U postgres -d webdata
+
+# API container shell
+docker compose -f infra/docker-compose.yml exec api bash
+```
+
+---
 
 ## Deployment
 
 | Target | Documentation |
-| --- | --- |
+|---|---|
 | Vultr full stack | `docs/deployment/VULTR.md` |
-| Vercel frontend with Vultr API | `docs/deployment/VERCEL.md` |
+| Vercel frontend + Vultr API | `docs/deployment/VERCEL.md` |
 
-Current production pattern:
+**Production deploy (Vultr)**
 
-```text
-Vercel frontend
-  -> Vercel rewrites for API routes
-  -> Vultr Nginx
-  -> FastAPI backend
-  -> PostgreSQL, Cognee local, Neo4j, and partner APIs
+```bash
+docker compose -f infra/docker-compose.yml \
+  -f infra/docker-compose.vultr.yml \
+  --profile production --profile monitoring \
+  up -d --build
 ```
 
-Vultr can also serve the frontend and backend together for a fully self-hosted deployment.
-
-## API Surface
-
-### Health and Runtime
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Runtime health, provider availability, auth mode, and demo status. |
-| `GET` | `/ready` | Readiness check. |
-| `GET` | `/metrics` | Prometheus metrics. |
-| `GET` | `/llm/providers` | LLM provider availability and routing status. |
-| `GET` | `/llm/aimlapi/models` | AI/ML API model catalog proxy. |
-
-### Public Demo
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/demo/catalog` | List demo missions and allowed signals. |
-| `POST` | `/demo/sessions` | Create a short-lived anonymous demo session. |
-| `GET` | `/demo/sessions/current` | Resolve the current demo session. |
-| `POST` | `/demo/workspaces` | Configure a limited demo workspace. |
-| `POST` | `/demo/monitor/run` | Run a bounded demo monitoring update. |
-| `POST` | `/demo/analyst/chat` | Ask Analyst questions grounded in demo evidence. |
-| `GET` | `/demo/evidence` | List evidence for the demo session. |
-| `GET` | `/demo/graph` | Return demo graph snapshot. |
-| `GET` | `/demo/receipt/{run_id}` | Return demo run receipt. |
-| `GET` | `/demo/runs/latest` | Return the latest demo run. |
-
-### Workspace and Monitoring
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/workspaces/packages` | List intelligence packages. |
-| `POST` | `/workspaces` | Create a tenant-scoped workspace. |
-| `GET` | `/workspaces` | List tenant-scoped workspaces. |
-| `GET` | `/workspaces/{workspace_id}` | Get one workspace. |
-| `GET` | `/monitor/{workspace_id}` | Get monitoring summary. |
-| `POST` | `/monitor/{workspace_id}/run` | Run monitoring now. |
-| `GET` | `/runs` | List agent/monitor runs. |
-| `GET` | `/runs/{run_id}` | Get run details and report. |
-
-### Analyst, Evidence, and Graph
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/agent/research` | Run a research task and generate a report. |
-| `GET` | `/chat/{workspace_id}` | Load multi-turn Analyst chat history. |
-| `POST` | `/chat/{workspace_id}` | Send a multi-turn Analyst chat message. |
-| `DELETE` | `/chat/{workspace_id}` | Clear workspace chat history. |
-| `POST` | `/gateway/fetch` | Fetch live web evidence through the Bright Data recovery gateway. |
-| `POST` | `/intelligence/topics` | Create an intelligence topic. |
-| `GET` | `/intelligence/topics` | List intelligence topics. |
-| `POST` | `/intelligence/topics/{topic_id}/discover` | Discover sources through live search. |
-| `POST` | `/intelligence/topics/{topic_id}/refresh` | Refresh records for a topic. |
-| `GET` | `/intelligence/records` | List evidence records with stale-data filtering support. |
-| `POST` | `/intelligence/retrieve` | Retrieve ranked evidence. |
-| `POST` | `/intelligence/retrieval/context` | Retrieve ranked evidence context for reasoning. |
-| `GET` | `/graph/status` | Neo4j status and graph counts. |
-| `GET` | `/graph/topics/{topic_id}` | Graph snapshot for a workspace/topic. |
-| `POST` | `/graph/topics/{topic_id}/backfill` | Sync fresh evidence into Neo4j. |
-| `GET` | `/graph/entities/{entity}` | Entity neighborhood graph. |
-
-### Actions, Outcomes, and Partners
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/context` | Upsert organizational context. |
-| `GET` | `/context/{workspace_id}` | Get organizational context. |
-| `GET` | `/actions/{workspace_id}` | List autonomous actions. |
-| `POST` | `/actions/{action_id}/approve` | Approve or reject an action. |
-| `POST` | `/actions/{action_id}/execute` | Execute an approved action. |
-| `POST` | `/outcomes` | Record a recommendation outcome. |
-| `GET` | `/outcomes/{workspace_id}` | List workspace outcomes. |
-| `GET` | `/outcomes/{workspace_id}/stats` | Get outcome statistics. |
-| `POST` | `/transcriptions` | Submit or normalize transcription input. |
-| `POST` | `/transcriptions/upload` | Upload audio for Speechmatics transcription. |
-| `POST` | `/speech/synthesize` | Generate spoken response audio. |
-| `POST` | `/memory/upsert` | Store evidence in memory. |
-| `POST` | `/memory/search` | Search Cognee/self-hosted memory. |
-| `POST` | `/workflows/trigger` | Send a workflow event through TriggerWare. |
-| `GET` | `/triggerware/events` | List recorded TriggerWare events. |
-
-## Operational Behavior
-
-WebDataOS degrades by capability instead of failing the whole runtime:
-
-| Missing dependency | Behavior |
-| --- | --- |
-| Bright Data credentials | Local fallback responses can be used for development; production should use live Bright Data credentials. |
-| OpenAI key | AI/ML API can be used when configured; otherwise synthesis falls back to deterministic output. |
-| AI/ML API key | OpenAI remains the primary provider. |
-| Cognee Cloud credentials | Local Cognee is used. |
-| Cognee local runtime | Self-hosted memory remains available. |
-| Speechmatics key | Typed text workflows continue; audio transcription and speech synthesis are unavailable. |
-| TriggerWare endpoint | Workflow events are recorded locally instead of delivered externally. |
-| Neo4j | PostgreSQL-backed storage continues without graph persistence. |
-
-## Verification
-
-Before deployment, run:
+**Pre-deploy checklist**
 
 ```bash
 python -m ruff check apps packages tests
 python -m pytest -q
-cd apps/web
-npm run build
+cd apps/web && npm run build
 ```
 
-Production smoke checks:
+**Production smoke checks**
 
 ```bash
-curl https://webdataos.vercel.app/health
-curl https://webdataos.vercel.app/ready
-curl https://webdataos.vercel.app/demo/catalog
-curl https://webdataos.vercel.app/graph/status
+curl http://45.77.89.209/health
+curl http://45.77.89.209/ready
+curl http://45.77.89.209/demo/catalog
+curl http://45.77.89.209/graph/status
 ```
+
+---
+
+## API Reference
+
+### Health and Runtime
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Runtime health, provider availability, auth mode, demo status |
+| `GET` | `/ready` | Readiness probe |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/llm/providers` | LLM provider availability and routing status |
+| `GET` | `/llm/aimlapi/models` | AI/ML API model catalog proxy |
+
+### Auth
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/auth/signup` | Public | Create account and tenant |
+| `POST` | `/auth/login` | Public | Authenticate and receive session token |
+| `GET` | `/auth/me` | Any | Current authenticated user |
+| `DELETE` | `/auth/tenants/{tenant_id}` | Admin | GDPR erasure — delete all tenant content data |
+
+### API Key Management
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api-keys` | Any | List active managed API keys for current tenant |
+| `POST` | `/api-keys` | Admin | Create a managed API key (raw value returned once) |
+| `DELETE` | `/api-keys/{key_id}` | Admin | Revoke a managed API key |
+
+### Public Demo
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/demo/catalog` | List demo missions and allowed signals |
+| `POST` | `/demo/sessions` | Create a short-lived anonymous demo session |
+| `GET` | `/demo/sessions/current` | Resolve the current demo session |
+| `POST` | `/demo/workspaces` | Configure a limited demo workspace |
+| `POST` | `/demo/monitor/run` | Run a bounded demo monitoring update |
+| `POST` | `/demo/analyst/chat` | Ask Analyst questions grounded in demo evidence |
+| `GET` | `/demo/evidence` | List evidence for the demo session |
+| `GET` | `/demo/graph` | Demo graph snapshot |
+| `GET` | `/demo/receipt/{run_id}` | Demo run receipt |
+| `GET` | `/demo/runs/latest` | Latest demo run |
+
+### Workspaces and Monitoring
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/workspaces/packages` | Any | List intelligence packages |
+| `POST` | `/workspaces` | Admin | Create or update a tenant-scoped workspace |
+| `GET` | `/workspaces` | Any | List tenant workspaces |
+| `GET` | `/workspaces/{workspace_id}` | Any | Get one workspace |
+| `GET` | `/monitor/{workspace_id}` | Any | Get monitoring summary |
+| `POST` | `/monitor/{workspace_id}/run` | Any | Trigger a monitoring run |
+| `GET` | `/runs` | Any | List agent/monitor runs |
+| `GET` | `/runs/{run_id}` | Any | Get run details and decision brief |
+
+### Analyst, Evidence, and Graph
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/agent/research` | Run a research task and generate a report |
+| `GET` | `/chat/{workspace_id}` | Load multi-turn Analyst chat history |
+| `POST` | `/chat/{workspace_id}` | Send a multi-turn Analyst chat message |
+| `DELETE` | `/chat/{workspace_id}` | Clear workspace chat history |
+| `POST` | `/gateway/fetch` | Fetch live evidence through the Bright Data recovery gateway |
+| `GET` | `/intelligence/records` | List evidence records with freshness filtering |
+| `POST` | `/intelligence/retrieve` | Ranked evidence retrieval |
+| `POST` | `/intelligence/retrieval/context` | Ranked evidence context for reasoning |
+| `POST` | `/intelligence/topics/{topic_id}/discover` | Discover sources through live search |
+| `POST` | `/intelligence/topics/{topic_id}/refresh` | Refresh evidence for a topic |
+| `GET` | `/graph/status` | Neo4j status and graph counts |
+| `GET` | `/graph/topics/{topic_id}` | Graph snapshot for a workspace |
+| `POST` | `/graph/topics/{topic_id}/backfill` | Sync evidence into Neo4j |
+| `GET` | `/graph/entities/{entity}` | Entity neighborhood graph |
+| `GET` | `/graph/cross-entity` | Cross-entity relationship intelligence |
+| `GET` | `/graph/signal-timeline/{topic_id}` | Signal timeline for a workspace |
+| `GET` | `/graph/risk-posture/{topic_id}` | Risk posture summary |
+| `GET` | `/graph/run-lineage/{run_id}` | Run lineage trace |
+
+### Actions, Outcomes, and Partners
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/context` | Any | Upsert organizational context |
+| `GET` | `/context/{workspace_id}` | Any | Get organizational context |
+| `GET` | `/actions/{workspace_id}` | Any | List autonomous actions |
+| `POST` | `/actions/{action_id}/approve` | Admin | Approve or reject an action |
+| `POST` | `/actions/{action_id}/execute` | Admin | Execute an approved action |
+| `POST` | `/outcomes` | Any | Record a recommendation outcome |
+| `GET` | `/outcomes/{workspace_id}` | Any | List workspace outcomes |
+| `GET` | `/outcomes/{workspace_id}/stats` | Any | Outcome statistics |
+| `POST` | `/transcriptions` | Any | Submit or normalize transcription input |
+| `POST` | `/transcriptions/upload` | Any | Upload audio for Speechmatics transcription |
+| `POST` | `/speech/synthesize` | Any | Generate spoken response audio |
+| `POST` | `/memory/upsert` | Any | Store evidence in memory |
+| `POST` | `/memory/search` | Any | Search Cognee/self-hosted memory |
+| `POST` | `/workflows/trigger` | Any | Send a workflow event through TriggerWare |
+| `GET` | `/triggerware/events` | Any | List recorded TriggerWare events |
+
+---
+
+## SDKs
+
+```bash
+# Python SDK
+cd sdks/python && python -m build
+
+# TypeScript SDK
+cd sdks/typescript && npm install && npm run build
+```
+
+---
 
 ## Project Structure
 
 ```text
 apps/
   api/                  FastAPI backend
-    main.py             Application entry point and health routes
-    dependencies.py     Service wiring
-    db/                 SQLAlchemy models and sessions
+    main.py             Application entry point, audit middleware, health routes
+    dependencies.py     Service wiring, auth resolution, managed key lookup, require_admin
+    db/
+      models.py         SQLAlchemy models (all tenant-scoped)
+      session.py        Async session factory
     routes/             API route handlers
-  web/                  React/Vite frontend
-    src/main.jsx        Main application UI
+  web/                  React/Vite SPA
+    src/main.jsx        Full application UI (~5000 lines; single-file)
 packages/
   agents/               Research orchestration and synthesis
   brightdata/           Bright Data API clients
-  common/               Runtime configuration and shared utilities
+  common/               Settings, auth, security, RBAC, rate limiting, circuit breaker
   enterprise/           Intelligence package definitions
-  gateway/              Self-healing retrieval gateway
-  graph/                Neo4j graph client and snapshots
-  intelligence/         Evidence records, topics, and retrieval
+  gateway/              Self-healing retrieval gateway with failure detection
+  graph/                Neo4j client, enterprise fact projection, graph snapshots
+  intelligence/         Evidence records, topics, freshness, retrieval ranking
   llm/                  OpenAI and AI/ML API routing
-  memory/               Cognee and self-hosted memory providers
+  memory/               Cognee and self-hosted PostgreSQL+pgvector memory
   outcomes/             Outcome tracking and analytics
-  partners/             Speechmatics, Cognee, and TriggerWare adapters
-  reasoning/            Materiality and action reasoning
-  schemas/              Pydantic models
-infra/                  Docker Compose, Nginx, Prometheus, Grafana
-docs/                   Product and deployment documentation
-tests/                  Automated test suite
+  partners/             Speechmatics, Cognee, TriggerWare adapters
+  reasoning/            Materiality assessment and action proposal engine
+  schemas/              Pydantic v2 cross-package contracts
+  observability/        OpenTelemetry + Prometheus wiring
+infra/
+  docker-compose.yml    Local and production Compose definitions
+  docker-compose.vultr.yml  Vultr-specific overrides
+  nginx/                Nginx config
+  prometheus/           Prometheus config
+  grafana/              Grafana dashboards
+alembic/
+  versions/             Database migrations (0001–0007)
+sdks/
+  python/               Python SDK
+  typescript/           TypeScript SDK
+docs/                   Deployment and product documentation
+tests/                  Automated test suite (40 tests, conftest.py for isolation)
 ```
+
+---
+
+## Data Model
+
+| Table | Purpose |
+|---|---|
+| `tenants` | Every customer or internal workspace belongs to a tenant |
+| `user_accounts` | First-party WebDataOS accounts |
+| `tenant_memberships` | Clerk org/user → tenant mappings |
+| `topics` | Workspaces: entities, signals, refresh cadence |
+| `sources` | Discovered source URLs per workspace (cascade-delete with topic) |
+| `intelligence_records` | Extracted evidence with freshness status and optional pgvector embedding |
+| `change_events` | Field-level diffs detected between refresh runs |
+| `refresh_runs` | Per-topic refresh run records |
+| `agent_runs` | Full `ResearchReport` JSON including decision brief |
+| `chat_messages` | Durable Analyst conversation history per workspace |
+| `memory_entries` | Self-hosted memory with optional pgvector embedding |
+| `organizational_contexts` | Per-workspace contracts, risk thresholds, and strategic priorities |
+| `autonomous_actions` | Proposed actions with approval workflow (`pending_approval → approved → executed`) |
+| `outcomes` | User feedback on recommendations |
+| `managed_api_keys` | Tenant-managed API keys with SHA-256 hash storage |
+| `audit_logs` | Immutable access and mutation log with principal, path, duration |
+| `demo_sessions` | Short-lived anonymous demo sessions |
+
+---
 
 ## Requirement Alignment
 
 | Requirement | Status |
-| --- | --- |
-| Public demo without sign-in | Implemented with scoped demo sessions and demo-only routes. |
-| Custom tenancy | Implemented for sign-in/sign-up and tenant-scoped backend access. |
-| Tenant isolation | Tenant context is wired through customer routes and graph queries. |
-| Live monitoring dashboard | Implemented through Monitor and `/monitor/{workspace_id}` routes. |
-| Multi-turn Analyst chat | Implemented through `/chat/{workspace_id}` history and message routes. |
-| Evidence inspector | Implemented with evidence list, detail, retrieval context, and graph panels. |
-| Knowledge graph frontend | Implemented with compact and expanded graph views backed by Neo4j APIs. |
-| Bright Data integration | Implemented and configured for live production use. |
-| LLM provider fallback | OpenAI primary with AI/ML API fallback. |
-| Cognee integration | Local Cognee deployment is live; Cloud mode remains optional. |
-| Speechmatics integration | Implemented for transcription and speech synthesis workflows. |
-| TriggerWare integration | Adapter implemented with local event recording and remote delivery when configured. |
-| Outcome learning | Database-backed outcome recording and statistics are live. |
-| Self-hosted deployment | Vultr full-stack deployment is live. |
-| Hosted frontend deployment | Vercel frontend deployment is live. |
+|---|---|
+| Public demo without sign-in | Implemented with scoped demo sessions and demo-only routes |
+| Multi-tenancy | Full tenant isolation on all tables; workspace ID prefixing for non-default tenants |
+| RBAC | Enforced on write operations; admin vs. analyst roles checked via dependency |
+| Managed API keys | SHA-256 hashed, `wdos_` prefix, max 20/tenant, DB-validated on every request |
+| Audit logging | Middleware-level; every write + sensitive read logged; never breaks requests |
+| GDPR erasure | `DELETE /auth/tenants/{id}` — wipes content data, anonymizes accounts, retains audit trail |
+| Live monitoring dashboard | Implemented via Monitor route and `/monitor/{workspace_id}` |
+| Multi-turn Analyst chat | Implemented via `/chat/{workspace_id}` history and message routes |
+| Evidence inspector | Evidence list, detail, retrieval context, and graph panels |
+| Knowledge graph | Force-directed canvas with zoom, pan, search, highlight, pinch-to-zoom, double-click focus |
+| Persistent graph memory | Every run writes to Neo4j; entity and relationship memory accumulates across runs |
+| Bright Data integration | Live retrieval with self-healing recovery chain |
+| LLM provider fallback | OpenAI primary → AI/ML API → rule-based synthesis |
+| Cognee integration | Local Cognee deployed; Cloud mode optional |
+| pgvector embeddings | Real cosine similarity search in self-hosted memory |
+| Redis rate limiting | Per-tenant rate limiting with in-memory fallback |
+| Observability | OpenTelemetry + Prometheus + Grafana; `/health` enumerates all provider states |
+| Speechmatics | Transcription and TTS adapters implemented |
+| TriggerWare | Workflow delivery with local fallback |
+| Outcome learning | Database-backed outcome recording and statistics |
+| Self-hosted deployment | Vultr full-stack deployment live |
+| Hosted frontend | Vercel deployment live |
+
+---
 
 ## License
 

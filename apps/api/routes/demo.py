@@ -4,14 +4,15 @@ import uuid
 from datetime import timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import Response
 
 from apps.api.db.models import AgentRun, DemoSession, IntelligenceRecord, Source, Topic
 from apps.api.db.session import get_db
-from apps.api.dependencies import get_agent_orchestrator, get_graph_service, get_intelligence_service
+from apps.api.dependencies import get_agent_orchestrator, get_graph_service, get_intelligence_service, get_speechmatics_service
 from packages.agents.orchestrator import ResearchAgentOrchestrator
 from packages.common.config import get_settings
 from packages.common.time import utc_now
@@ -19,8 +20,10 @@ from packages.enterprise.packs import get_pack
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.intelligence.service import IntelligenceService
 from packages.intelligence.utils import infer_authority, infer_source_type, stable_id
+from packages.partners.speechmatics import SpeechmaticsService
 from packages.schemas.agent import ResearchRequest
 from packages.schemas.intelligence import GraphNode, GraphRelationship, GraphSnapshot, IntelligenceRecordRead
+from packages.schemas.partners import TextToSpeechRequest, TranscriptionResult
 
 router = APIRouter(prefix="/demo", tags=["Public Demo"])
 
@@ -550,3 +553,33 @@ async def latest_demo_run(
     )
     run = result.scalar_one_or_none()
     return run.report_json if run else {"session": _session_payload(session), "run": None}
+
+
+@router.post("/transcriptions/upload", response_model=TranscriptionResult)
+async def demo_transcribe_upload(
+    audio: UploadFile = File(...),
+    language: str = Form("en"),
+    session: DemoSession = Depends(_load_session),
+    speechmatics: SpeechmaticsService = Depends(get_speechmatics_service),
+) -> TranscriptionResult:
+    content = await audio.read()
+    return await speechmatics.transcribe_audio_file(
+        content,
+        filename=audio.filename or "recording.webm",
+        content_type=audio.content_type,
+        language=language,
+    )
+
+
+@router.post("/speech/synthesize")
+async def demo_synthesize_speech(
+    payload: TextToSpeechRequest,
+    session: DemoSession = Depends(_load_session),
+    speechmatics: SpeechmaticsService = Depends(get_speechmatics_service),
+) -> Response:
+    audio = await speechmatics.synthesize(payload)
+    return Response(
+        content=audio,
+        media_type="audio/wav",
+        headers={"Content-Disposition": 'inline; filename="speechmatics.wav"'},
+    )

@@ -81,6 +81,7 @@ class GraphStatus(BaseModel):
     enabled: bool = False
     counts: dict[str, int] = Field(default_factory=dict)
     top_entities: list[dict[str, Any]] = Field(default_factory=list)
+    signal_summary: list[dict[str, Any]] = Field(default_factory=list)
     message: str | None = None
 
 

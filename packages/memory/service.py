@@ -124,7 +124,50 @@ class MemoryService:
             1. Keyword match against entity + content
             2. Return matches ranked by recency
         """
-        # Load candidate memories for this workspace
+        # pgvector path: native cosine similarity via SQL — O(log n) with IVFFlat index
+        if self.embedder.available:
+            try:
+                query_embedding = await self.embedder.embed(request.query)
+                embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
+                from sqlalchemy import text
+                rows = await db.execute(
+                    text(
+                        """
+                        SELECT id, entity, content, evidence_urls, metadata_json,
+                               workspace_id, updated_at,
+                               1 - (embedding_vector <=> :vec::vector) AS score
+                        FROM memory_entries
+                        WHERE workspace_id = :ws_id
+                          AND embedding_vector IS NOT NULL
+                        ORDER BY embedding_vector <=> :vec::vector
+                        LIMIT :top_k
+                        """
+                    ),
+                    {"vec": embedding_str, "ws_id": request.workspace_id, "top_k": request.top_k},
+                )
+                pgvector_results = rows.fetchall()
+                if pgvector_results:
+                    entity_terms = {e.lower() for e in request.entities}
+                    records = []
+                    for row in pgvector_results:
+                        score = float(row.score or 0.0)
+                        if row.entity.lower() in entity_terms:
+                            score = min(score + 0.1, 1.0)
+                        records.append(MemoryRecord(
+                            memory_id=row.id,
+                            provider="webdataos_memory_pgvector",
+                            workspace_id=row.workspace_id,
+                            entity=row.entity,
+                            content=row.content,
+                            evidence_urls=row.evidence_urls or [],
+                            score=round(score, 4),
+                        ))
+                    return records
+            except Exception as exc:
+                logger.warning("pgvector_search_failed", error=str(exc)[:200])
+                # Fall through to JSON embedding path
+
+        # JSON embedding fallback (existing rows without pgvector column)
         result = await db.execute(
             select(MemoryEntry)
             .where(MemoryEntry.workspace_id == request.workspace_id)
@@ -136,7 +179,6 @@ class MemoryService:
         if not candidates:
             return []
 
-        # Semantic search path
         if self.embedder.available:
             try:
                 query_embedding = await self.embedder.embed(request.query)
@@ -144,28 +186,22 @@ class MemoryService:
                 for entry in candidates:
                     if entry.embedding:
                         sim = _cosine_similarity(query_embedding, entry.embedding)
-                        # Boost score if entity matches
                         entity_boost = 0.1 if entry.entity.lower() in {e.lower() for e in request.entities} else 0.0
-                        scored.append((entry, sim + entity_boost))
+                        scored.append((entry, min(sim + entity_boost, 1.0)))
                     else:
-                        # No embedding — fall back to keyword score for this entry
-                        kw_score = self._keyword_score(request.query, request.entities, entry)
-                        scored.append((entry, kw_score))
-
+                        scored.append((entry, self._keyword_score(request.query, request.entities, entry)))
                 scored.sort(key=lambda x: x[1], reverse=True)
-                return [self._to_record(entry, score) for entry, score in scored[:request.top_k] if score > 0.1]
+                return [self._to_record(e, s) for e, s in scored[:request.top_k] if s > 0.1]
             except Exception as exc:
-                logger.warning("semantic_search_failed, falling back to keyword", error=str(exc))
+                logger.warning("embedding_search_failed", error=str(exc)[:200])
 
-        # Keyword search fallback
-        matches = []
-        for entry in candidates:
-            score = self._keyword_score(request.query, request.entities, entry)
-            if score > 0.0:
-                matches.append((entry, score))
-
+        # Keyword search final fallback
+        matches = [
+            (entry, self._keyword_score(request.query, request.entities, entry))
+            for entry in candidates
+        ]
         matches.sort(key=lambda x: x[1], reverse=True)
-        return [self._to_record(entry, score) for entry, score in matches[:request.top_k]]
+        return [self._to_record(entry, score) for entry, score in matches[:request.top_k] if score > 0.0]
 
     async def list_memories(self, db: AsyncSession, workspace_id: str, limit: int = 50) -> list[MemoryRecord]:
         """List all memories for a workspace, most recent first."""

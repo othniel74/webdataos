@@ -1,6 +1,7 @@
 import asyncio
 import time
 import uuid
+from packages.common.time import utc_now as import_utc_now
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, OrganizationalContext, Outcome, Topic
@@ -14,6 +15,7 @@ from packages.observability.metrics import AGENT_RUN_DURATION, AGENT_RUNS
 from packages.partners.speechmatics import SpeechmaticsService
 from packages.partners.triggerware import TriggerWareService
 from packages.reasoning.engine import ReasoningEngine
+from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.schemas.agent import (
     DecisionBrief,
     DecisionEvidence,
@@ -36,6 +38,7 @@ class ResearchAgentOrchestrator:
         triggerware: TriggerWareService | None = None,
         reasoning: ReasoningEngine | None = None,
         llm: LLMClient | None = None,
+        graph: Neo4jGraphClient | None = None,
     ) -> None:
         self.intelligence = intelligence or IntelligenceService()
         self.speechmatics = speechmatics or SpeechmaticsService()
@@ -43,6 +46,7 @@ class ResearchAgentOrchestrator:
         self.triggerware = triggerware or TriggerWareService()
         self.reasoning = reasoning or ReasoningEngine()
         self.llm = llm or LLMClient()
+        self.graph = graph or Neo4jGraphClient()
         self.planner = ResearchPlanner()
         self.synthesizer = ReportSynthesizer(llm=self.llm)
         self.settings = get_settings()
@@ -446,6 +450,42 @@ class ResearchAgentOrchestrator:
             )
             db.add(AgentRun(id=run_id, tenant_id=tenant_id, topic_id=topic_id, task=request.task, status="success", report_json=report.model_dump()))
             await db.commit()
+
+            # Write full run into Neo4j relationship graph (non-blocking — graph failure never fails the run)
+            try:
+                assessments = reasoning_output.materiality_assessments if reasoning_output else []
+                recommendations = reasoning_output.recommendations if reasoning_output else []
+                total_impact = sum(
+                    (a.financial_impact or 0.0) for a in assessments if a.financial_impact
+                )
+                self.graph.write_run({
+                    "run_id": run_id,
+                    "tenant_id": tenant_id,
+                    "topic_id": topic_id,
+                    "package_id": request.package_id,
+                    "task": request.task,
+                    "risk_posture": reasoning_output.risk_posture if reasoning_output else "stable",
+                    "confidence": confidence,
+                    "created_at": import_utc_now(),
+                    "records": [r.model_dump() for r in records],
+                    "materiality_assessments": [
+                        {
+                            "signal_id": f"sig:{run_id}:{a.finding[:40]}",
+                            "signal_type": self.reasoning._classify_signal(a.finding.lower()),
+                            "materiality": a.materiality,
+                            "finding": a.finding,
+                            "affected_entities": a.affected_contracts or [],
+                            "urgency": a.urgency,
+                        }
+                        for a in assessments
+                    ],
+                    "recommendations": [r.model_dump() for r in recommendations],
+                    "autonomous_actions": [p.model_dump() for p in action_proposals],
+                    "total_financial_impact": total_impact,
+                })
+            except Exception as graph_exc:
+                logger.warning("graph_write_run_skipped", error=str(graph_exc)[:200], run_id=run_id)
+
             AGENT_RUNS.labels(status="success").inc()
             return report
         except Exception:

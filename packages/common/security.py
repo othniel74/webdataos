@@ -50,13 +50,18 @@ async def require_api_key(
     auth_mode = settings.auth_mode.lower()
     protected_auth_mode = auth_mode in {"clerk", "custom", "mixed"}
 
+    def _return(ctx: AuthContext) -> AuthContext:
+        if request is not None:
+            request.state.auth_context = ctx
+        return ctx
+
     if bearer and protected_auth_mode:
         try:
             claims = verify_session_token(bearer, settings)
         except PyJWTError:
             pass
         else:
-            return AuthContext(
+            return _return(AuthContext(
                 principal=claims.get("email") or claims.get("sub") or "webdataos-user",
                 key_fingerprint=fingerprint(bearer),
                 auth_enabled=True,
@@ -64,7 +69,7 @@ async def require_api_key(
                 user_id=claims.get("sub"),
                 role=claims.get("role") or "analyst",
                 auth_type="session",
-            )
+            ))
 
         try:
             claims = verify_clerk_token(bearer, settings)
@@ -80,7 +85,7 @@ async def require_api_key(
                 else f"clerk_user_{_tenant_component(user_id)}"
             )
             role = claims.get("org_role") or claims.get("role") or "analyst"
-            return AuthContext(
+            return _return(AuthContext(
                 principal=user_id or "clerk-user",
                 key_fingerprint=fingerprint(bearer),
                 auth_enabled=True,
@@ -89,19 +94,19 @@ async def require_api_key(
                 org_id=org_id,
                 role=role,
                 auth_type="clerk",
-            )
+            ))
 
     if auth_mode == "clerk":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing session")
 
     if not settings.api_auth_enabled and not protected_auth_mode:
-        return AuthContext(
+        return _return(AuthContext(
             principal="dev-anonymous",
             key_fingerprint="dev",
             auth_enabled=False,
             tenant_id=settings.default_tenant_id,
             auth_type="dev",
-        )
+        ))
 
     configured = settings.api_key_set
     if not configured:
@@ -117,10 +122,30 @@ async def require_api_key(
     if not any(hmac.compare_digest(provided, expected) for expected in configured):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
 
-    return AuthContext(
+    return _return(AuthContext(
         principal="api-key",
         key_fingerprint=fingerprint(provided),
         auth_enabled=True,
         tenant_id=settings.default_tenant_id,
         auth_type="api_key",
-    )
+    ))
+
+
+def require_role(*allowed_roles: str):
+    """FastAPI dependency factory that enforces a role allowlist.
+
+    Usage::
+
+        @router.delete("/{id}", dependencies=[Depends(require_role("admin"))])
+    """
+    from fastapi import Depends
+
+    async def _check(auth: AuthContext = Depends(require_api_key)) -> AuthContext:
+        if auth.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role '{auth.role}' is not authorized. Required: {', '.join(allowed_roles)}",
+            )
+        return auth
+
+    return _check

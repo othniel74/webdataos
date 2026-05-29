@@ -1,13 +1,17 @@
 from contextlib import asynccontextmanager
+import asyncio
 import os
+import time
+from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import JSONResponse, Response
 from sqlalchemy import text
-from apps.api.db.models import Base, Tenant, Topic
+from apps.api.db.models import AuditLog, Base, Tenant, Topic
 from apps.api.db.session import AsyncSessionLocal, engine
+from apps.api.scheduler import monitoring_loop
 from apps.api.routes.agent import router as agent_router
 from apps.api.routes.auth import router as auth_router
 from apps.api.routes.gateway import router as gateway_router
@@ -22,6 +26,7 @@ from apps.api.routes.monitor import router as monitor_router
 from apps.api.routes.chat import router as chat_router
 from apps.api.routes.triggerware import router as triggerware_router
 from apps.api.routes.demo import router as demo_router
+from apps.api.routes.api_keys import router as api_keys_router
 from packages.enterprise.packs import list_packs
 from packages.common.config import get_settings
 from packages.common.logging import configure_logging, get_logger
@@ -40,12 +45,14 @@ def auth_is_enforced() -> bool:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from apps.api.dependencies import get_agent_orchestrator
     if settings.is_production:
         logger.info("production_startup", message="Use Alembic migrations in production instead of create_all.")
     else:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     await seed_defaults()
+    scheduler_task = asyncio.create_task(monitoring_loop(get_agent_orchestrator()))
     logger.info(
         "app_started",
         env=settings.app_env,
@@ -53,6 +60,7 @@ async def lifespan(app: FastAPI):
         mock_brightdata=settings.mock_brightdata,
     )
     yield
+    scheduler_task.cancel()
     logger.info("app_stopped")
 
 
@@ -65,10 +73,14 @@ async def seed_defaults() -> None:
             tenant = await db.get(Tenant, tenant_id)
             if not tenant:
                 db.add(Tenant(id=tenant_id, name=name, tenant_type=tenant_type))
+        from packages.common.time import utc_now
+        from datetime import timedelta
         for pack in list_packs():
             topic_id = f"workspace_{pack.id}"
             existing = await db.get(Topic, topic_id)
             if existing:
+                if existing.next_run_at is None:
+                    existing.next_run_at = utc_now() + timedelta(minutes=existing.refresh_frequency_minutes)
                 continue
             db.add(
                 Topic(
@@ -79,6 +91,7 @@ async def seed_defaults() -> None:
                     entities=pack.entities,
                     watch_types=pack.signals,
                     refresh_frequency_minutes=1440,
+                    next_run_at=utc_now() + timedelta(minutes=1440),
                 )
             )
         await db.commit()
@@ -107,6 +120,49 @@ async def request_size_guard(request: Request, call_next):
     return await call_next(request)
 
 
+_AUDIT_SKIP = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc", "/favicon.ico"}
+_AUDIT_SENSITIVE_GET_SEGMENTS = {"/runs", "/receipt", "/agent", "/intelligence", "/audit"}
+
+
+@app.middleware("http")
+async def audit_middleware(request: Request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    path = request.url.path
+
+    if path in _AUDIT_SKIP or path.startswith("/docs"):
+        return response
+
+    is_write = request.method in {"POST", "PUT", "PATCH", "DELETE"}
+    is_sensitive_read = request.method == "GET" and any(seg in path for seg in _AUDIT_SENSITIVE_GET_SEGMENTS)
+    if not (is_write or is_sensitive_read):
+        return response
+
+    auth_ctx = getattr(request.state, "auth_context", None)
+    if auth_ctx is None or auth_ctx.auth_type == "dev":
+        return response
+
+    duration_ms = int((time.monotonic() - start) * 1000)
+    try:
+        async with AsyncSessionLocal() as db:
+            db.add(AuditLog(
+                id=str(uuid4()),
+                tenant_id=auth_ctx.tenant_id,
+                principal=auth_ctx.principal,
+                auth_type=auth_ctx.auth_type,
+                method=request.method,
+                path=path,
+                status_code=response.status_code,
+                duration_ms=duration_ms,
+                ip_address=request.client.host if request.client else None,
+                user_agent=(request.headers.get("user-agent") or "")[:512],
+            ))
+            await db.commit()
+    except Exception:
+        pass  # audit failures must never break requests
+    return response
+
+
 @app.exception_handler(BrightDataError)
 async def brightdata_exception_handler(_: Request, exc: BrightDataError):
     return JSONResponse(status_code=502, content={"detail": str(exc), "type": "brightdata_upstream_error"})
@@ -126,6 +182,7 @@ app.include_router(monitor_router)
 app.include_router(chat_router)
 app.include_router(triggerware_router)
 app.include_router(demo_router)
+app.include_router(api_keys_router)
 
 
 @app.get("/health")

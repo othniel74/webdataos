@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 import hashlib
 import hmac
@@ -68,14 +69,32 @@ class TriggerWareService:
             ).hexdigest()
             headers["X-WebDataOS-Signature"] = f"sha256={digest}"
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                self.settings.triggerware_endpoint,
-                headers=headers,
-                content=body,
-            )
-            response.raise_for_status()
-            data = self._json_or_empty(response)
+        _RETRYABLE = {429, 502, 503, 504}
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            if attempt:
+                await asyncio.sleep(2 ** attempt)
+                logger.warning("triggerware_retry", attempt=attempt, endpoint=self.settings.triggerware_endpoint)
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        self.settings.triggerware_endpoint,
+                        headers=headers,
+                        content=body,
+                    )
+                    if response.status_code in _RETRYABLE and attempt < 2:
+                        last_exc = httpx.HTTPStatusError(
+                            f"status {response.status_code}", request=response.request, response=response
+                        )
+                        continue
+                    response.raise_for_status()
+                    data = self._json_or_empty(response)
+                    break
+            except (httpx.TransportError, httpx.TimeoutException) as exc:
+                last_exc = exc
+                continue
+        else:
+            raise last_exc or RuntimeError("TriggerWare delivery failed after 3 attempts")
 
         event_id = (
             data.get("event_id")

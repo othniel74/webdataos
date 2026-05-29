@@ -4,13 +4,17 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from apps.api.db.models import Tenant, UserAccount
+from apps.api.db.models import (
+    AgentRun, AutonomousAction, ChangeEvent, ChatMessage, IntelligenceRecord,
+    ManagedAPIKey, MemoryEntry, OrganizationalContext, Outcome, RefreshRun,
+    Source, Tenant, Topic, UserAccount,
+)
 from apps.api.db.session import get_db
-from apps.api.dependencies import authenticated_context
+from apps.api.dependencies import authenticated_context, require_admin
 from packages.common.auth import create_session_token, hash_password, normalize_email, verify_password
 from packages.common.config import get_settings
 from packages.common.security import AuthContext
@@ -122,3 +126,51 @@ async def me(
             "role": auth.role,
         }
     }
+
+
+@router.delete("/tenants/{tenant_id}", status_code=200, tags=["Tenant Admin"])
+async def erase_tenant(
+    tenant_id: str,
+    auth: AuthContext = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """GDPR right-to-erasure: delete all content data for a tenant.
+
+    Audit logs are retained for compliance (anonymized). The tenant record
+    is soft-deleted. Only the owning tenant's admin can erase their own tenant.
+    """
+    if auth.tenant_id != tenant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only erase your own tenant")
+
+    tenant = await db.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    if tenant.tenant_type in {"internal", "demo"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="System tenants cannot be erased")
+
+    # Delete all content — order matters for FK constraints.
+    # Sources cascade from Topics, so delete intelligence_records first then topics.
+    for model in (
+        Outcome, AutonomousAction, ChatMessage, MemoryEntry,
+        IntelligenceRecord, ChangeEvent, RefreshRun, AgentRun,
+        OrganizationalContext, ManagedAPIKey,
+    ):
+        await db.execute(delete(model).where(model.tenant_id == tenant_id))
+
+    # Topics cascade-delete Sources via DB FK
+    await db.execute(delete(Topic).where(Topic.tenant_id == tenant_id))
+
+    # Anonymize user accounts (GDPR: erase personal data, keep tenant structure for audit trail)
+    result = await db.execute(select(UserAccount).where(UserAccount.tenant_id == tenant_id))
+    for account in result.scalars().all():
+        account.email = f"erased_{account.id}@deleted"
+        account.name = "Erased User"
+        account.password_hash = ""
+        account.status = "deleted"
+
+    # Soft-delete the tenant itself
+    tenant.name = f"[Deleted] {tenant.id}"
+    tenant.status = "deleted"
+
+    await db.commit()
+    return {"erased": True, "tenant_id": tenant_id}

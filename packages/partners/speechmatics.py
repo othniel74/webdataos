@@ -98,8 +98,6 @@ class SpeechmaticsService:
 
             return await self._poll_transcript(client, endpoint, str(job_id), headers, request.language)
 
-        raise TimeoutError(f"Speechmatics job {job_id} did not complete in time")
-
     def _transcription_config(self, language: str) -> dict:
         return {
             "type": "transcription",

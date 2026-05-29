@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.db.models import AutonomousAction, OrganizationalContext
 from apps.api.db.session import get_db
-from apps.api.dependencies import authenticated_context
+from apps.api.dependencies import authenticated_context, require_admin
 from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import AuthContext
 from packages.common.time import utc_now
@@ -123,7 +123,7 @@ async def approve_action(
     action_id: str,
     approval: ActionApproval,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(authenticated_context),
+    auth: AuthContext = Depends(require_admin),
 ):
     action = await db.get(AutonomousAction, action_id)
     if not action or action.tenant_id != auth.tenant_id:
@@ -144,7 +144,7 @@ async def approve_action(
 async def execute_action(
     action_id: str,
     db: AsyncSession = Depends(get_db),
-    auth: AuthContext = Depends(authenticated_context),
+    auth: AuthContext = Depends(require_admin),
 ):
     action = await db.get(AutonomousAction, action_id)
     if not action or action.tenant_id != auth.tenant_id:

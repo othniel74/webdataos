@@ -113,6 +113,8 @@ async def test_triggerware_remote_payload_and_signature(monkeypatch):
     captured = {}
 
     class FakeResponse:
+        status_code = 200
+
         def raise_for_status(self):
             return None
 
