@@ -1033,6 +1033,23 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
   const records = s.records || report?.records_used || [];
   const actions = s.actions || [];
   const runs = s.runs || [];
+  const changes = s.changes || [];
+  const outcomes = s.outcomes || [];
+  const latestCounts = latest?.counts || {};
+  const valueLoop = latest?.value_loop || report?.run_receipt?.value_loop || [
+    { step: "Monitor", status: summary ? "configured" : "waiting", detail: summary ? "Workspace scope is saved." : "Save the workspace to begin." },
+    { step: "Evidence", status: records.length ? "saved" : "empty", detail: `${records.length} records available.` },
+    { step: "Compare", status: changes.length ? "changed" : runs.length ? "no_change" : "waiting", detail: changes.length ? `${changes.length} changes detected.` : "Baseline comparison appears after a run." },
+    { step: "Reason", status: latest ? "complete" : "waiting", detail: latest ? "Brief generated from evidence." : "Run monitoring to generate reasoning." },
+    { step: "Act", status: actions.length ? "ready" : "none", detail: `${actions.length} actions waiting.` },
+    { step: "Outcome", status: outcomes.length ? "recorded" : "pending", detail: `${outcomes.length} outcomes recorded.` },
+  ];
+  const loopColor = status => {
+    if (["configured", "saved", "changed", "complete", "ready", "recorded"].includes(status)) return "#22c55e";
+    if (["baseline", "no_change", "pending"].includes(status)) return "#f59e0b";
+    if (["empty", "blocked", "missing"].includes(status)) return "#ef4444";
+    return T.dim;
+  };
   const capability = [
     ["Retrieval", backendOk?.brightdata_live ? "Bright Data live" : backendOk?.mock_brightdata ? "Mock mode" : "Not ready", backendOk?.brightdata_live],
     ["Reasoning", backendOk?.llm_available ? backendOk.llm_provider : "Not ready", backendOk?.llm_available],
@@ -1066,6 +1083,27 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
         </section>
       )}
 
+      <section style={{ marginTop: 16, padding: 14, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>Operating loop</div>
+            <div style={{ marginTop: 4, color: T.dim, fontSize: 12 }}>The system is judged by this sequence: monitor, prove, reason, act, and record outcome.</div>
+          </div>
+          <div style={{ color: T.dim, fontSize: 11, textAlign: "right" }}>{latest ? `Receipt ${latest.id?.slice(0, 8) || ""}` : "No receipt yet"}</div>
+        </div>
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 8 }}>
+          {valueLoop.map((item, i) => (
+            <div key={`${item.step}-${i}`} style={{ minHeight: 92, padding: 10, borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
+                <span style={{ color: T.text, fontSize: 12, fontWeight: 800 }}>{item.step}</span>
+                <span style={{ color: loopColor(item.status), fontSize: 10, fontWeight: 800 }}>{item.status}</span>
+              </div>
+              <div style={{ marginTop: 8, color: T.muted, fontSize: 11, lineHeight: 1.45 }}>{item.detail}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 14, alignItems: "start" }}>
         <main style={{ display: "grid", gap: 14 }}>
           <section style={{ padding: 18, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
@@ -1085,8 +1123,30 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
           <section style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
             <MC l="Runs" v={counts.runs || runs.length || 0} c={T.accent} />
             <MC l="Evidence" v={counts.records || records.length || 0} c="#22c55e" />
-            <MC l="New 24h" v={counts.new_records_24h || 0} c="#818cf8" />
-            <MC l="Actions" v={counts.pending_actions || actions.length || 0} c="#f59e0b" />
+            <MC l="Changes" v={latestCounts.changes_detected ?? counts.changes ?? 0} c="#818cf8" />
+            <MC l="Actions" v={latestCounts.autonomous_actions ?? counts.pending_actions ?? actions.length ?? 0} c="#f59e0b" />
+          </section>
+
+          <section style={{ padding: 16, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>What changed</div>
+                <div style={{ marginTop: 9, display: "grid", gap: 8 }}>
+                  {changes.slice(0, 4).map(change => <div key={change.id} style={{ fontSize: 12, color: T.muted, lineHeight: 1.45 }}>
+                    <span style={{ color: T.text, fontWeight: 800 }}>{change.field || change.change_type}</span> changed in saved evidence.
+                  </div>)}
+                  {!changes.length && <div style={{ color: T.dim, fontSize: 12, lineHeight: 1.55 }}>{runs.length ? "No material change recorded since the current baseline. The next run will compare against the saved evidence state." : "Run monitoring once to create the baseline, then future runs will show changes."}</div>}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>Business impact</div>
+                <div style={{ marginTop: 9, color: T.muted, fontSize: 12, lineHeight: 1.6 }}>
+                  {latest?.recommendations?.length
+                    ? latest.recommendations.slice(0, 2).map(r => r.title).join(" ")
+                    : latest ? "The latest run produced a monitoring brief and action receipt. Add organization context in Settings to sharpen financial exposure, urgency, and ownership." : "Impact appears after evidence is saved and reasoning completes."}
+                </div>
+              </div>
+            </div>
           </section>
 
           <section style={{ padding: 16, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>

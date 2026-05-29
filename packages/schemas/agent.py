@@ -37,6 +37,7 @@ class ResearchRunReceipt(BaseModel):
     status: str
     input_mode: str
     stages: list[ResearchRunStage] = Field(default_factory=list)
+    value_loop: list[dict] = Field(default_factory=list)
     providers: dict[str, str | None] = Field(default_factory=dict)
     counts: dict[str, int] = Field(default_factory=dict)
     fallbacks_used: list[str] = Field(default_factory=list)

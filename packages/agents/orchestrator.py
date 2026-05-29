@@ -1,9 +1,9 @@
 import asyncio
 import time
 import uuid
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from apps.api.db.models import AgentRun, AutonomousAction, OrganizationalContext, Topic
+from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, OrganizationalContext, Outcome, Topic
 from packages.common.config import get_settings
 from packages.agents.planner import ResearchPlanner
 from packages.agents.synthesizer import ReportSynthesizer
@@ -17,7 +17,7 @@ from packages.reasoning.engine import ReasoningEngine
 from packages.schemas.agent import ResearchReport, ResearchRequest, ResearchRunReceipt, ResearchRunStage
 from packages.schemas.intelligence import RetrievalRequest
 from packages.schemas.partners import MemorySearchRequest, MemoryUpsertRequest, TranscriptionRequest, WorkflowTriggerRequest
-from packages.schemas.reasoning import OrgContextRead
+from packages.schemas.reasoning import ActionProposal, OrgContextRead
 
 
 class ResearchAgentOrchestrator:
@@ -48,6 +48,8 @@ class ResearchAgentOrchestrator:
         partner_trace: list[str] = []
         topic = await db.get(Topic, topic_id)
         topic_entities = topic.entities if topic and topic.entities else []
+        previous_run_at = await self._previous_run_created_at(db, topic_id)
+        previous_run_exists = previous_run_at is not None
         transcript = None
         memories = []
         workflow_events = []
@@ -180,10 +182,27 @@ class ResearchAgentOrchestrator:
                     r.record for r in retrieval
                     if r.score >= 0.40 and "no_query_match" not in r.reasons
                 ]
+                if not records:
+                    fallback_records = await self.intelligence.list_records(
+                        db,
+                        topic_id=topic_id,
+                        include_stale=False,
+                        freshness_required_days=request.freshness_required_days,
+                    )
+                    records = fallback_records[: request.max_sources]
+                    stages.append(
+                        ResearchRunStage(
+                            name="baseline_evidence",
+                            status="success" if records else "empty",
+                            provider="intelligence_records",
+                            detail=f"{len(records)} latest records used after narrow query match",
+                        )
+                    )
 
             summary, findings, companies, changes, confidence = await self.synthesizer.synthesize_async(
                 task_text, records, memories
             )
+            db_changes = await self._recent_changes(db, topic_id, since=previous_run_at)
             if self.llm.available:
                 provider = self.llm.last_provider or self.llm.provider or "llm"
                 partner_trace.append(f"{provider}.chat.synthesis")
@@ -224,6 +243,8 @@ class ResearchAgentOrchestrator:
 
                 # ── Phase 3: Generate autonomous action proposals ──
                 action_proposals = self.reasoning.propose_actions(reasoning_output, topic_id)
+                if not action_proposals and records:
+                    action_proposals = self._baseline_action_proposals(reasoning_output, records)
                 partner_trace.append(f"reasoning.actions.proposed({len(action_proposals)})")
                 stages.append(
                     ResearchRunStage(name="propose_actions", status="success", provider="reasoning_engine", detail=f"{len(action_proposals)} actions")
@@ -310,11 +331,27 @@ class ResearchAgentOrchestrator:
                 fallbacks_used.append("self_hosted_memory")
             if not self.llm.available:
                 fallbacks_used.append("local_synthesizer")
+            outcome_count = await self._outcome_count(db, topic_id, run_id)
+            value_loop = self._value_loop(
+                topic=topic,
+                records=records,
+                db_changes=db_changes,
+                reasoning_output=reasoning_output,
+                action_proposals=action_proposals,
+                workflow_events=workflow_events,
+                outcome_count=outcome_count,
+                previous_run_exists=previous_run_exists,
+            )
+            if records and not previous_run_exists and not db_changes:
+                summary = f"Baseline created for {topic.name if topic else topic_id}. {summary}"
+            elif records and previous_run_exists and not db_changes:
+                summary = f"No material changes detected since the last monitoring cycle. {summary}"
             run_receipt = ResearchRunReceipt(
                 run_id=run_id,
                 status="success",
                 input_mode=request.input_mode,
                 stages=stages,
+                value_loop=value_loop,
                 providers={
                     "speechmatics": "speechmatics" if transcript else None,
                     "memory": self.memory.provider_name if request.enable_memory else None,
@@ -325,9 +362,12 @@ class ResearchAgentOrchestrator:
                 counts={
                     "sources": len({r.source_url for r in records}),
                     "records_used": len(records),
+                    "changes_detected": len(db_changes),
+                    "recommendations": len(reasoning_output.recommendations) if reasoning_output else 0,
                     "memories_used": len(memories),
                     "workflow_events": len(workflow_events),
                     "autonomous_actions": len(action_proposals),
+                    "outcomes_recorded": outcome_count,
                 },
                 fallbacks_used=fallbacks_used,
                 errors=[s.detail or s.name for s in stages if s.status in {"failed", "error", "timeout"}],
@@ -385,6 +425,129 @@ class ResearchAgentOrchestrator:
             created_at=str(ctx.created_at) if ctx.created_at else None,
             updated_at=str(ctx.updated_at) if ctx.updated_at else None,
         )
+
+    async def _previous_run_created_at(self, db: AsyncSession, topic_id: str | None):
+        if not topic_id:
+            return None
+        result = await db.execute(
+            select(AgentRun.created_at)
+            .where(AgentRun.topic_id == topic_id)
+            .order_by(desc(AgentRun.created_at))
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
+    async def _recent_changes(self, db: AsyncSession, topic_id: str | None, since=None) -> list[dict]:
+        if not topic_id:
+            return []
+        stmt = select(ChangeEvent).where(ChangeEvent.topic_id == topic_id)
+        if since:
+            stmt = stmt.where(ChangeEvent.detected_at >= since)
+        result = await db.execute(
+            stmt.order_by(desc(ChangeEvent.detected_at)).limit(12)
+        )
+        return [
+            {
+                "id": change.id,
+                "record_id": change.record_id,
+                "change_type": change.change_type,
+                "field": change.field,
+                "detected_at": str(change.detected_at) if change.detected_at else None,
+            }
+            for change in result.scalars().all()
+        ]
+
+    async def _outcome_count(self, db: AsyncSession, topic_id: str | None, run_id: str) -> int:
+        if not topic_id:
+            return 0
+        result = await db.execute(
+            select(Outcome.id).where(Outcome.workspace_id == topic_id, Outcome.run_id == run_id)
+        )
+        return len(result.scalars().all())
+
+    def _baseline_action_proposals(self, reasoning_output, records: list) -> list[ActionProposal]:
+        first = records[0]
+        recommendation_id = None
+        if reasoning_output and reasoning_output.recommendations:
+            recommendation_id = reasoning_output.recommendations[0].id
+        return [
+            ActionProposal(
+                action_type="review_monitoring_baseline",
+                title=f"Review monitoring baseline: {first.entity_name or 'workspace'}",
+                description=(
+                    "Confirm whether the new evidence baseline is useful, then approve follow-up monitoring "
+                    "or adjust entities and signals before the next cycle."
+                ),
+                payload={
+                    "record_ids": [record.id for record in records[:8]],
+                    "evidence_urls": list(dict.fromkeys([record.source_url for record in records[:8]])),
+                    "loop_step": "baseline_review",
+                },
+                recommendation_id=recommendation_id,
+                requires_approval=False,
+                urgency="low",
+            )
+        ]
+
+    def _value_loop(
+        self,
+        topic: Topic | None,
+        records: list,
+        db_changes: list[dict],
+        reasoning_output,
+        action_proposals: list,
+        workflow_events: list,
+        outcome_count: int,
+        previous_run_exists: bool,
+    ) -> list[dict]:
+        entity_count = len(topic.entities or []) if topic else 0
+        signal_count = len(topic.watch_types or []) if topic else 0
+        reason_count = len(reasoning_output.materiality_assessments) if reasoning_output else 0
+        recommendation_count = len(reasoning_output.recommendations) if reasoning_output else 0
+        if db_changes:
+            compare_status = "changed"
+            compare_detail = f"{len(db_changes)} change events detected against saved evidence."
+        elif previous_run_exists:
+            compare_status = "no_change"
+            compare_detail = "No material change detected against the previous saved state."
+        elif records:
+            compare_status = "baseline"
+            compare_detail = "First successful run created the baseline for future comparisons."
+        else:
+            compare_status = "waiting"
+            compare_detail = "No evidence baseline exists yet."
+        return [
+            {
+                "step": "Monitor",
+                "status": "configured" if topic else "missing",
+                "detail": f"{entity_count} entities and {signal_count} signal types in scope.",
+            },
+            {
+                "step": "Evidence",
+                "status": "saved" if records else "empty",
+                "detail": f"{len(records)} evidence records available for this run.",
+            },
+            {
+                "step": "Compare",
+                "status": compare_status,
+                "detail": compare_detail,
+            },
+            {
+                "step": "Reason",
+                "status": "complete" if reasoning_output else "blocked",
+                "detail": f"{reason_count} assessments and {recommendation_count} recommendations generated.",
+            },
+            {
+                "step": "Act",
+                "status": "ready" if action_proposals else "none",
+                "detail": f"{len(action_proposals)} actions proposed; {len(workflow_events)} workflow events recorded.",
+            },
+            {
+                "step": "Outcome",
+                "status": "recorded" if outcome_count else "pending",
+                "detail": f"{outcome_count} outcomes recorded for this run.",
+            },
+        ]
 
     def _workflow_context(self, package_id: str, action_proposals: list, reasoning_output, records: list) -> dict[str, str]:
         first_action = action_proposals[0] if action_proposals else None

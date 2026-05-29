@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, IntelligenceRecord, RefreshRun, Topic
+from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, IntelligenceRecord, Outcome, RefreshRun, Topic
 from apps.api.db.session import get_db
 from apps.api.dependencies import authenticated_context, get_agent_orchestrator
 from packages.enterprise.packs import get_pack, package_id_from_description
@@ -37,6 +37,8 @@ def _run_summary(run: AgentRun) -> dict:
         "created_at": _iso(run.created_at),
         "summary": report.get("summary"),
         "risk_posture": reasoning.get("risk_posture"),
+        "value_loop": receipt.get("value_loop") or [],
+        "recommendations": reasoning.get("recommendations") or [],
         "counts": receipt.get("counts") or {},
         "providers": receipt.get("providers") or {},
     }
@@ -79,6 +81,11 @@ async def monitor_summary(workspace_id: str, db: AsyncSession = Depends(get_db))
     )
     refresh_runs = refresh_result.scalars().all()
 
+    outcomes_result = await db.execute(
+        select(Outcome).where(Outcome.workspace_id == workspace_id).order_by(desc(Outcome.created_at)).limit(12)
+    )
+    outcomes = outcomes_result.scalars().all()
+
     now = datetime.now(UTC)
     day_ago = now - timedelta(days=1)
     new_records_24h = sum(1 for record in records if (_to_utc(record.extracted_at) or now) >= day_ago)
@@ -108,6 +115,7 @@ async def monitor_summary(workspace_id: str, db: AsyncSession = Depends(get_db))
             "new_records_24h": new_records_24h,
             "changes": len(changes),
             "pending_actions": pending_actions,
+            "outcomes": len(outcomes),
         },
         "latest_run": _run_summary(runs[0]) if runs else None,
         "runs": [_run_summary(run) for run in runs],
@@ -144,6 +152,18 @@ async def monitor_summary(workspace_id: str, db: AsyncSession = Depends(get_db))
                 "detected_at": _iso(change.detected_at),
             }
             for change in changes
+        ],
+        "outcomes": [
+            {
+                "id": outcome.id,
+                "run_id": outcome.run_id,
+                "action_id": outcome.action_id,
+                "entity_name": outcome.entity_name,
+                "signal_type": outcome.signal_type,
+                "outcome_type": outcome.outcome_type,
+                "created_at": _iso(outcome.created_at),
+            }
+            for outcome in outcomes
         ],
         "refresh_runs": [
             {
