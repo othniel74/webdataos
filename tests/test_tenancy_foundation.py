@@ -2,6 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from packages.common.config import get_settings
+from packages.common.clerk import _issuer_allowed
 from packages.common.security import require_api_key
 from apps.api.routes.demo import DEMO_MISSIONS, _workspace_id
 
@@ -45,3 +46,9 @@ def test_demo_workspace_ids_are_session_scoped():
 def test_demo_catalog_has_three_product_missions():
     assert {"vendor_risk", "gtm", "market"} == set(DEMO_MISSIONS)
     assert all(item["entities"] and item["signals"] for item in DEMO_MISSIONS.values())
+
+
+def test_clerk_issuer_accepts_config_without_scheme():
+    assert _issuer_allowed("https://real-feline-20.clerk.accounts.dev", "real-feline-20.clerk.accounts.dev")
+    assert _issuer_allowed("https://real-feline-20.clerk.accounts.dev/", "real-feline-20.clerk.accounts.dev")
+    assert not _issuer_allowed("https://other.clerk.accounts.dev", "real-feline-20.clerk.accounts.dev")
