@@ -50,6 +50,20 @@ const setApiBearerToken = token => {
 const authHeaders = () => (apiBearerToken ? { "Authorization": `Bearer ${apiBearerToken}` } : { "X-API-Key": KEY });
 const headers = () => ({ "Content-Type": "application/json", ...authHeaders() });
 const demoHeaders = sessionId => ({ "Content-Type": "application/json", ...(sessionId ? { "X-Demo-Session": sessionId } : {}) });
+const errorText = value => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map(item => {
+      if (typeof item === "string") return item;
+      const loc = Array.isArray(item?.loc) ? item.loc.join(".") : item?.path?.join?.(".") || "";
+      const msg = item?.msg || item?.message || JSON.stringify(item);
+      return loc ? `${loc}: ${msg}` : msg;
+    }).join("; ");
+  }
+  if (typeof value === "object") return value.detail ? errorText(value.detail) : value.error ? errorText(value.error) : JSON.stringify(value);
+  return String(value);
+};
 const readableError = (status, text, path) => {
   const body = (text || "").trim();
   const lower = body.toLowerCase();
@@ -58,7 +72,7 @@ const readableError = (status, text, path) => {
   }
   try {
     const parsed = JSON.parse(body);
-    return `${status}: ${parsed.detail || parsed.error || body.slice(0, 280)}`;
+    return `${status}: ${errorText(parsed.detail || parsed.error || parsed) || body.slice(0, 280)}`;
   } catch {
     return `${status}: ${body.slice(0, 280)}`;
   }
@@ -733,6 +747,17 @@ function DemoPage({ nav }) {
     setSession(created);
     return created;
   };
+  const replaceDemoSession = async () => {
+    if (sessionId) localStorage.removeItem(`webdataos_demo_messages_${sessionId}`);
+    const created = await endpoints.demoSession(mission);
+    localStorage.setItem("webdataos_demo_session", created.session_id);
+    setSession(created);
+    setMessages([]);
+    setReport(null);
+    setEvidence([]);
+    setGraph(null);
+    return created;
+  };
   const saveDemoScope = async () => {
     const active = await ensureSession();
     const updated = await endpoints.demoWorkspace(active.session_id, {
@@ -752,7 +777,25 @@ function DemoPage({ nav }) {
       setReport(result);
       await loadEvidence(active.session_id);
     } catch (e) {
-      setError(e.message || "Demo run failed.");
+      if ((e.message || "").includes("Demo run limit reached")) {
+        try {
+          const fresh = await replaceDemoSession();
+          const updated = await endpoints.demoWorkspace(fresh.session_id, {
+            mission,
+            entities: entities.split(",").map(x => x.trim()).filter(Boolean),
+            signals: signals.split(",").map(x => x.trim()).filter(Boolean),
+          });
+          setSession(updated);
+          const result = await endpoints.demoRun(updated.session_id);
+          setReport(result);
+          await loadEvidence(updated.session_id);
+          setError("Started a fresh demo session because the previous one reached its run limit.");
+        } catch (retryError) {
+          setError(retryError.message || "Demo run failed after starting a fresh session.");
+        }
+      } else {
+        setError(e.message || "Demo run failed.");
+      }
     } finally {
       setLoading("");
     }
@@ -773,7 +816,17 @@ function DemoPage({ nav }) {
       setMessages(prev => [...prev, { role: "assistant", content: brief.answer || result.summary || "No answer returned.", report: result }]);
       await loadEvidence(active.session_id);
     } catch (e) {
-      setError(e.message || "Demo Analyst failed.");
+      if ((e.message || "").includes("Demo chat limit reached")) {
+        try {
+          const fresh = await replaceDemoSession();
+          setError("Started a fresh demo session because the previous chat reached its limit. Ask again to continue.");
+          await loadEvidence(fresh.session_id);
+        } catch (retryError) {
+          setError(retryError.message || "Demo Analyst failed.");
+        }
+      } else {
+        setError(e.message || "Demo Analyst failed.");
+      }
     } finally {
       setLoading("");
     }
@@ -793,11 +846,12 @@ function DemoPage({ nav }) {
           <div style={{ color: T.muted, fontSize: 14, marginTop: 8, maxWidth: 620, lineHeight: 1.5 }}>Choose a scenario, run a short update, then ask the Analyst what matters.</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button onClick={replaceDemoSession} disabled={!!loading} style={{ padding: "9px 14px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontWeight: 800, fontSize: 12 }}>New demo</button>
           <button onClick={() => nav("Home")} style={{ padding: "9px 14px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}>Back home</button>
         </div>
       </div>
 
-      {error && <div style={{ marginTop: 16, padding: "9px 0", borderTop: "1px solid rgba(239,68,68,.22)", borderBottom: "1px solid rgba(239,68,68,.22)", color: "#fca5a5", fontSize: 12 }}>{error}</div>}
+      {error && <div style={{ marginTop: 16, padding: "9px 0", borderTop: "1px solid rgba(239,68,68,.22)", borderBottom: "1px solid rgba(239,68,68,.22)", color: error.includes("fresh demo session") ? "#fbbf24" : "#fca5a5", fontSize: 12 }}>{error}</div>}
 
       <section style={{ marginTop: 28, paddingTop: 18, borderTop: `1px solid ${T.border}` }}>
         <div style={{ fontSize: 12, color: T.accent, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Scenario</div>
