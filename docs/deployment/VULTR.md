@@ -62,6 +62,31 @@ docker compose \
   up -d --build
 ```
 
+## Vultr API deployment from this workstation
+
+Set the Vultr token locally:
+
+```powershell
+.\scripts\set-vultr-token.ps1
+```
+
+Then create a Vultr Docker host and bootstrap WebDataOS:
+
+```powershell
+.\scripts\deploy-vultr.ps1 -Region lhr -Plan vc2-2c-4gb -Label webdataos-prod
+```
+
+Optional flags:
+
+```powershell
+.\scripts\deploy-vultr.ps1 `
+  -Region ewr `
+  -Plan vc2-2c-4gb `
+  -Label webdataos-prod `
+  -FirewallGroupId YOUR_FIREWALL_GROUP_ID `
+  -SshKeyId YOUR_SSH_KEY_ID
+```
+
 With monitoring:
 
 ```bash
