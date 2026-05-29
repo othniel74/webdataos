@@ -151,6 +151,13 @@ class ReasoningEngine:
         high_count = len([a for a in assessments if a.materiality == "high"])
         risk_posture = "critical" if critical_count > 0 else "degrading" if high_count > 2 else "stable" if high_count <= 1 else "monitoring"
 
+        if recommendations:
+            confidence = round(sum(r.confidence for r in recommendations) / len(recommendations), 3)
+        elif assessments:
+            confidence = round(sum((rec.confidence or 0.65) for rec in records) / len(records), 3)
+        else:
+            confidence = 0.0
+
         exec_summary = (
             f"Analyzed {len(records)} evidence records against organizational context using {framework.name}. "
             f"Found {len(material)} material signals requiring attention. "
@@ -163,7 +170,7 @@ class ReasoningEngine:
             recommendations=recommendations,
             executive_summary=exec_summary,
             risk_posture=risk_posture,
-            confidence=round(sum(r.confidence for r in recommendations) / max(len(recommendations), 1), 3),
+            confidence=confidence,
             reasoning_trace=reasoning_trace,
         )
 

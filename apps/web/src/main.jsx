@@ -45,6 +45,11 @@ const endpoints = {
   createWorkspace: data => api("POST", "/workspaces", data),
   research: data => api("POST", "/agent/research", data, 70000),
   listRecords: () => api("GET", "/intelligence/records"),
+  listTopicRecords: topicId => api("GET", `/intelligence/records?topic_id=${encodeURIComponent(topicId)}`),
+  createTopic: data => api("POST", "/intelligence/topics", data),
+  discoverSources: (topicId, limit = 6) => api("POST", `/intelligence/topics/${encodeURIComponent(topicId)}/discover?limit=${limit}`, null, 45000),
+  refreshTopic: (topicId, maxSources = 4) => api("POST", `/intelligence/topics/${encodeURIComponent(topicId)}/refresh?max_sources=${maxSources}`, null, 70000),
+  retrieveContext: data => api("POST", "/intelligence/retrieval/context", data),
   gatewayFetch: data => api("POST", "/gateway/fetch", data),
   listActions: (wsId, status) => api("GET", `/actions/${wsId}${status ? `?status=${status}` : ""}`),
   approveAction: (id, data) => api("POST", `/actions/${id}/approve`, data),
@@ -149,7 +154,7 @@ export default function App() {
       {page === "Developer" && <DevPage />}
       {page === "Workspace" && user && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} />}
       {page === "Agent" && user && <AgentPage pack={pack} ws={ws} actions={actions} setActions={setActions} runResearch={runResearch} report={report} />}
-      {page === "Intelligence" && user && <IntelPage />}
+      {page === "Intelligence" && user && <IntelPage ws={ws} />}
       {page === "Gateway" && user && <GwPage />}
       {page === "Actions" && user && <ActPage actions={actions} setActions={setActions} />}
       {page === "Outcomes" && user && <OutPage ws={ws} user={user} />}
@@ -494,8 +499,8 @@ function DocsPage() {
           {secs.map(sec => <button key={sec.id} onClick={() => setS(sec.id)} style={{ display: "block", width: "100%", textAlign: "left", padding: "6px 10px", borderRadius: 6, border: "none", fontSize: 12, marginBottom: 2, background: s === sec.id ? `${T.accent}10` : "transparent", color: s === sec.id ? T.accent : T.dim, fontWeight: s === sec.id ? 600 : 400, cursor: "pointer" }}>{sec.l}</button>)}
         </nav>
         <div>
-          {s === "overview" && <DS t="Overview"><p>WebDataOS is an enterprise live-web intelligence runtime for AI agents. It transforms public web signals into fresh, structured, evidence-backed intelligence across Security & Compliance, GTM Intelligence, and Finance & Market workflows.</p><p>The system serves both developers (REST API, Python/TypeScript SDKs) and business users (web interface) through a shared backend. Every research task produces structured JSON with sourced findings, confidence scores, partner trace, and action receipts.</p><DC t="Product Vision">The live-web intelligence layer enterprise agents rely on before making decisions from external web data. Freshness-aware retrieval, self-healing Bright Data gateway, Cognee knowledge-graph memory with self-hosted fallback, LLM-powered synthesis, and autonomous actions with human approval gates.</DC><DC t="Key Differentiators">Self-healing gateway with typed failure detection across SERP API, Web Scraper API, Web Unlocker, Scraping Browser, and MCP Server. Cognee-first memory with PostgreSQL/OpenAI fallback search. LLM-powered contextual synthesis. Organizational context for materiality assessment. Outcome-based learning loop. Serves both infrastructure consumers (API) and end users (UI).</DC></DS>}
-          {s === "arch" && <DS t="Architecture"><p>Layered architecture with clear separation between UI, API, gateway, intelligence engine, memory, reasoning, and partner integrations.</p><JB>{["User (text / voice / audio)", "  │", "  ├── Speechmatics → Transcription", "  ├── Memory Provider → Cognee graph recall + self-hosted fallback search", "  ├── Intelligence Engine → Check existing records, freshness", "  │   └── Bright Data Gateway → SERP → Web Scraper → Scraping Browser → Web Unlocker → MCP", "  │       └── FailureDetector → RecoveryRouter → ResultNormalizer", "  ├── LLM Synthesizer → Contextual analysis (OpenAI)", "  ├── Reasoning Engine → Materiality vs org context", "  │   └── Autonomous Actions → Proposals + approval gates", "  ├── Memory Provider → Store in Cognee + self-hosted memory", "  └── TriggerWare → Fire workflow actions"].join("\n")}</JB><DC t="Services">API: port 8000 · Web UI: port 3000 · PostgreSQL: 5432 · Neo4j: 7474 · Prometheus: 9090 · Grafana: 3001</DC></DS>}
+          {s === "overview" && <DS t="Overview"><p>WebDataOS is an enterprise live-web intelligence runtime for AI agents. It transforms public web signals into fresh, structured, evidence-backed intelligence across Security & Compliance, GTM Intelligence, and Finance & Market workflows.</p><p>The system serves both developers (REST API, Python/TypeScript SDKs) and business users (web interface) through a shared backend. Every research task produces structured JSON with sourced findings, confidence scores, partner trace, and action receipts.</p><DC t="Product Vision">The live-web intelligence layer enterprise agents rely on before making decisions from external web data. Freshness-aware retrieval, self-healing Bright Data gateway, Cognee knowledge-graph memory with self-hosted fallback, LLM-powered synthesis, and autonomous actions with human approval gates.</DC><DC t="Key Differentiators">Self-healing gateway with typed failure detection across SERP API, Web Scraper API, Web Unlocker, Scraping Browser, and optional MCP Server. Cognee-first memory with PostgreSQL/OpenAI fallback search. LLM-powered contextual synthesis. Organizational context for materiality assessment. Outcome-based learning loop. Serves both infrastructure consumers (API) and end users (UI).</DC></DS>}
+          {s === "arch" && <DS t="Architecture"><p>Layered architecture with clear separation between UI, API, gateway, intelligence engine, memory, reasoning, and partner integrations.</p><JB>{["User (text / voice / audio)", "  │", "  ├── Speechmatics → Transcription", "  ├── Memory Provider → Cognee graph recall + self-hosted fallback search", "  ├── Intelligence Engine → Check existing records, freshness", "  │   └── Bright Data Gateway → SERP → Web Scraper → Scraping Browser → Web Unlocker → optional MCP", "  │       └── FailureDetector → RecoveryRouter → ResultNormalizer", "  ├── LLM Synthesizer → Contextual analysis (OpenAI + AI/ML API fallback)", "  ├── Reasoning Engine → Materiality vs org context", "  │   └── Autonomous Actions → Proposals + approval gates", "  ├── Memory Provider → Store in Cognee + self-hosted memory", "  └── TriggerWare → Fire workflow actions"].join("\n")}</JB><DC t="Services">API: port 8000 · Web UI: port 3000 · PostgreSQL: 5432 · Neo4j: 7474 · Prometheus: 9090 · Grafana: 3001</DC></DS>}
           {s === "packs" && <DS t="Intelligence Packages"><p>4 packages, each configuring entities, signals, Bright Data routes, and output focus.</p>{PACKS.map(p => <DC key={p.id} t={`${p.name} (${p.tier})`}>{p.description} Entities: {p.entities.join(", ")}. Signals: {p.signals.join(", ")}. Routes: {p.routes.join(", ")}. Output: {p.output.join(", ")}.</DC>)}</DS>}
           {s === "journey" && <DS t="User Journey">{["Sign up and create a workspace with a package", "Enter entities to monitor and signals to watch", "Set refresh cadence (daily, weekly, every 6 hours, manual)", "Submit research task via text, voice, or audio upload", "Speechmatics transcribes voice/audio to structured text", "Cognee checks graph memory; self-hosted memory provides fallback context", "Intelligence Engine checks existing records for freshness", "If stale → Bright Data gateway fetches with self-healing recovery", "FailureDetector classifies errors → RecoveryRouter escalates tools", "ResultNormalizer produces clean JSON evidence records", "Change detection compares old vs new facts, logs ChangeEvents", "LLM synthesizes contextual brief from evidence + memory", "Reasoning Engine assesses materiality against org context", "Autonomous actions proposed for material findings", "TriggerWare fires workflow actions for material signals", "User receives brief, companies, changes, partner trace, receipts"].map((step, i) => <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0", borderBottom: i < 15 ? `1px solid ${T.border}` : "none" }}><span style={{ width: 22, height: 22, borderRadius: 999, display: "grid", placeItems: "center", background: `${T.accent}10`, color: T.accent, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span><span style={{ fontSize: 13, color: T.muted }}>{step}</span></div>)}</DS>}
           {s === "gateway" && <DS t="Gateway & Recovery"><p>The self-healing gateway detects failure modes and routes to the next Bright Data tool automatically.</p><DC t="ToolName enum">serp_api, web_scraper_api, web_unlocker, scraping_browser, mcp_server, mock</DC><DC t="FailureType enum">none, blocked, captcha, geo_blocked, rate_limited, javascript_required, selector_failed, empty_response, timeout, unknown</DC><DC t="Recovery routing">blocked/captcha/geo_blocked/rate_limited → web_unlocker → scraping_browser → mcp_server. javascript_required/empty_response/selector_failed → scraping_browser → web_unlocker → mcp_server. web_scraper_api failure → scraping_browser. scraping_browser failure → web_unlocker. web_unlocker failure → mcp_server.</DC><DC t="SourceType enum">search_result, company_page, pricing_page, docs_page, news_page, filing, social_public, unknown</DC></DS>}
@@ -822,13 +827,86 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
 }
 
 /* ═══════ INTELLIGENCE ═══════ */
-function IntelPage() {
-  return (<div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 24px" }}><Eye>Intelligence engine</Eye><h2 style={{ fontSize: 22, marginTop: 4 }}>Evidence records & retrieval</h2><p style={{ color: T.dim, fontSize: 13, marginTop: 6, lineHeight: 1.7 }}>Evidence extraction with structured facts (company, pricing_model, starting_price, features, target_customers, positioning), freshness tracking, retrieval scoring with reasons (semantic_match, entity_match, fresh, high_confidence), and field-level change detection. Records stored in PostgreSQL and Neo4j knowledge graph.</p></div>);
+function IntelPage({ ws }) {
+  const [records, setRecords] = useState([]);
+  const [sources, setSources] = useState([]);
+  const [retrieval, setRetrieval] = useState([]);
+  const [query, setQuery] = useState(`vendor risk and market signals for ${ws.entities || ws.name}`);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const entityList = ws.entities.split(",").map(s => s.trim()).filter(Boolean);
+  const signalList = ws.signals.split(",").map(s => s.trim()).filter(Boolean);
+  const loadRecords = useCallback(async () => {
+    setErr("");
+    try {
+      setRecords(await endpoints.listTopicRecords(ws.id));
+    } catch (e) {
+      setErr(e.message || "Could not load evidence records");
+    }
+  }, [ws.id]);
+  useEffect(() => { loadRecords(); }, [loadRecords]);
+  const runStep = async (step) => {
+    setLoading(true);
+    setErr("");
+    try {
+      await endpoints.createTopic({ id: ws.id, name: ws.name, description: ws.description || null, entities: entityList, watch_types: signalList, refresh_frequency_minutes: ws.refresh_frequency_minutes || 1440 });
+      if (step === "discover") setSources(await endpoints.discoverSources(ws.id, 6));
+      if (step === "refresh") {
+        await endpoints.refreshTopic(ws.id, 4);
+        await loadRecords();
+      }
+      if (step === "retrieve") {
+        setRetrieval(await endpoints.retrieveContext({ topic_id: ws.id, query, entities: entityList, top_k: 6, freshness_required_days: 7 }));
+      }
+    } catch (e) {
+      setErr(e.message || "Intelligence operation failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "36px 24px" }}>
+      <Eye>Intelligence engine</Eye>
+      <h2 style={{ fontSize: 22, marginTop: 4 }}>Evidence records & retrieval</h2>
+      <p style={{ color: T.dim, fontSize: 13, marginTop: 6, lineHeight: 1.7 }}>Create the workspace topic, discover live SERP sources, refresh evidence through the Bright Data gateway, and retrieve ranked context from saved records.</p>
+      {err && <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", color: "#ef4444", fontSize: 12 }}>{err}</div>}
+      <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 12 }}>
+        <div style={{ padding: 16, borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+            <div><div style={{ fontSize: 14, fontWeight: 700 }}>{ws.name}</div><div style={{ fontSize: 11, color: T.dim }}>{entityList.join(", ") || "No entities configured"} · {signalList.join(", ") || "No signals configured"}</div></div>
+            <button onClick={loadRecords} disabled={loading} style={{ padding: "7px 11px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.muted, fontSize: 11, cursor: "pointer" }}><RefreshCw size={12} /> Reload</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginTop: 14 }}>
+            <button onClick={() => runStep("discover")} disabled={loading} style={{ padding: "10px", borderRadius: 10, border: "none", background: T.accent, color: "#000", fontWeight: 700, fontSize: 12, cursor: "pointer" }}><Search size={13} /> Discover sources</button>
+            <button onClick={() => runStep("refresh")} disabled={loading} style={{ padding: "10px", borderRadius: 10, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 700, fontSize: 12, cursor: "pointer" }}><Database size={13} /> Save evidence</button>
+            <button onClick={() => runStep("retrieve")} disabled={loading} style={{ padding: "10px", borderRadius: 10, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 700, fontSize: 12, cursor: "pointer" }}><Target size={13} /> Retrieve context</button>
+          </div>
+          <div style={{ marginTop: 12 }}><Lb>Retrieval query</Lb><input value={query} onChange={e => setQuery(e.target.value)} style={IS} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+          {[["Sources", sources.length], ["Records", records.length], ["Retrieved", retrieval.length]].map(([label, value]) => <div key={label} style={{ padding: 14, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase" }}>{label}</div><div style={{ fontSize: 24, fontWeight: 800, color: T.accent }}>{value}</div></div>)}
+        </div>
+      </div>
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ borderRadius: 14, overflow: "hidden", background: T.bgCard, border: `1px solid ${T.border}` }}>
+          <div style={{ padding: 12, fontSize: 13, fontWeight: 700 }}>Discovered sources</div>
+          {(sources.length ? sources : []).map((s, i) => <div key={`${s.url}-${i}`} style={{ padding: 12, borderTop: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 700 }}>{s.title || s.url}</div><div style={{ fontSize: 11, color: T.dim, wordBreak: "break-all" }}>{s.url}</div><div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{s.snippet}</div></div>)}
+          {!sources.length && <div style={{ padding: 12, color: T.dim, fontSize: 12 }}>No source discovery run yet.</div>}
+        </div>
+        <div style={{ borderRadius: 14, overflow: "hidden", background: T.bgCard, border: `1px solid ${T.border}` }}>
+          <div style={{ padding: 12, fontSize: 13, fontWeight: 700 }}>Saved evidence records</div>
+          {records.map(r => <div key={r.id} style={{ padding: 12, borderTop: `1px solid ${T.border}` }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><div style={{ fontSize: 12, fontWeight: 700 }}>{r.entity_name || "Unknown"}</div><span style={{ fontSize: 10, color: T.accent }}>{fmt(r.confidence || 0)}</span></div><div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{r.summary}</div><div style={{ fontSize: 10, color: T.dim, marginTop: 4, wordBreak: "break-all" }}>{r.source_url}</div></div>)}
+          {!records.length && <div style={{ padding: 12, color: T.dim, fontSize: 12 }}>No saved evidence yet. Run Save evidence.</div>}
+        </div>
+      </div>
+      {!!retrieval.length && <div style={{ marginTop: 12, borderRadius: 14, overflow: "hidden", background: T.bgCard, border: `1px solid ${T.border}` }}><div style={{ padding: 12, fontSize: 13, fontWeight: 700 }}>Ranked retrieval</div>{retrieval.map((item, i) => <div key={`${item.record.id}-${i}`} style={{ padding: 12, borderTop: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 700 }}>{item.record.entity_name} · score {item.score}</div><div style={{ fontSize: 11, color: T.dim }}>{item.reasons.join(", ") || "no score reasons"}</div><div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{item.record.summary}</div></div>)}</div>}
+    </div>
+  );
 }
 
 /* ═══════ GATEWAY ═══════ */
 function GwPage() {
-  return (<div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 24px" }}><Eye>Bright Data gateway</Eye><h2 style={{ fontSize: 22, marginTop: 4 }}>Self-healing retrieval with recovery routing</h2><p style={{ color: T.dim, fontSize: 13, marginTop: 6, lineHeight: 1.7 }}>Five Bright Data routes (SERP API, Web Scraper API, Web Unlocker, Scraping Browser, MCP Server) with automatic failure detection (blocked, captcha, geo_blocked, rate_limited, javascript_required, selector_failed, empty_response, timeout) and recovery routing. Every attempt logged with tool, status, failure type, latency, and recovery path.</p></div>);
+  return (<div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 24px" }}><Eye>Bright Data gateway</Eye><h2 style={{ fontSize: 22, marginTop: 4 }}>Self-healing retrieval with recovery routing</h2><p style={{ color: T.dim, fontSize: 13, marginTop: 6, lineHeight: 1.7 }}>Live Bright Data routes (SERP API, Web Scraper API, Web Unlocker, Scraping Browser, and optional MCP Server) with automatic failure detection (blocked, captcha, geo_blocked, rate_limited, javascript_required, selector_failed, empty_response, timeout) and recovery routing. Every attempt logged with tool, status, failure type, latency, and recovery path.</p></div>);
 }
 
 /* ═══════ ACTIONS ═══════ */

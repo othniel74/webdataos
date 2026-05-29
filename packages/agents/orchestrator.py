@@ -3,7 +3,7 @@ import time
 import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from apps.api.db.models import AgentRun, AutonomousAction, OrganizationalContext
+from apps.api.db.models import AgentRun, AutonomousAction, OrganizationalContext, Topic
 from packages.common.config import get_settings
 from packages.agents.planner import ResearchPlanner
 from packages.agents.synthesizer import ReportSynthesizer
@@ -46,6 +46,8 @@ class ResearchAgentOrchestrator:
         plan = self.planner.plan(request.task)
         topic_id = request.workspace_id or request.topic_id
         partner_trace: list[str] = []
+        topic = await db.get(Topic, topic_id)
+        topic_entities = topic.entities if topic and topic.entities else []
         transcript = None
         memories = []
         workflow_events = []
@@ -67,7 +69,7 @@ class ResearchAgentOrchestrator:
                     MemorySearchRequest(
                         workspace_id=topic_id,
                         query=task_text,
-                        entities=[],
+                        entities=topic_entities,
                         top_k=5,
                     )
                 )
@@ -79,6 +81,7 @@ class ResearchAgentOrchestrator:
                     query=task_text,
                     topic_id=topic_id,
                     freshness_required_days=request.freshness_required_days,
+                    entities=topic_entities,
                     top_k=request.max_sources,
                 ),
             )
@@ -100,6 +103,7 @@ class ResearchAgentOrchestrator:
                         query=task_text,
                         topic_id=topic_id,
                         freshness_required_days=request.freshness_required_days,
+                        entities=topic_entities,
                         top_k=request.max_sources,
                     ),
                 )

@@ -48,7 +48,7 @@ class BrightDataClient:
 
     @property
     def headers(self) -> dict[str, str]:
-        headers = {"Content-Type": "application/json", "User-Agent": "webdataos/2.0.0"}
+        headers = {"Content-Type": "application/json", "User-Agent": "webdataos/3.0.0"}
         if self.settings.brightdata_api_key:
             headers["Authorization"] = f"Bearer {self.settings.brightdata_api_key}"
         return headers
@@ -235,8 +235,15 @@ class BrightDataClient:
     # the API server treats it as a best-effort fetch boundary.
 
     async def mcp_server_extract(self, url: str, schema: dict[str, Any] | None = None) -> BrightDataResult:
-        if self.mock or not self.settings.brightdata_mcp_endpoint:
+        if self.mock:
             return await self._mock_extract(url, ToolName.mcp_server, schema)
+        if not self.settings.brightdata_mcp_endpoint:
+            return BrightDataResult(
+                tool=ToolName.mcp_server,
+                url=url,
+                status_code=501,
+                text="Bright Data MCP endpoint is not configured",
+            )
         return await self._get_tool(self.settings.brightdata_mcp_endpoint, ToolName.mcp_server, url=url)
 
     # ── Internal helpers ──────────────────────────────────────────────

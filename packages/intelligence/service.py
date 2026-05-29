@@ -34,6 +34,12 @@ class IntelligenceService:
     async def create_topic(self, db: AsyncSession, topic: TopicCreate) -> TopicRead:
         existing = await db.get(Topic, topic.id)
         if existing:
+            existing.name = topic.name
+            existing.description = topic.description
+            existing.entities = topic.entities
+            existing.watch_types = topic.watch_types
+            existing.refresh_frequency_minutes = topic.refresh_frequency_minutes
+            await db.commit()
             return self._topic_read(existing)
         model = Topic(**topic.model_dump())
         db.add(model)
@@ -50,9 +56,23 @@ class IntelligenceService:
             topic = Topic(id=topic_id, name=topic_id.replace("_", " ").title(), entities=[], watch_types=[])
             db.add(topic)
             await db.commit()
-        query_terms = (topic.entities or []) + (topic.watch_types or []) + [topic.name]
-        query = " ".join([x for x in query_terms if x]) or topic_id
-        results = await self.brightdata.serp_search(query)
+        entities = [x for x in (topic.entities or []) if x]
+        signals = [x for x in (topic.watch_types or []) if x]
+        queries = [f"{entity} {' '.join(signals[:4])}".strip() for entity in entities[: max(limit, 1)]]
+        if not queries:
+            queries = [" ".join([x for x in [topic.name, *signals] if x]) or topic_id]
+        per_query_limit = max(1, (limit + len(queries) - 1) // len(queries))
+        results = []
+        seen_urls: set[str] = set()
+        for query in queries:
+            for item in await self.brightdata.serp_search(query):
+                if item.url and item.url not in seen_urls:
+                    results.append(item)
+                    seen_urls.add(item.url)
+                if len(results) >= limit:
+                    break
+            if len(results) >= limit:
+                break
         records: list[SourceRecord] = []
         for r in results[:limit]:
             source_id = stable_id(topic_id, r.url)

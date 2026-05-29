@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     neo4j_enabled: bool = False
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
+    neo4j_username: str | None = None
     neo4j_password: str = "password12345"
+    neo4j_database: str | None = None
 
     brightdata_api_key: str | None = None
     brightdata_api_endpoint: str = "https://api.brightdata.com/request"

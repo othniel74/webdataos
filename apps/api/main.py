@@ -19,6 +19,7 @@ from packages.enterprise.packs import list_packs
 from packages.common.config import get_settings
 from packages.common.logging import configure_logging, get_logger
 from packages.common.errors import BrightDataError
+from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.observability.otel import configure_otel
 
 configure_logging()
@@ -105,9 +106,11 @@ async def health():
         db_status = "ok"
     except Exception:
         db_status = "error"
+    neo4j_status = Neo4jGraphClient().health()
     return {
         "status": "ok" if db_status == "ok" else "degraded",
         "database": db_status,
+        "neo4j": neo4j_status,
         "mock_brightdata": settings.mock_brightdata,
         "brightdata_live": bool(settings.brightdata_api_key) and not settings.mock_brightdata,
         "llm_available": bool(settings.openai_api_key or settings.aimlapi_api_key),

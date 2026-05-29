@@ -12,7 +12,7 @@ class Neo4jGraphClient:
             try:
                 self.driver = GraphDatabase.driver(
                     self.settings.neo4j_uri,
-                    auth=(self.settings.neo4j_user, self.settings.neo4j_password),
+                    auth=(self.settings.neo4j_username or self.settings.neo4j_user, self.settings.neo4j_password),
                 )
             except Exception:
                 self.enabled = False
@@ -27,8 +27,25 @@ class Neo4jGraphClient:
         entity = record.get("entity_name") or record.get("facts", {}).get("company") or "Unknown"
         source_url = record.get("source_url")
         facts = record.get("facts") or {}
-        with self.driver.session() as session:
+        with self._session() as session:
             session.execute_write(self._upsert_tx, entity, source_url, facts, record)
+
+    def health(self) -> str:
+        if not self.enabled:
+            return "disabled"
+        if not self.driver:
+            return "error"
+        try:
+            with self._session() as session:
+                session.run("RETURN 1").single()
+            return "ok"
+        except Exception:
+            return "error"
+
+    def _session(self):
+        if self.settings.neo4j_database:
+            return self.driver.session(database=self.settings.neo4j_database)
+        return self.driver.session()
 
     @staticmethod
     def _upsert_tx(tx, entity: str, source_url: str, facts: dict[str, Any], record: dict[str, Any]):
