@@ -107,6 +107,9 @@ async def health():
         "status": "ok" if db_status == "ok" else "degraded",
         "database": db_status,
         "mock_brightdata": settings.mock_brightdata,
+        "brightdata_live": bool(settings.brightdata_api_key) and not settings.mock_brightdata,
+        "llm_available": bool(settings.openai_api_key or settings.anthropic_api_key),
+        "llm_provider": "openai" if settings.openai_api_key else ("anthropic" if settings.anthropic_api_key else None),
         "auth_enabled": settings.api_auth_enabled,
         "version": "0.5.0",
     }

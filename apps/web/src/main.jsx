@@ -115,7 +115,7 @@ export default function App() {
   const [packId, setPackId] = useState("enterprise");
   const [tierId, setTierId] = useState("pro");
   const [selDomains, setSelDomains] = useState(["security", "gtm"]);
-  const [actions, setActions] = useState(MOCK_ACTIONS);
+  const [actions, setActions] = useState([]);
   const [report, setReport] = useState(null);
   const [backendOk, setBackendOk] = useState(null);
   const [ws, setWs] = useState({ id: "ws_enterprise", name: "Enterprise Workspace", cadence: "Daily", entities: "", signals: "" });
@@ -125,7 +125,7 @@ export default function App() {
   const toggleDomain = (id) => { if (tierId === "enterprise") return; setSelDomains(prev => { if (prev.includes(id)) return prev.filter(d => d !== id); if (prev.length >= tier.pick) return [...prev.slice(1), id]; return [...prev, id]; }); };
   const nav = useCallback(t => { if (PRIV.includes(t) && !user) { setShowAuth(true); return; } setPage(t); }, [user]);
   useEffect(() => {
-    endpoints.health().then(() => setBackendOk(true)).catch(() => setBackendOk(false));
+    endpoints.health().then(status => setBackendOk(status)).catch(() => setBackendOk(false));
   }, []);
   useEffect(() => {
     if (!user) return;
@@ -212,12 +212,15 @@ function FI({ icon, ph, v, set, type = "text" }) {
 
 /* ═══════ NAV ═══════ */
 function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
+  const apiLive = backendOk && backendOk !== false && backendOk.status !== "offline";
+  const llmLive = apiLive && backendOk.llm_available;
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 50, borderBottom: `1px solid ${T.border}`, background: "rgba(11,17,32,.84)", backdropFilter: "blur(20px)", padding: "0 20px", height: 58, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <button onClick={() => setPage("Home")} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.text }}>
         <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg,${T.accent},#0891b2)`, display: "grid", placeItems: "center" }}><Layers size={15} color="#fff" /></div>
         <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em" }}>WebDataOS</span>
-        <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 999, background: backendOk === true ? "rgba(34,197,94,.1)" : backendOk === false ? "rgba(239,68,68,.1)" : "rgba(255,255,255,.04)", color: backendOk === true ? "#22c55e" : backendOk === false ? "#ef4444" : T.dim }}>{backendOk === true ? "API connected" : backendOk === false ? "API offline" : "checking API"}</span>
+        <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 999, background: apiLive ? "rgba(34,197,94,.1)" : backendOk === false ? "rgba(239,68,68,.1)" : "rgba(255,255,255,.04)", color: apiLive ? "#22c55e" : backendOk === false ? "#ef4444" : T.dim }}>{apiLive ? "API live" : backendOk === false ? "API offline" : "checking API"}</span>
+        <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 999, background: llmLive ? "rgba(34,197,94,.1)" : "rgba(245,158,11,.1)", color: llmLive ? "#22c55e" : "#f59e0b" }}>{llmLive ? `LLM ${backendOk.llm_provider}` : "LLM fallback"}</span>
       </button>
       <nav style={{ display: "flex", gap: 2, padding: 3, borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}>
         {PUB.map(n => <button key={n} onClick={() => setPage(n)} style={{ border: "none", borderRadius: 999, padding: "6px 12px", fontSize: 12, fontWeight: 500, background: page === n ? T.accent : "transparent", color: page === n ? "#000" : T.muted, cursor: "pointer" }}>{n}</button>)}
@@ -741,8 +744,9 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
       setLoading(false);
     }
   };
-  const r = report?.reasoning || MOCK_REASONING;
+  const r = report?.reasoning || { executive_summary: "", risk_posture: "waiting", materiality_assessments: [], recommendations: [], confidence: 0, reasoning_trace: [] };
   const summary = report?.summary || r.executive_summary;
+  const reportActions = report ? actions.filter(a => a.run_id === report.run_id) : [];
   const approve = id => setActions(p => p.map(a => a.id === id ? { ...a, status: "approved" } : a));
   const reject = id => setActions(p => p.map(a => a.id === id ? { ...a, status: "rejected" } : a));
 
@@ -755,7 +759,12 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
       </div>
       {error && <div style={{ marginTop: 8, padding: 10, borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", color: "#ef4444", fontSize: 12 }}>{error}</div>}
 
-      {(done || true) && <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 260px", gap: 12 }}>
+      {!report && !loading && <div style={{ marginTop: 14, padding: 18, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>No live report yet</div>
+        <div style={{ fontSize: 12, color: T.muted, marginTop: 6, lineHeight: 1.6 }}>Run a research task to fetch live Bright Data evidence and generate a backend report. The UI no longer preloads mock actions or mock reasoning here.</div>
+      </div>}
+
+      {report && <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 260px", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {/* Executive summary */}
           <div style={{ padding: 14, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
@@ -793,8 +802,9 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
           </div>
           {/* Actions */}
           <div style={{ padding: 14, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}><Zap size={13} color="#22c55e" style={{ marginRight: 4 }} />Actions ({actions.filter(a => a.run_id === "run_01").length})</div>
-            {actions.filter(a => a.run_id === "run_01").map(a => <div key={a.id} style={{ padding: "8px 10px", borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}`, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}><Zap size={13} color="#22c55e" style={{ marginRight: 4 }} />Actions ({reportActions.length})</div>
+            {reportActions.length === 0 && <div style={{ fontSize: 12, color: T.dim }}>No backend actions were proposed for this run.</div>}
+            {reportActions.map(a => <div key={a.id} style={{ padding: "8px 10px", borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}`, marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", gap: 4 }}><span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: `${stC(a.status)}12`, color: stC(a.status), fontWeight: 600 }}>{a.status}</span><span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: "rgba(255,255,255,.04)", color: T.dim }}>{a.action_type}</span></div>
                 <div style={{ fontSize: 12, fontWeight: 500, marginTop: 2 }}>{a.title}</div>
@@ -812,7 +822,7 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
             <Lb>Metrics</Lb>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 6 }}>
               <MC l="Confidence" v={fmt(r.confidence)} c="#22c55e" /><MC l="Posture" v={r.risk_posture} c="#f59e0b" />
-              <MC l="Material" v={r.materiality_assessments.filter(a => a.materiality !== "low").length} c="#ef4444" /><MC l="Actions" v={actions.filter(a => a.run_id === "run_01").length} c="#22c55e" />
+              <MC l="Material" v={r.materiality_assessments.filter(a => a.materiality !== "low").length} c="#ef4444" /><MC l="Actions" v={reportActions.length} c="#22c55e" />
             </div>
           </div>
           <div style={{ padding: 12, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
@@ -821,10 +831,9 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
           </div>
           <div style={{ padding: 12, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
             <Lb>Org context</Lb>
-            <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{MOCK_ORG.contracts.length} contracts loaded</div>
-            <div style={{ fontSize: 11, color: T.muted }}>Spend: ${MOCK_ORG.financial_exposure.total_vendor_spend.toLocaleString()}</div>
-            <div style={{ fontSize: 11, color: T.muted }}>{MOCK_ORG.strategic_priorities.length} priorities</div>
-            <div style={{ fontSize: 11, color: T.muted }}>{MOCK_ORG.compliance_requirements.length} compliance reqs</div>
+            <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{report.org_context_used ? "Backend org context used" : "No backend org context for this run"}</div>
+            <div style={{ fontSize: 11, color: T.muted }}>Sources: {report.sources?.length || 0}</div>
+            <div style={{ fontSize: 11, color: T.muted }}>Partner trace: {report.partner_trace?.length || 0}</div>
           </div>
         </div>
       </div>}
