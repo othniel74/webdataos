@@ -19,6 +19,7 @@ from apps.api.routes.llm import router as llm_router
 from apps.api.routes.graph import router as graph_router
 from apps.api.routes.monitor import router as monitor_router
 from apps.api.routes.chat import router as chat_router
+from apps.api.routes.triggerware import router as triggerware_router
 from packages.enterprise.packs import list_packs
 from packages.common.config import get_settings
 from packages.common.logging import configure_logging, get_logger
@@ -103,6 +104,7 @@ app.include_router(llm_router)
 app.include_router(graph_router)
 app.include_router(monitor_router)
 app.include_router(chat_router)
+app.include_router(triggerware_router)
 
 
 @app.get("/health")
