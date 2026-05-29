@@ -75,7 +75,6 @@ class BrightDataClient:
             "format": "json",
             "method": "GET",
             "country": country or self.settings.default_country,
-            "data_format": "markdown",
         }
 
         logger.info("brightdata_serp", zone=zone, query=query[:50])
@@ -87,6 +86,8 @@ class BrightDataClient:
             # Try extracting search results from raw response
             logger.warning("serp_json_parse_failed, returning mock results")
             return self._mock_serp(query)
+
+        data = self._unwrap_brightdata_body(data)
 
         # Parse SERP results
         items = data.get("organic", data.get("results", data if isinstance(data, list) else []))
@@ -100,6 +101,20 @@ class BrightDataClient:
             for i, item in enumerate(items)
             if item.get("url") or item.get("link")
         ]
+
+    def _unwrap_brightdata_body(self, data: Any) -> Any:
+        """Bright Data /request may wrap parsed SERP JSON inside a string body."""
+        if not isinstance(data, dict) or "body" not in data:
+            return data
+        body = data.get("body")
+        if isinstance(body, dict) or isinstance(body, list):
+            return body
+        if isinstance(body, str):
+            try:
+                return json.loads(body)
+            except ValueError:
+                return data
+        return data
 
     # ── Web Unlocker ──────────────────────────────────────────────────
     # POST https://api.brightdata.com/request
