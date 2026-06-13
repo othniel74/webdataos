@@ -380,8 +380,14 @@ class IntelligenceService:
         result = await db.execute(stmt)
         records = result.scalars().all()
 
-        topic = await db.get(Topic, topic_id)
-        watch_types_lower = {wt.lower() for wt in (topic.watch_types if topic else [])}
+        # Generic workspace category terms that are never real entity names
+        GENERIC_NAMES = {
+            "vendors", "vendor", "competitors", "competitor", "accounts", "account",
+            "companies", "company", "suppliers", "supplier", "customers", "customer",
+            "partners", "partner", "markets", "market", "signals", "signal",
+            "products", "product", "services", "service", "threats", "threat",
+            "risks", "risk", "opportunities", "opportunity", "unknown", "untitled",
+        }
 
         enriched = 0
         skipped = 0
@@ -389,7 +395,7 @@ class IntelligenceService:
 
         for rec in records:
             current_name = (rec.entity_name or "").strip()
-            is_generic = current_name.lower() in watch_types_lower or not current_name
+            is_generic = current_name.lower() in GENERIC_NAMES or not current_name
             if not is_generic:
                 skipped += 1
                 continue
