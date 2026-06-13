@@ -410,8 +410,42 @@ class Neo4jGraphClient:
                     action_id=action_id, entity_id=tenant_entity_id,
                 )
 
-        # Cross-entity co-occurrence (entities mentioned together in a run)
-        entity_names = list({
+        # Real named entities from LLM extraction (Gap 1) — these are the meaningful nodes
+        for ent in run_data.get("extracted_entities", []):
+            ent_name = (ent.get("name") or "").strip()
+            if not ent_name:
+                continue
+            ent_type = ent.get("type") or "company"
+            label = ENTITY_LABEL_MAP.get(ent_type.lower(), "Company")
+            scoped_id = f"{tenant_id}:{ent_name}"
+            tx.run(
+                f"""
+                MERGE (e:Entity {{scoped_id: $scoped_id}})
+                SET e:{label}, e.name=$name, e.entity_type=$etype,
+                    e.tenant_id=$tid, e.color=$color,
+                    e.latest_event=$event, e.event_type=$etype2,
+                    e.severity=$severity
+                WITH e
+                MATCH (w:Workspace {{id: $topic_id}})
+                MERGE (w)-[:MONITORS]->(e)
+                WITH e
+                MATCH (r:IntelligenceRun {{run_id: $run_id}})
+                MERGE (r)-[:DETECTED_ENTITY]->(e)
+                """,
+                scoped_id=scoped_id, name=ent_name, etype=ent_type,
+                tid=tenant_id, topic_id=topic_id, run_id=run_id,
+                color=NODE_COLORS.get(label, "#8b5cf6"),
+                event=(ent.get("event") or "")[:200],
+                etype2=ent.get("event_type") or "other",
+                severity=ent.get("severity") or "medium",
+            )
+
+        # Cross-entity co-occurrence — use extracted entities when available, fall back to record entities
+        extracted_entity_names = [
+            ent.get("name") for ent in run_data.get("extracted_entities", [])
+            if ent.get("name")
+        ]
+        entity_names = extracted_entity_names or list({
             rec.get("entity_name") for rec in run_data.get("records", [])
             if rec.get("entity_name")
         })
@@ -850,7 +884,7 @@ class Neo4jGraphClient:
             labels = list(node.labels)
             # Pick most specific label (non-Entity base label first)
             node_type = next(
-                (l for l in labels if l != "Entity"),
+                (lbl for lbl in labels if lbl != "Entity"),
                 labels[0] if labels else "Node",
             )
             props = dict(node)
@@ -877,7 +911,6 @@ class Neo4jGraphClient:
             elif node_type == "Signal":
                 finding = props.get("finding") or ""
                 sig_type = props.get("signal_type") or ""
-                mat = props.get("materiality") or ""
                 if finding:
                     prefix = f"[{sig_type}] " if sig_type else ""
                     display_label = prefix + finding[:55]

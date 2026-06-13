@@ -356,6 +356,75 @@ class IntelligenceService:
             logger.warning("neo4j_mirror_failed", error=str(exc)[:300], topic_id=payload.topic_id, source_url=payload.source_url)
             return False
 
+    async def enrich_entity_names(
+        self,
+        db: AsyncSession,
+        topic_id: str,
+        tenant_id: str | None = None,
+        llm=None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        """Backfill: replace generic entity_name values (workspace category terms like 'vendors',
+        'competitors') with real named entities extracted from each record's summary via LLM.
+        Also re-mirrors updated records to Neo4j.
+        """
+        from packages.agents.entity_extractor import EntityExtractor
+
+        extractor = EntityExtractor(llm=llm)
+
+        stmt = select(IntelligenceRecord).order_by(IntelligenceRecord.extracted_at.desc()).limit(limit)
+        if topic_id:
+            stmt = stmt.where(IntelligenceRecord.topic_id == topic_id)
+        if tenant_id:
+            stmt = stmt.where(IntelligenceRecord.tenant_id == tenant_id)
+        result = await db.execute(stmt)
+        records = result.scalars().all()
+
+        topic = await db.get(Topic, topic_id)
+        watch_types_lower = {wt.lower() for wt in (topic.watch_types if topic else [])}
+
+        enriched = 0
+        skipped = 0
+        failed = 0
+
+        for rec in records:
+            current_name = (rec.entity_name or "").strip()
+            is_generic = current_name.lower() in watch_types_lower or not current_name
+            if not is_generic:
+                skipped += 1
+                continue
+            summary_text = rec.summary or ""
+            if not summary_text or len(summary_text.strip()) < 20:
+                failed += 1
+                continue
+            try:
+                entities = await extractor.extract(summary_text, max_entities=5)
+                if not entities:
+                    failed += 1
+                    continue
+                best = next(
+                    (e for e in entities if e.get("type") in {"company", "organization"}),
+                    entities[0]
+                )
+                new_name = best["name"]
+                updated_facts = extractor.merge_into_facts(rec.facts_json or {}, entities)
+                rec.entity_name = new_name
+                rec.facts_json = updated_facts
+                await db.commit()
+                self._mirror_graph(self._record_read(rec))
+                enriched += 1
+            except Exception as exc:
+                logger.warning("enrich_entity_failed", error=str(exc)[:200], record_id=rec.id)
+                failed += 1
+
+        return {
+            "topic_id": topic_id,
+            "records_seen": len(records),
+            "enriched": enriched,
+            "skipped_already_named": skipped,
+            "failed": failed,
+        }
+
     async def backfill_graph(
         self,
         db: AsyncSession,

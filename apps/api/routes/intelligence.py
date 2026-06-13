@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.session import get_db
-from apps.api.dependencies import authenticated_context, get_intelligence_service
+from apps.api.dependencies import authenticated_context, get_intelligence_service, get_llm_client
 from apps.api.workspace_resolution import resolve_workspace, workspace_id_for_tenant
 from packages.common.security import AuthContext
 from packages.intelligence.service import IntelligenceService
+from packages.llm.client import LLMClient
 from packages.schemas.intelligence import TopicCreate, TopicRead, SourceRecord, IntelligenceRecordRead, RetrievalRequest, RetrievalResult
 
 router = APIRouter(prefix="/intelligence", tags=["Track 2 - Intelligence"], dependencies=[Depends(authenticated_context)])
@@ -101,3 +102,19 @@ async def retrieve(
     topic = await resolve_workspace(db, req.topic_id, auth)
     req.topic_id = topic.id if topic else workspace_id_for_tenant(req.topic_id, auth)
     return await service.retrieve_context(db, req, tenant_id=auth.tenant_id)
+
+
+@router.post("/topics/{topic_id}/enrich-entities")
+async def enrich_entities(
+    topic_id: str,
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+    service: IntelligenceService = Depends(get_intelligence_service),
+    llm: LLMClient = Depends(get_llm_client),
+    auth: AuthContext = Depends(authenticated_context),
+):
+    """Backfill: replace generic entity names on existing records with real named entities
+    extracted via LLM from each record's summary. Re-mirrors updated records to Neo4j."""
+    topic = await resolve_workspace(db, topic_id, auth)
+    topic_id = topic.id if topic else workspace_id_for_tenant(topic_id, auth)
+    return await service.enrich_entity_names(db, topic_id, tenant_id=auth.tenant_id, llm=llm, limit=limit)

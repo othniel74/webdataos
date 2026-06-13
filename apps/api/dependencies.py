@@ -118,3 +118,7 @@ def get_triggerware_service() -> TriggerWareService:
 
 def get_graph_service() -> Neo4jGraphClient:
     return _graph
+
+
+def get_llm_client() -> LLMClient:
+    return _llm

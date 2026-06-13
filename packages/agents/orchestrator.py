@@ -4,7 +4,8 @@ import uuid
 from packages.common.time import utc_now as import_utc_now
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, OrganizationalContext, Outcome, Topic
+from sqlalchemy import update as sa_update
+from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, IntelligenceRecord, OrganizationalContext, Outcome, Topic
 from packages.common.config import get_settings
 from packages.common.logging import get_logger
 from packages.agents.entity_extractor import EntityExtractor
@@ -407,10 +408,33 @@ class ResearchAgentOrchestrator:
                 outcome_count=outcome_count,
                 previous_run_exists=previous_run_exists,
             )
-            if records and not previous_run_exists and not db_changes:
-                summary = f"Baseline created for {topic.name if topic else topic_id}. {summary}"
-            elif records and previous_run_exists and not db_changes:
-                summary = f"No material changes detected since the last monitoring cycle. {summary}"
+            # Fix entity_name on records that carry generic workspace category names
+            if extracted_entities and records:
+                watch_types_lower = {wt.lower() for wt in (topic.watch_types if topic else [])}
+                company_entities = [e for e in extracted_entities if e.get("type") in {"company", "organization"}]
+                if not company_entities:
+                    company_entities = extracted_entities
+                generic_ids = [r.id for r in records if (r.entity_name or "").lower() in watch_types_lower]
+                if generic_ids and company_entities:
+                    await db.execute(
+                        sa_update(IntelligenceRecord)
+                        .where(IntelligenceRecord.id.in_(generic_ids))
+                        .values(entity_name=company_entities[0]["name"])
+                    )
+                    await db.commit()
+                    best_name = company_entities[0]["name"]
+                    generic_id_set = set(generic_ids)
+                    records = [
+                        r.model_copy(update={"entity_name": best_name}) if r.id in generic_id_set else r
+                        for r in records
+                    ]
+
+            if records and not previous_run_exists:
+                summary = f"Baseline established for {topic.name if topic else topic_id}. {summary}"
+            elif change_report and change_report.has_changes():
+                summary = f"{change_report.delta_headline()}. {summary}"
+            elif records and previous_run_exists:
+                summary = f"Signals stable since last run. {summary}"
             run_receipt = ResearchRunReceipt(
                 run_id=run_id,
                 topic_id=topic_id,
@@ -614,15 +638,27 @@ class ResearchAgentOrchestrator:
         recommendations = reasoning_output.recommendations if reasoning_output else []
         first_recommendation = recommendations[0] if recommendations else None
         first_action = action_proposals[0] if action_proposals else None
-        if db_changes:
+        if change_report and change_report.has_changes():
+            headline = change_report.delta_headline()
+            parts = []
+            if change_report.new_signals:
+                parts.append(f"{len(change_report.new_signals)} new signal{'s' if len(change_report.new_signals) != 1 else ''} detected")
+            if change_report.resolved_signals:
+                parts.append(f"{len(change_report.resolved_signals)} signal{'s' if len(change_report.resolved_signals) != 1 else ''} resolved")
+            if change_report.risk_posture_change:
+                parts.append(f"risk posture changed: {change_report.risk_posture_change}")
+            if change_report.new_entities:
+                parts.append(f"new entities: {', '.join(change_report.new_entities[:3])}")
+            what_changed = ". ".join(parts) + "." if parts else "Signals changed since last run."
+        elif db_changes:
             headline = f"{len(db_changes)} monitored change{'s' if len(db_changes) != 1 else ''} need review"
             what_changed = f"{len(db_changes)} saved evidence fields changed since the previous run."
         elif previous_run_exists and records:
-            headline = f"No material change detected for {entity_label}"
-            what_changed = "No material change was detected against the previous saved evidence state."
+            headline = f"Signals stable for {entity_label}"
+            what_changed = "No new signals detected. Evidence baseline is current."
         elif records:
             headline = f"Baseline created for {entity_label}"
-            what_changed = f"{len(records)} evidence records were saved as the baseline for future comparisons."
+            what_changed = f"{len(records)} evidence records saved as baseline for future comparison."
         else:
             headline = f"No evidence found yet for {entity_label}"
             what_changed = "No usable evidence was retrieved for this run."
