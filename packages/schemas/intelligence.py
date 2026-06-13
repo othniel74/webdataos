@@ -35,6 +35,7 @@ class IntelligenceRecordRead(BaseModel):
     summary: str | None = None
     confidence: float = 0.0
     freshness_status: str = "unknown"
+    source_tier: int = 3
     last_checked: str | None = None
     extracted_at: str | None = None
 

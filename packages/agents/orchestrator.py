@@ -6,8 +6,11 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.db.models import AgentRun, AutonomousAction, ChangeEvent, OrganizationalContext, Outcome, Topic
 from packages.common.config import get_settings
+from packages.common.logging import get_logger
+from packages.agents.entity_extractor import EntityExtractor
 from packages.agents.planner import ResearchPlanner
 from packages.agents.synthesizer import ReportSynthesizer
+from packages.intelligence.change_detection import ChangeDetectionService
 from packages.intelligence.service import IntelligenceService
 from packages.llm.client import LLMClient
 from packages.memory.provider import MemoryProvider
@@ -27,6 +30,8 @@ from packages.schemas.agent import (
 from packages.schemas.intelligence import RetrievalRequest
 from packages.schemas.partners import MemorySearchRequest, MemoryUpsertRequest, TranscriptionRequest, WorkflowTriggerRequest
 from packages.schemas.reasoning import ActionProposal, OrgContextRead
+
+logger = get_logger(__name__)
 
 
 class ResearchAgentOrchestrator:
@@ -49,6 +54,8 @@ class ResearchAgentOrchestrator:
         self.graph = graph or Neo4jGraphClient()
         self.planner = ResearchPlanner()
         self.synthesizer = ReportSynthesizer(llm=self.llm)
+        self.entity_extractor = EntityExtractor(llm=self.llm)
+        self.change_detector = ChangeDetectionService()
         self.settings = get_settings()
 
     async def run(self, db: AsyncSession, request: ResearchRequest) -> ResearchReport:
@@ -62,6 +69,7 @@ class ResearchAgentOrchestrator:
         tenant_id = topic.tenant_id if topic else "tenant_internal"
         previous_run_at = await self._previous_run_created_at(db, topic_id)
         previous_run_exists = previous_run_at is not None
+        previous_run_id, previous_report_json = await self._previous_run_report(db, topic_id)
         transcript = None
         memories = []
         workflow_events = []
@@ -229,7 +237,12 @@ class ResearchAgentOrchestrator:
             summary, findings, companies, changes, confidence = await synthesizer.synthesize_async(
                 task_text, records, memories
             )
-            db_changes = await self._recent_changes(db, topic_id, since=previous_run_at)
+
+            # Gap 1: Named entity extraction — run concurrently with db_changes query
+            extracted_entities, db_changes = await asyncio.gather(
+                self.entity_extractor.extract(summary),
+                self._recent_changes(db, topic_id, since=previous_run_at),
+            )
             llm_used = request.enable_llm and self.llm.available and synthesizer is self.synthesizer
             if llm_used:
                 provider = self.llm.last_provider or self.llm.provider or "llm"
@@ -251,6 +264,7 @@ class ResearchAgentOrchestrator:
             org_context = await self._load_org_context(db, topic_id)
             reasoning_output = None
             action_proposals = []
+            change_report = None
             org_context_used = org_context is not None
 
             if records:
@@ -281,6 +295,21 @@ class ResearchAgentOrchestrator:
                 partner_trace.append(f"reasoning.actions.proposed({len(action_proposals)})")
                 stages.append(
                     ResearchRunStage(name="propose_actions", status="success", provider="reasoning_engine", detail=f"{len(action_proposals)} actions")
+                )
+
+                # Gap 2: Change detection — compare against previous run
+                days_since = None
+                if previous_run_at:
+                    from datetime import timezone
+                    prev_dt = previous_run_at if previous_run_at.tzinfo else previous_run_at.replace(tzinfo=timezone.utc)
+                    days_since = round((import_utc_now() - prev_dt).total_seconds() / 86400, 1)
+                change_report = self.change_detector.compare(
+                    current_run_id=run_id,
+                    previous_report=previous_report_json or {},
+                    current_reasoning=reasoning_output,
+                    current_records=records,
+                    previous_run_id=previous_run_id or "",
+                    days_since=days_since,
                 )
 
                 # Store proposed actions in DB
@@ -423,6 +452,7 @@ class ResearchAgentOrchestrator:
                 confidence=confidence,
                 receipt=run_receipt,
                 previous_run_exists=previous_run_exists,
+                change_report=change_report,
             )
 
             report = ResearchReport(
@@ -447,6 +477,7 @@ class ResearchAgentOrchestrator:
                 org_context_used=org_context_used,
                 run_receipt=run_receipt,
                 decision_brief=decision_brief,
+                change_report=change_report.to_dict() if change_report else None,
             )
             db.add(AgentRun(id=run_id, tenant_id=tenant_id, topic_id=topic_id, task=request.task, status="success", report_json=report.model_dump()))
             await db.commit()
@@ -468,6 +499,7 @@ class ResearchAgentOrchestrator:
                     "confidence": confidence,
                     "created_at": import_utc_now(),
                     "records": [r.model_dump() for r in records],
+                    "extracted_entities": extracted_entities,
                     "materiality_assessments": [
                         {
                             "signal_id": f"sig:{run_id}:{a.finding[:40]}",
@@ -526,6 +558,21 @@ class ResearchAgentOrchestrator:
         )
         return result.scalar_one_or_none()
 
+    async def _previous_run_report(self, db: AsyncSession, topic_id: str | None) -> tuple[str, dict] | tuple[None, None]:
+        """Fetch the most recent successful agent run's full report JSON and run_id for the topic."""
+        if not topic_id:
+            return None, None
+        result = await db.execute(
+            select(AgentRun.id, AgentRun.report_json, AgentRun.created_at)
+            .where(AgentRun.topic_id == topic_id, AgentRun.status == "success")
+            .order_by(desc(AgentRun.created_at))
+            .limit(1)
+        )
+        row = result.one_or_none()
+        if not row:
+            return None, None
+        return row[0], row[1]  # (run_id, report_json)
+
     async def _recent_changes(self, db: AsyncSession, topic_id: str | None, since=None) -> list[dict]:
         if not topic_id:
             return []
@@ -558,6 +605,7 @@ class ResearchAgentOrchestrator:
         confidence: float,
         receipt: ResearchRunReceipt,
         previous_run_exists: bool,
+        change_report=None,
     ) -> DecisionBrief:
         entities = [entity for entity in (topic.entities if topic else []) if entity]
         signals = [signal for signal in (topic.watch_types if topic else []) if signal]
@@ -637,8 +685,10 @@ class ResearchAgentOrchestrator:
             f"{receipt.counts.get('autonomous_actions', 0)} actions, "
             f"{receipt.counts.get('workflow_events', 0)} workflow events."
         )
+        delta_headline = change_report.delta_headline() if change_report else None
         return DecisionBrief(
             headline=headline,
+            delta_headline=delta_headline,
             answer=summary,
             what_changed=what_changed,
             business_impact=business_impact,

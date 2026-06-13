@@ -552,8 +552,14 @@ function decisionFromReport(report, fallbackSummary = "") {
 
 function DecisionBriefPanel({ brief, onEvidence, compact = false }) {
   const severity = brief?.severity || "monitoring";
+  const deltaHeadline = brief?.delta_headline;
   return (
     <section style={{ padding: compact ? 14 : 18, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}`, borderLeft: `3px solid ${matC(severity)}` }}>
+      {deltaHeadline && (
+        <div style={{ marginBottom: 10, padding: "6px 10px", borderRadius: 6, background: `${T.accent}12`, border: `1px solid ${T.accent}30`, fontSize: 12, fontWeight: 700, color: T.accent, fontFamily: "monospace", letterSpacing: ".02em" }}>
+          {deltaHeadline}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 11, color: T.accent, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Decision brief</div>
@@ -3602,7 +3608,11 @@ function EvidencePage({ ws }) {
                 <button key={item.id} onClick={() => setSelectedId(item.id)} style={{ width: "100%", textAlign: "left", padding: "11px 12px", border: "none", borderBottom: `1px solid ${T.border}`, background: active ? "rgba(6,182,212,.1)" : "transparent", color: T.text }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <div style={{ fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.entity_name || "Evidence record"}</div>
-                    <span style={{ fontSize: 10, color: active ? T.accent : T.dim, fontFamily: "'JetBrains Mono'" }}>{fmt(item.confidence || 0)}</span>
+                    <div style={{ display: "flex", gap: 5, alignItems: "center", flexShrink: 0 }}>
+                      {item.source_tier === 1 && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 999, background: "rgba(34,197,94,.15)", color: "#22c55e", fontWeight: 900, textTransform: "uppercase" }}>official</span>}
+                      {item.source_tier === 2 && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 999, background: "rgba(6,182,212,.12)", color: T.accent, fontWeight: 900, textTransform: "uppercase" }}>news</span>}
+                      <span style={{ fontSize: 10, color: active ? T.accent : T.dim, fontFamily: "'JetBrains Mono'" }}>{fmt(item.confidence || 0)}</span>
+                    </div>
                   </div>
                   <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.45, color: T.muted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.summary || "No summary captured."}</div>
                   <div style={{ marginTop: 6, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><SourceLink url={item.source_url}>{item.source_url || item.source_type || "source pending"}</SourceLink></div>
@@ -3626,6 +3636,7 @@ function EvidencePage({ ws }) {
             <div style={{ marginTop: 12, display: "flex", gap: 18, flexWrap: "wrap", paddingBottom: 12, borderBottom: `1px solid ${T.border}` }}>
               <div><Lb>Confidence</Lb><div style={{ marginTop: 4, color: T.accent, fontWeight: 800 }}>{fmt(selected.confidence || 0)}</div></div>
               <div><Lb>Type</Lb><div style={{ marginTop: 4, color: T.muted, fontWeight: 700 }}>{selected.source_type || "web"}</div></div>
+              <div><Lb>Source tier</Lb><div style={{ marginTop: 4, fontWeight: 800, color: selected.source_tier === 1 ? "#22c55e" : selected.source_tier === 2 ? T.accent : T.dim }}>{selected.source_tier === 1 ? "T1 — official" : selected.source_tier === 2 ? "T2 — news" : "T3 — web"}</div></div>
               <div><Lb>Checked</Lb><div style={{ marginTop: 4, color: T.muted, fontWeight: 700 }}>{selected.last_checked ? new Date(selected.last_checked).toLocaleDateString() : "unknown"}</div></div>
             </div>
             <div style={{ marginTop: 14 }}>

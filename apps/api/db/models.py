@@ -105,6 +105,7 @@ class IntelligenceRecord(Base):
     summary: Mapped[str | None] = mapped_column(Text)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     freshness_status: Mapped[str] = mapped_column(String(50), default="unknown")
+    source_tier: Mapped[int] = mapped_column(Integer, default=3)
     embedding_text: Mapped[str | None] = mapped_column(Text)
     last_checked = mapped_column(DateTime(timezone=True), nullable=True)
     extracted_at = mapped_column(DateTime(timezone=True), server_default=func.now())

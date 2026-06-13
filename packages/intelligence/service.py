@@ -12,6 +12,7 @@ from packages.common.logging import get_logger
 from packages.gateway.service import GatewayService
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.common.time import utc_now
+from packages.intelligence.source_quality import classify_source_tier, boost_score
 from packages.intelligence.utils import infer_authority, infer_source_type, stable_id, freshness_status
 from packages.observability.metrics import RECORDS_REFRESHED
 from packages.schemas.common import ToolName
@@ -240,12 +241,14 @@ class IntelligenceService:
         record_id = stable_id(topic_id, source.url, entity_name)
         existing = await db.get(IntelligenceRecord, record_id)
         now = utc_now()
+        source_tier = classify_source_tier(source.url)
         if existing:
             await self._detect_changes(db, existing, facts, topic_id)
             existing.facts_json = facts
             existing.summary = summary
             existing.confidence = response.confidence
             existing.freshness_status = "fresh"
+            existing.source_tier = source_tier
             existing.last_checked = now
             existing.extracted_at = now
             model = existing
@@ -263,6 +266,7 @@ class IntelligenceService:
                 summary=summary,
                 confidence=response.confidence,
                 freshness_status="fresh",
+                source_tier=source_tier,
                 embedding_text=self._embedding_text(entity_name, facts, summary),
                 last_checked=now,
                 extracted_at=now,
@@ -293,12 +297,14 @@ class IntelligenceService:
         summary = self._summarize_record(entity_name, facts, source.url)
         record_id = stable_id(topic_id, source.url, entity_name)
         now = utc_now()
+        source_tier = classify_source_tier(source.url)
         existing = await db.get(IntelligenceRecord, record_id)
         if existing:
             existing.facts_json = facts
             existing.summary = summary
             existing.confidence = 0.55
             existing.freshness_status = "fresh"
+            existing.source_tier = source_tier
             existing.last_checked = now
             existing.extracted_at = now
             model = existing
@@ -316,6 +322,7 @@ class IntelligenceService:
                 summary=summary,
                 confidence=0.55,
                 freshness_status="fresh",
+                source_tier=source_tier,
                 embedding_text=self._embedding_text(entity_name, facts, summary),
                 last_checked=now,
                 extracted_at=now,
@@ -480,6 +487,8 @@ class IntelligenceService:
         if query_terms and semantic_score < 0.12 and not entity_match:
             return 0.0, ["no_query_match"]
         score = 0.50 * semantic_score + 0.20 * entity_match + 0.10 * fresh + 0.05 * authority + 0.15 * confidence
+        tier = getattr(rec, "source_tier", 3) or 3
+        score = boost_score(score, tier)
         reasons = []
         if semantic_score >= 0.12:
             reasons.append("semantic_match")
@@ -491,6 +500,8 @@ class IntelligenceService:
             reasons.append("fresh")
         if confidence > 0.7:
             reasons.append("high_confidence")
+        if tier <= 2:
+            reasons.append(f"tier{tier}_source")
         return round(score, 4), reasons
 
     def _query_terms(self, text: str | None) -> set[str]:
@@ -540,6 +551,7 @@ class IntelligenceService:
             summary=rec.summary,
             confidence=rec.confidence or 0.0,
             freshness_status=rec.freshness_status,
+            source_tier=getattr(rec, "source_tier", None) or 3,
             last_checked=str(rec.last_checked) if rec.last_checked else None,
             extracted_at=str(rec.extracted_at) if rec.extracted_at else None,
         )

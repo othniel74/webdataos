@@ -63,6 +63,7 @@ class DecisionEvidence(BaseModel):
 
 class DecisionBrief(BaseModel):
     headline: str
+    delta_headline: str | None = None
     answer: str
     what_changed: str
     business_impact: str
@@ -98,3 +99,4 @@ class ResearchReport(BaseModel):
     org_context_used: bool = Field(default=False, description="Whether organizational context was applied")
     run_receipt: ResearchRunReceipt | None = None
     decision_brief: DecisionBrief | None = None
+    change_report: dict | None = Field(default=None, description="Delta vs previous run — new signals, resolved, risk posture change")
