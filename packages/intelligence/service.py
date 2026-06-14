@@ -399,20 +399,48 @@ class IntelligenceService:
             if not is_generic:
                 skipped += 1
                 continue
-            summary_text = rec.summary or ""
-            if not summary_text or len(summary_text.strip()) < 20:
-                failed += 1
-                continue
             try:
-                entities = await extractor.extract(summary_text, max_entities=5)
+                # Build richest possible text: summary + facts snippet + URL slug keywords
+                facts = rec.facts_json or {}
+                parts = [
+                    rec.summary or "",
+                    facts.get("snippet") or "",
+                    facts.get("evidence_title") or "",
+                    facts.get("positioning") or "",
+                ]
+                # Extract meaningful words from the URL path as hints
+                url = rec.source_url or ""
+                url_slug = re.sub(r"https?://[^/]+", "", url)
+                url_words = re.sub(r"[^a-zA-Z0-9 ]", " ", url_slug)
+                parts.append(f"URL context: {url_words}")
+                enrichment_text = " ".join(p for p in parts if p).strip()
+
+                entities = []
+                if len(enrichment_text) >= 15:
+                    entities = await extractor.extract(enrichment_text, max_entities=5)
+
+                if not entities:
+                    # URL-based fallback: extract domain name as entity
+                    domain_match = re.search(r"https?://(?:www\.)?([^/]+)", url)
+                    if domain_match:
+                        domain = domain_match.group(1).split(".")[0]
+                        if len(domain) > 2 and domain.lower() not in GENERIC_NAMES:
+                            entities = [{"name": domain.title(), "type": "company",
+                                         "event": "", "event_type": "other",
+                                         "severity": "low", "source_hint": url}]
+
                 if not entities:
                     failed += 1
                     continue
+
                 best = next(
                     (e for e in entities if e.get("type") in {"company", "organization"}),
                     entities[0]
                 )
                 new_name = best["name"]
+                if not new_name or new_name.lower() in GENERIC_NAMES:
+                    failed += 1
+                    continue
                 updated_facts = extractor.merge_into_facts(rec.facts_json or {}, entities)
                 rec.entity_name = new_name
                 rec.facts_json = updated_facts
