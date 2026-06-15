@@ -4293,6 +4293,18 @@ const nodeColor = type => GRAPH_NODE_COLORS[type] || "#64748b";
 const nodeDisplay = type => GRAPH_NODE_DISPLAY[type] || type;
 const stripPrefix = str => String(str || "").replace(/^[A-Za-z]+:[^ ]/, m => m.slice(-1));
 const shortLabel = (str, max = 22) => { const s = String(str || ""); return s.length > max ? s.slice(0, max - 1) + "…" : s; };
+const nodeCanvasLabel = (n) => {
+  if (n.type === "Source") {
+    try { return new URL(String(n.label || n.properties?.url || "")).hostname.replace(/^www\./, ""); }
+    catch { return shortLabel(n.label, 18); }
+  }
+  if (n.type === "IntelligenceRecord") {
+    const lbl = stripPrefix(n.label); const dash = lbl.indexOf(" — ");
+    return shortLabel(dash > 0 ? lbl.slice(0, dash) : lbl, 18);
+  }
+  if (n.type === "IntelligenceRun") return shortLabel(stripPrefix(n.label).replace(/T\d{2}:\d{2}.*$/, ""), 18);
+  return shortLabel(n.label, 18);
+};
 
 /* ═══════════════════════════════════════════════════════════════════════
    EXCEPTIONAL KNOWLEDGE GRAPH
@@ -4614,7 +4626,7 @@ function GraphCanvas({ nodes: rawNodes, edges: rawEdges, selectedId, onSelect, w
       if ((isHovEdge || isHighlit) && pan.z > 0.5 && e.type) {
         const lp = bezierPoint(src.x, src.y, cpx, cpy, tgt.x, tgt.y, 0.48);
         ctx.save();
-        ctx.font = "bold 8px system-ui,sans-serif";
+        ctx.font = "bold 7px system-ui,sans-serif";
         ctx.fillStyle = eColor;
         ctx.globalAlpha = 0.8;
         ctx.textAlign = "center";
@@ -4723,7 +4735,7 @@ function GraphCanvas({ nodes: rawNodes, edges: rawEdges, selectedId, onSelect, w
       // Type glyph inside
       const glyph = NODE_GLYPH[n.type] || n.type?.[0] || "?";
       ctx.save();
-      ctx.font = `${isSel ? "700" : "500"} ${Math.max(7, r * 0.55)}px system-ui,sans-serif`;
+      ctx.font = `${isSel ? "700" : "500"} ${Math.max(6, r * 0.48)}px system-ui,sans-serif`;
       ctx.fillStyle = isSel ? "rgba(0,0,0,0.85)" : color;
       ctx.globalAlpha = isSel ? 1 : 0.7;
       ctx.textAlign = "center";
@@ -4735,11 +4747,11 @@ function GraphCanvas({ nodes: rawNodes, edges: rawEdges, selectedId, onSelect, w
       // Label (only when zoom sufficient)
       if (pan.z > 0.4) {
         ctx.save();
-        ctx.font = `${isSel ? "700" : "500"} ${Math.min(10, Math.max(8, pan.z * 9))}px system-ui,sans-serif`;
-        ctx.fillStyle = isSel ? "#f1f5f9" : isHov ? "#94a3b8" : "rgba(100,116,139,0.8)";
+        ctx.font = `${isSel ? "700" : "400"} ${Math.min(8, Math.max(6, pan.z * 7))}px system-ui,sans-serif`;
+        ctx.fillStyle = isSel ? "#f1f5f9" : isHov ? "#94a3b8" : "rgba(100,116,139,0.75)";
         ctx.globalAlpha = nodeAlpha;
         ctx.textAlign = "center";
-        ctx.fillText(shortLabel(n.label, 20), n.x, n.y + r + 11);
+        ctx.fillText(nodeCanvasLabel(n), n.x, n.y + r + 10);
         ctx.restore();
       }
 
@@ -4769,8 +4781,8 @@ function GraphCanvas({ nodes: rawNodes, edges: rawEdges, selectedId, onSelect, w
         const tx = n.x, ty = n.y - n.r - 14;
         const label = stripPrefix(n.label);
         ctx.save();
-        ctx.font = "bold 10px system-ui,sans-serif";
-        const tw = ctx.measureText(label).width + 16;
+        ctx.font = "600 9px system-ui,sans-serif";
+        const tw = ctx.measureText(label).width + 14;
         const th = 22;
         const bx = tx - tw / 2, by = ty - th;
         // Pill background
@@ -5052,29 +5064,17 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
   }
 
   const filterBar = nodeTypes.length > 1 && (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-      {nodeTypes.map(type => {
-        const active = activeTypes.size === 0 || activeTypes.has(type);
-        return (
-          <button key={type} onClick={() => setActiveTypes(prev => {
-            const next = new Set(prev);
-            if (next.has(type)) next.delete(type); else next.add(type);
-            return next;
-          })} style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            padding: "2px 8px", borderRadius: 99, fontSize: 9, fontWeight: 800,
-            border: `1px solid ${active ? nodeColor(type) : T.border}`,
-            background: active ? nodeColor(type) + "18" : "transparent",
-            color: active ? nodeColor(type) : T.dim, cursor: "pointer",
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: 99, background: nodeColor(type) }} />
-            {nodeDisplay(type)}
-          </button>
-        );
-      })}
-      {activeTypes.size > 0 && (
-        <button onClick={() => setActiveTypes(new Set())} style={{ padding: "2px 8px", borderRadius: 99, fontSize: 9, border: `1px solid ${T.border}`, background: "transparent", color: T.dim }}>Clear</button>
-      )}
+    <div style={{ marginBottom: 8 }}>
+      <select
+        value={activeTypes.size === 1 ? [...activeTypes][0] : ""}
+        onChange={e => { const v = e.target.value; setActiveTypes(v ? new Set([v]) : new Set()); }}
+        style={{ padding: "3px 7px", borderRadius: 7, background: T.bgSub, border: `1px solid ${T.border}`, color: T.text, fontSize: 10, outline: "none", width: "100%" }}
+      >
+        <option value="">All node types</option>
+        {nodeTypes.map(type => (
+          <option key={type} value={type}>{nodeDisplay(type)} ({allNodes.filter(n => n.type === type).length})</option>
+        ))}
+      </select>
     </div>
   );
 
@@ -5267,24 +5267,16 @@ function GraphFullView({ graph, title, wsId, latestRunId, onClose }) {
             {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: T.dim, fontSize: 14, cursor: "pointer", lineHeight: 1 }}>×</button>}
           </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginLeft: "auto" }}>
-            {nodeTypes.map(type => {
-              const on = activeTypes.size === 0 || activeTypes.has(type);
-              return (
-                <button key={type} onClick={() => setActiveTypes(prev => { const n = new Set(prev); if (n.has(type)) n.delete(type); else n.add(type); return n; })} style={{
-                  display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px",
-                  borderRadius: 99, fontSize: 9, fontWeight: 800,
-                  border: `1px solid ${on ? nodeColor(type) : T.border}`,
-                  background: on ? nodeColor(type) + "22" : "transparent",
-                  color: on ? nodeColor(type) : T.dim,
-                }}>
-                  <span style={{ width: 6, height: 6, borderRadius: 99, background: nodeColor(type), flexShrink: 0 }} />
-                  {nodeDisplay(type)}
-                </button>
-              );
-            })}
-            {activeTypes.size > 0 && <button onClick={() => setActiveTypes(new Set())} style={{ padding: "3px 9px", borderRadius: 99, fontSize: 9, border: `1px solid ${T.border}`, background: "transparent", color: T.dim }}>All</button>}
-          </div>
+          <select
+            value={activeTypes.size === 1 ? [...activeTypes][0] : ""}
+            onChange={e => { const v = e.target.value; setActiveTypes(v ? new Set([v]) : new Set()); }}
+            style={{ padding: "5px 8px", borderRadius: 7, background: T.bgSub, border: `1px solid ${T.border}`, color: T.text, fontSize: 11, outline: "none", marginLeft: "auto" }}
+          >
+            <option value="">All node types ({allNodes.length})</option>
+            {nodeTypes.map(type => (
+              <option key={type} value={type}>{nodeDisplay(type)} ({allNodes.filter(n => n.type === type).length})</option>
+            ))}
+          </select>
         </div>
 
         {/* Main area */}
