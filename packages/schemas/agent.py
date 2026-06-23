@@ -70,6 +70,9 @@ class DecisionBrief(BaseModel):
     severity: str = "monitoring"
     confidence: float = 0.0
     recommended_action: str
+    owner: str | None = None
+    deadline: str | None = None
+    consequence: str | None = None
     evidence: list[DecisionEvidence] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     graph_explanation: str | None = None

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-EXTRACTION_PROMPT = """You are an intelligence extraction engine. From the research synthesis below, extract all named entities and events that are specifically mentioned.
+EXTRACTION_PROMPT = """You are an intelligence extraction engine. From the research synthesis below, extract named entities and semantic relationships.
 
 Return ONLY valid JSON in this exact format:
 {
@@ -29,17 +29,31 @@ Return ONLY valid JSON in this exact format:
       "severity": "high",
       "source_hint": "optional url or domain if mentioned"
     }
+  ],
+  "relationships": [
+    {
+      "from": "Okta",
+      "relation": "AFFECTS",
+      "to": "Authentication",
+      "description": "Okta subprocessor change affects authentication stack"
+    }
   ]
 }
 
-Rules:
-- "name" must be a specific proper noun (company name, regulation name, product name, person, event). NOT a generic category like "vendors" or "competitors".
-- "type" must be one of: company | regulation | product | person | event | organization
-- "event_type" must be one of: breach | acquisition | pricing | regulatory | competitor_move | funding | product_launch | personnel | legal | other
-- "severity" must be one of: critical | high | medium | low
-- Only include entities that are specifically named in the text — skip generic terms.
-- If no specific named entities are found, return {"entities": []}.
-- Do not include commentary or markdown — return raw JSON only."""
+Entity rules:
+- "name" must be a specific proper noun (company, regulation, product, person). NOT generic categories.
+- "type": company | regulation | product | person | event | organization
+- "event_type": breach | acquisition | pricing | regulatory | competitor_move | funding | product_launch | personnel | legal | other
+- "severity": critical | high | medium | low
+
+Relationship rules:
+- "relation" must be one of: AFFECTS | REGULATED_BY | LAUNCHED | ACQUIRED | COMPETES_WITH | PARTNERED_WITH | CHANGED_PRICING | INDICATES_RISK | FILED_AGAINST | DEPENDS_ON
+- "from" and "to" must be specific named entities (can be entity names from the entities list or other named things)
+- Only extract relationships that are clearly stated or strongly implied in the text
+- "description" is a short phrase explaining the relationship
+
+If no specific named entities are found, return {"entities": [], "relationships": []}.
+Do not include commentary or markdown — return raw JSON only."""
 
 
 class EntityExtractor:
@@ -59,6 +73,7 @@ class EntityExtractor:
                 temperature=0.1,
             )
             entities = result.get("entities") or []
+            relationships = result.get("relationships") or []
             if not isinstance(entities, list):
                 return []
             cleaned = []
@@ -75,6 +90,10 @@ class EntityExtractor:
                     "event_type": ent.get("event_type") or "other",
                     "severity": ent.get("severity") or "medium",
                     "source_hint": ent.get("source_hint") or "",
+                    "relationships": [
+                        r for r in relationships
+                        if isinstance(r, dict) and r.get("from") == name
+                    ],
                 })
             return cleaned
         except Exception as exc:

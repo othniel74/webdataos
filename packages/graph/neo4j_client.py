@@ -494,7 +494,21 @@ class Neo4jGraphClient:
                     action_id=action_id, entity_id=tenant_entity_id,
                 )
 
-        # Real named entities from LLM extraction (Gap 1) — these are the meaningful nodes
+        # Real named entities from LLM extraction — meaningful nodes with semantic relationships
+        _VALID_SEMANTIC_RELS = {
+            "AFFECTS", "REGULATED_BY", "LAUNCHED", "ACQUIRED", "COMPETES_WITH",
+            "PARTNERED_WITH", "CHANGED_PRICING", "INDICATES_RISK", "FILED_AGAINST", "DEPENDS_ON",
+        }
+        # Map event_type → auto-derived semantic relationship to Workspace
+        _EVENT_TYPE_REL = {
+            "breach": "INDICATES_BREACH",
+            "acquisition": "ACQUIRED",
+            "regulatory": "REGULATED_BY",
+            "product_launch": "LAUNCHED",
+            "pricing": "CHANGED_PRICING",
+            "legal": "FILED_AGAINST",
+        }
+
         for ent in run_data.get("extracted_entities", []):
             ent_name = (ent.get("name") or "").strip()
             if not ent_name:
@@ -502,6 +516,7 @@ class Neo4jGraphClient:
             ent_type = ent.get("type") or "company"
             label = ENTITY_LABEL_MAP.get(ent_type.lower(), "Company")
             scoped_id = f"{tenant_id}:{ent_name}"
+            event_type = ent.get("event_type") or "other"
             tx.run(
                 f"""
                 MERGE (e:Entity {{scoped_id: $scoped_id}})
@@ -520,9 +535,32 @@ class Neo4jGraphClient:
                 tid=tenant_id, topic_id=topic_id, run_id=run_id,
                 color=NODE_COLORS.get(label, "#8b5cf6"),
                 event=(ent.get("event") or "")[:200],
-                etype2=ent.get("event_type") or "other",
+                etype2=event_type,
                 severity=ent.get("severity") or "medium",
             )
+            # Write semantic relationships extracted by LLM
+            for rel in (ent.get("relationships") or []):
+                rel_type = (rel.get("relation") or "").upper()
+                rel_to = (rel.get("to") or "").strip()
+                if not rel_type or not rel_to or rel_type not in _VALID_SEMANTIC_RELS:
+                    continue
+                to_scoped = f"{tenant_id}:{rel_to}"
+                # Ensure target node exists (may not be in entities list)
+                tx.run(
+                    "MERGE (t:Entity {scoped_id: $scoped_id}) SET t.name=$name, t.tenant_id=$tid, t.color=$color",
+                    scoped_id=to_scoped, name=rel_to, tid=tenant_id, color="#94a3b8",
+                )
+                description = (rel.get("description") or "")[:200]
+                tx.run(
+                    f"""
+                    MATCH (a:Entity {{scoped_id: $from_id}})
+                    MATCH (b:Entity {{scoped_id: $to_id}})
+                    MERGE (a)-[r:{rel_type}]->(b)
+                    SET r.description=$desc, r.detected_at=$created_at, r.tenant_id=$tid
+                    """,
+                    from_id=scoped_id, to_id=to_scoped,
+                    desc=description, created_at=str(created_at), tid=tenant_id,
+                )
 
         # Cross-entity co-occurrence — use extracted entities when available, fall back to record entities
         extracted_entity_names = [

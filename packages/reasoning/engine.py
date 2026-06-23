@@ -388,14 +388,14 @@ class ReasoningEngine:
                 "{\n"
                 '  "risk_posture": "stable|monitoring|elevated|degrading|critical",\n'
                 '  "confidence": 0.0-1.0,\n'
-                '  "executive_summary": "2-3 sentence summary of findings and risk posture",\n'
+                '  "executive_summary": "2-3 sentence summary naming specific entities, exact changes, and risk posture",\n'
                 '  "materiality_assessments": [\n'
                 "    {\n"
-                '      "finding": "specific factual finding with entity name",\n'
+                '      "finding": "specific factual finding — name the entity and the exact change",\n'
                 '      "materiality": "informational|low|medium|high|critical",\n'
                 '      "signal_type": "breach|security_risk|compliance|competitor_move|pricing|supplier_risk|filing|model_release|informational",\n'
-                '      "impact_description": "specific business impact — name the contract, account, or obligation affected",\n'
-                '      "financial_impact": null or numeric estimate,\n'
+                '      "impact_description": "specific business impact — name the contract, account, or obligation affected and the quantified exposure",\n'
+                '      "financial_impact": null or numeric estimate in USD,\n'
                 '      "affected_contracts": ["entity name"],\n'
                 '      "urgency": "standard|urgent|immediate",\n'
                 '      "evidence_ids": []\n'
@@ -403,19 +403,23 @@ class ReasoningEngine:
                 "  ],\n"
                 '  "recommendations": [\n'
                 "    {\n"
-                '      "title": "specific action title",\n'
-                '      "description": "what to do, who owns it, and why it is urgent",\n'
+                '      "title": "specific action title naming the entity and the action",\n'
+                '      "description": "what exactly must be done and why — reference the specific finding",\n'
+                '      "owner": "job title or team who must act (e.g. Head of Procurement, Security Team)",\n'
+                '      "deadline": "when they must act by (e.g. within 48 hours, before 2026-07-01)",\n'
+                '      "consequence": "what happens if this is not acted on (e.g. contract auto-renews at old rate, compliance breach)",\n'
                 '      "materiality": "medium|high|critical",\n'
                 '      "confidence": 0.0-1.0,\n'
-                '      "suggested_actions": ["action 1", "action 2", "action 3"],\n'
+                '      "suggested_actions": ["specific action 1", "specific action 2", "specific action 3"],\n'
                 '      "affected_entities": ["entity name"],\n'
                 '      "framework_used": "' + framework.id + '"\n'
                 "    }\n"
                 "  ],\n"
                 '  "reasoning_trace": ["step 1: ...", "step 2: ..."]\n'
                 "}\n\n"
-                "Focus on specificity: name the exact entity, the exact change, who owns the response, "
-                "and what happens if no action is taken."
+                "Be specific throughout. Name the exact entity, the exact change, who owns the response, "
+                "the deadline, and what happens if nothing is done. Generic phrases like "
+                "'review vendor exposure' are not acceptable — name the vendor and the exposure."
             )
 
             raw = await self.llm.chat_json(system=system_prompt, user=user_prompt, max_tokens=3000)
@@ -466,7 +470,9 @@ class ReasoningEngine:
                 suggested_actions=item.get("suggested_actions") or [],
                 affected_entities=item.get("affected_entities") or [],
                 financial_impact=None,
-                deadline=None,
+                deadline=str(item["deadline"])[:200] if item.get("deadline") else None,
+                owner=str(item["owner"])[:200] if item.get("owner") else None,
+                consequence=str(item["consequence"])[:400] if item.get("consequence") else None,
                 framework_used=item.get("framework_used") or framework.id,
             ))
 

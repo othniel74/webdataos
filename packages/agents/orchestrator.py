@@ -529,17 +529,20 @@ class ResearchAgentOrchestrator:
                     "materiality_assessments": [
                         {
                             "signal_id": f"sig:{run_id}:{a.finding[:40]}",
-                            "signal_type": self.reasoning._classify_signal(a.finding.lower()),
+                            "signal_type": a.signal_type or self.reasoning._classify_signal(a.finding.lower()),
                             "materiality": a.materiality,
                             "finding": a.finding,
                             "affected_entities": a.affected_contracts or [],
                             "urgency": a.urgency,
+                            "evidence_ids": a.evidence_ids or [],
                         }
                         for a in assessments
                     ],
                     "recommendations": [r.model_dump() for r in recommendations],
                     "autonomous_actions": [p.model_dump() for p in action_proposals],
                     "total_financial_impact": total_impact,
+                    "decision_brief": decision_brief.model_dump() if decision_brief else None,
+                    "change_report": change_report.to_dict() if change_report else None,
                 })
             except Exception as graph_exc:
                 logger.warning("graph_write_run_skipped", error=str(graph_exc)[:200], run_id=run_id)
@@ -716,7 +719,9 @@ class ResearchAgentOrchestrator:
                     confidence=getattr(record, "confidence", None) or 0.0,
                     freshness_status=getattr(record, "freshness_status", None),
                     why_it_matters=(
-                        f"Supports {getattr(record, 'entity_name', None) or 'the monitored entity'} for {signal_label}."
+                        first_recommendation.description[:200]
+                        if first_recommendation and getattr(record, "entity_name", None) in (first_recommendation.affected_entities or [])
+                        else f"Evidence for {getattr(record, 'entity_name', None) or 'monitored entity'} across {signal_label}."
                     ),
                 )
             )
@@ -742,6 +747,9 @@ class ResearchAgentOrchestrator:
             f"{receipt.counts.get('workflow_events', 0)} workflow events."
         )
         delta_headline = change_report.delta_headline() if change_report else None
+        owner = getattr(first_recommendation, "owner", None) if first_recommendation else None
+        deadline = getattr(first_recommendation, "deadline", None) if first_recommendation else None
+        consequence = getattr(first_recommendation, "consequence", None) if first_recommendation else None
         return DecisionBrief(
             headline=headline,
             delta_headline=delta_headline,
@@ -751,6 +759,9 @@ class ResearchAgentOrchestrator:
             severity=severity,
             confidence=confidence,
             recommended_action=recommended_action,
+            owner=owner,
+            deadline=deadline,
+            consequence=consequence,
             evidence=evidence,
             unknowns=unknowns,
             graph_explanation=graph_explanation,

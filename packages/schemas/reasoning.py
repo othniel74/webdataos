@@ -74,6 +74,8 @@ class Recommendation(BaseModel):
     affected_entities: list[str] = Field(default_factory=list)
     financial_impact: float | None = None
     deadline: str | None = None
+    owner: str | None = None
+    consequence: str | None = None
     framework_used: str | None = None
 
 

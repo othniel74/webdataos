@@ -701,6 +701,21 @@ function DecisionBriefPanel({ brief, onEvidence, compact = false }) {
           </div>
         ))}
       </div>
+      {/* owner / deadline / consequence — only shown when LLM reasoning populates them */}
+      {(brief?.owner || brief?.deadline || brief?.consequence) && (
+        <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "repeat(3,1fr)", borderBottom: `1px solid ${T.border}`, background: "rgba(0,0,0,.12)" }}>
+          {[
+            ["OWNER", brief?.owner, "#818cf8"],
+            ["DEADLINE", brief?.deadline, "#ef4444"],
+            ["IF NOTHING IS DONE", brief?.consequence, "#94a3b8"],
+          ].map(([label, text, accent], i) => text ? (
+            <div key={label} style={{ padding: compact ? "8px 14px" : "11px 18px", borderRight: (!compact && i < 2) ? `1px solid ${T.border}` : "none" }}>
+              <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: accent, marginBottom: 5, fontFamily: "'JetBrains Mono'" }}>{label}</div>
+              <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.55 }}>{text}</div>
+            </div>
+          ) : null)}
+        </div>
+      )}
       {/* evidence */}
       {!!brief?.evidence?.length && (
         <div style={{ padding: compact ? "10px 14px" : "12px 18px" }}>

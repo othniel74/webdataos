@@ -536,17 +536,53 @@ class IntelligenceService:
             stmt = stmt.where(IntelligenceRecord.tenant_id == tenant_id)
         result = await db.execute(stmt)
         records = result.scalars().all()
+        # Load outcome accuracy once — used to boost entities with a good track record
+        outcome_accuracy = await self._load_outcome_accuracy(db, req.topic_id, tenant_id)
         scored: list[RetrievalResult] = []
         query_terms = self._query_terms(req.query)
         for rec in records:
             if req.freshness_required_days and not self._record_is_current(rec, req.freshness_required_days):
                 continue
-            score, reasons = self._score_record(rec, query_terms, req)
+            score, reasons = self._score_record(rec, query_terms, req, outcome_accuracy)
             if "no_query_match" in reasons:
                 continue
             scored.append(RetrievalResult(record=self._record_read(rec), score=score, reasons=reasons))
         scored.sort(key=lambda x: x.score, reverse=True)
         return scored[: req.top_k]
+
+    async def _load_outcome_accuracy(
+        self,
+        db: AsyncSession,
+        topic_id: str | None,
+        tenant_id: str | None,
+    ) -> dict[str, float]:
+        """Return entity_name → accuracy (0–1) from recorded outcomes. Used to boost retrieval."""
+        try:
+            from apps.api.db.models import Outcome
+            from sqlalchemy import func, case as sa_case
+            stmt = (
+                select(
+                    Outcome.entity_name,
+                    func.count(Outcome.id).label("total"),
+                    func.sum(
+                        sa_case((Outcome.outcome_type.in_(["acted", "confirmed_useful"]), 1), else_=0)
+                    ).label("useful"),
+                )
+                .where(Outcome.entity_name.isnot(None))
+            )
+            if topic_id:
+                stmt = stmt.where(Outcome.workspace_id == topic_id)
+            if tenant_id:
+                stmt = stmt.where(Outcome.tenant_id == tenant_id)
+            stmt = stmt.group_by(Outcome.entity_name)
+            result = await db.execute(stmt)
+            return {
+                row.entity_name: round(row.useful / max(row.total, 1), 3)
+                for row in result.all()
+                if row.total >= 2  # require at least 2 outcomes before trusting accuracy
+            }
+        except Exception:
+            return {}
 
     async def list_records(
         self,
@@ -584,7 +620,13 @@ class IntelligenceService:
                     )
                 )
 
-    def _score_record(self, rec: IntelligenceRecord, query_terms: set[str], req: RetrievalRequest) -> tuple[float, list[str]]:
+    def _score_record(
+        self,
+        rec: IntelligenceRecord,
+        query_terms: set[str],
+        req: RetrievalRequest,
+        outcome_accuracy: dict[str, float] | None = None,
+    ) -> tuple[float, list[str]]:
         text = " ".join([rec.entity_name or "", rec.summary or "", rec.source_url or "", str(rec.facts_json or {})]).lower()
         text_terms = self._query_terms(text)
         overlap_terms = query_terms.intersection(text_terms)
@@ -595,9 +637,16 @@ class IntelligenceService:
         fresh = 1.0 if freshness_status(rec.last_checked, req.freshness_required_days) == "fresh" else 0.2
         authority = 0.9 if rec.source_type in {"pricing_page", "docs_page", "company_page"} else 0.6
         confidence = rec.confidence or 0.0
+        outcome_bonus = 0.0
+        if outcome_accuracy and rec.entity_name:
+            acc = outcome_accuracy.get(rec.entity_name, -1.0)
+            if acc >= 0:
+                # Boost accurate entities; penalise false-alarm-heavy ones
+                outcome_bonus = (acc - 0.5) * 0.15
         if query_terms and semantic_score < 0.12 and not entity_match:
             return 0.0, ["no_query_match"]
-        score = 0.50 * semantic_score + 0.20 * entity_match + 0.10 * fresh + 0.05 * authority + 0.15 * confidence
+        score = (0.45 * semantic_score + 0.18 * entity_match + 0.09 * fresh
+                 + 0.05 * authority + 0.13 * confidence + outcome_bonus)
         tier = getattr(rec, "source_tier", 3) or 3
         score = boost_score(score, tier)
         reasons = []
@@ -613,6 +662,10 @@ class IntelligenceService:
             reasons.append("high_confidence")
         if tier <= 2:
             reasons.append(f"tier{tier}_source")
+        if outcome_bonus > 0:
+            reasons.append("outcome_validated")
+        elif outcome_bonus < 0:
+            reasons.append("outcome_penalised")
         return round(score, 4), reasons
 
     def _query_terms(self, text: str | None) -> set[str]:
