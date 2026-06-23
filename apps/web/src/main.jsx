@@ -815,7 +815,7 @@ function HomePage({ nav, user, auth }) {
           ].map((s, i) => (
             <div key={i} style={{ opacity: statsVisible ? 1 : 0, transform: statsVisible ? "none" : "translateY(18px)", transition: `opacity .55s ease ${i * .08}s, transform .55s ease ${i * .08}s` }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontFamily: "'JetBrains Mono'", minHeight: 32 }}>{s.n}</div>
-              <div style={{ fontSize: 10, color: T.dim, marginTop: 4, textTransform: "uppercase", letterSpacing: ".06em" }}>{s.l}</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{s.l}</div>
             </div>
           ))}
         </div>
@@ -4265,9 +4265,9 @@ function OutPage({ ws, user }) {
 }
 
 /* ═══════ SHARED ═══════ */
-function Eye({ children }) { return <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: T.accent, fontFamily: "'JetBrains Mono'" }}>{children}</div>; }
-function Lb({ children, style }) { return <div style={{ fontSize: 9, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".07em", fontFamily: "'JetBrains Mono'", ...style }}>{children}</div>; }
-function MC({ l, v, c }) { return <div style={{ padding: "7px 9px", borderRadius: 5, background: "rgba(255,255,255,.02)", border: `1px solid ${T.border}` }}><div style={{ fontSize: 8, color: T.dim, textTransform: "uppercase", letterSpacing: ".07em", fontFamily: "'JetBrains Mono'" }}>{l}</div><div style={{ fontSize: 14, fontWeight: 700, color: c, marginTop: 2, fontFamily: "'JetBrains Mono'" }}>{v}</div></div>; }
+function Eye({ children }) { return <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".09em", color: T.accent }}>{children}</div>; }
+function Lb({ children, style }) { return <div style={{ fontSize: 10, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", ...style }}>{children}</div>; }
+function MC({ l, v, c }) { return <div style={{ padding: "7px 9px", borderRadius: 5, background: "rgba(255,255,255,.02)", border: `1px solid ${T.border}` }}><div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".05em" }}>{l}</div><div style={{ fontSize: 15, fontWeight: 700, color: c, marginTop: 2, fontFamily: "'JetBrains Mono'" }}>{v}</div></div>; }
 /* ═══════════════════════════════════════════════════════════════════════
    GRAPH — production force-directed knowledge graph
    Supports all node types: Workspace, Entity subtypes (Vendor, Competitor,

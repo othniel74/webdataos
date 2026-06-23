@@ -85,16 +85,16 @@ a { color: inherit; text-decoration: none; }
 .nav-links button {
   position: relative;
   border: none; background: transparent;
-  color: var(--text-m); padding: 6px 14px;
-  font-size: 12px; font-weight: 500;
+  color: #8fa3b8; padding: 6px 14px;
+  font-size: 12.5px; font-weight: 500;
   cursor: pointer; transition: color .15s;
 }
 .nav-links button::after {
   content: ''; position: absolute; bottom: -1px; left: 14px; right: 14px;
   height: 1px; background: var(--accent); opacity: 0; transition: opacity .15s;
 }
-.nav-links button:hover { color: var(--text); }
-.nav-links button.active { color: var(--text-strong); font-weight: 600; }
+.nav-links button:hover { color: #dde4ee; }
+.nav-links button.active { color: #f0f4f8; font-weight: 600; }
 .nav-links button.active::after { opacity: 1; }
 
 /* Keep nav-pill for tab-style segments */
@@ -124,8 +124,8 @@ a { color: inherit; text-decoration: none; }
 .hl:hover { border-color: var(--border-l) !important; transition: border-color .15s; }
 
 /* ── Typography ── */
-.eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .10em; color: var(--accent); }
-.label   { font-size: 10px; font-weight: 600; color: var(--text-d); letter-spacing: .06em; text-transform: uppercase; }
+.eyebrow { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: var(--accent); }
+.label   { font-size: 11px; font-weight: 600; color: var(--text-d); letter-spacing: .05em; text-transform: uppercase; }
 h1 { font-weight: 700; letter-spacing: -.04em; line-height: .96; }
 h2 { font-weight: 700; letter-spacing: -.025em; }
 .mono { font-family: var(--mono); }
