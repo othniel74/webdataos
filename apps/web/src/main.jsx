@@ -626,63 +626,117 @@ function explainGraph(graph, selected, fallbackTitle = "workspace") {
 }
 
 /* ═══════ NAV ═══════ */
+const NAV_LINK = (active) => ({
+  border: "none",
+  background: "transparent",
+  color: active ? "#e8f0f8" : "#9ab0c4",
+  fontSize: 13,
+  fontWeight: active ? 600 : 400,
+  padding: "0 16px",
+  height: 56,
+  cursor: "pointer",
+  position: "relative",
+  transition: "color .15s",
+  display: "inline-flex",
+  alignItems: "center",
+});
+
 function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const navItems = user ? PRIV : PUB;
   const brandTarget = user ? "Monitor" : "Home";
   const go = n => { setPage(n); setMenuOpen(false); };
+
+  const headerStyle = {
+    position: "sticky", top: 0, zIndex: 50,
+    height: 56, padding: "0 28px",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    background: "rgba(8,9,12,.96)",
+    borderBottom: "1px solid rgba(255,255,255,.07)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+  };
+
   return (
     <>
-      <header className="header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50, height: 54, padding: "0 24px", borderBottom: `1px solid ${T.border}`, background: "rgba(8,9,12,.94)" }}>
-        <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", color: T.text, cursor: "pointer" }}>
-          <div style={{ width: 26, height: 26, borderRadius: 6, background: T.accent, display: "grid", placeItems: "center" }}><Layers size={13} color="#000" /></div>
-          <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-.025em", color: T.text }}>WebDataOS</span>
-          {backendOk === false && <span style={{ fontSize: 10, color: "#ef4444", fontFamily: "'JetBrains Mono'", opacity: .7 }}>offline</span>}
+      <header style={headerStyle}>
+        {/* Brand */}
+        <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: "#0ea5e9", display: "grid", placeItems: "center" }}>
+            <Layers size={14} color="#000" />
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em", color: "#f0f4f8" }}>WebDataOS</span>
+          {backendOk === false && <span style={{ fontSize: 10, color: "#ef4444", marginLeft: 2 }}>offline</span>}
         </button>
+
+        {/* Center nav links */}
         {!isMobile && (
-          <nav className="nav-links" style={{ display: "flex", alignItems: "center" }}>
+          <nav style={{ display: "flex", alignItems: "center", position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
             {navItems.map(n => (
-              <button key={n} onClick={() => go(n)} className={page === n ? "active" : ""} style={{ border: "none", background: "transparent", color: page === n ? "#f0f4f8" : "#8fa3b8", fontSize: 12.5, fontWeight: page === n ? 600 : 500, padding: "6px 14px", cursor: "pointer" }}>{n}</button>
+              <button key={n} onClick={() => go(n)} style={NAV_LINK(page === n)}>
+                {n}
+                {page === n && (
+                  <span style={{ position: "absolute", bottom: 0, left: 16, right: 16, height: 1, background: "#0ea5e9" }} />
+                )}
+              </button>
             ))}
           </nav>
         )}
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+
+        {/* Right actions */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
           {isMobile ? (
-            <button onClick={() => setMenuOpen(o => !o)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", color: T.muted, display: "flex", alignItems: "center", cursor: "pointer" }}>
+            <button onClick={() => setMenuOpen(o => !o)} style={{ background: "none", border: "1px solid rgba(255,255,255,.15)", borderRadius: 6, padding: "7px 9px", color: "#9ab0c4", display: "flex", alignItems: "center", cursor: "pointer" }}>
               {menuOpen ? <X size={16} /> : <Menu size={16} />}
             </button>
           ) : user ? (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 10px 4px 5px", borderRadius: 6, background: "rgba(255,255,255,.03)", border: `1px solid ${T.border}` }}>
-                <div style={{ width: 22, height: 22, borderRadius: 4, background: T.accent, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div>
-                <span style={{ fontSize: 12, color: T.muted }}>{user.name}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 12px 5px 6px", borderRadius: 6, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)" }}>
+                <div style={{ width: 24, height: 24, borderRadius: 5, background: "#0ea5e9", display: "grid", placeItems: "center", color: "#000", fontSize: 11, fontWeight: 700 }}>{user.initials}</div>
+                <span style={{ fontSize: 13, color: "#9ab0c4" }}>{user.name}</span>
               </div>
-              <button onClick={onOut} style={{ padding: "5px 9px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center" }}><LogOut size={12} /></button>
+              <button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,.1)", background: "transparent", color: "#9ab0c4", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center" }}>
+                <LogOut size={13} />
+              </button>
             </>
           ) : (
             <>
-              <button onClick={onAuth} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button>
-              <button onClick={onAuth} style={{ padding: "6px 13px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Get started</button>
-              <button onClick={() => go("Demo")} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>Demo</button>
+              <button onClick={onAuth} style={{ padding: "7px 16px", borderRadius: 6, border: "1px solid rgba(255,255,255,.18)", background: "transparent", fontSize: 13, color: "#c8d8e8", fontWeight: 500, cursor: "pointer" }}>
+                Sign in
+              </button>
+              <button onClick={onAuth} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Get started
+              </button>
+              <button onClick={() => go("Demo")} style={{ padding: "7px 16px", borderRadius: 6, border: "1px solid rgba(255,255,255,.18)", background: "transparent", color: "#c8d8e8", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                Demo
+              </button>
             </>
           )}
         </div>
       </header>
+
+      {/* Mobile drawer */}
       {isMobile && menuOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 49, background: "rgba(0,0,0,.7)", backdropFilter: "blur(4px)" }} onClick={() => setMenuOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 54, right: 0, bottom: 0, width: 240, background: T.bgSub, borderLeft: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "16px 10px", gap: 2, overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 56, right: 0, bottom: 0, width: 260, background: "#0c0d12", borderLeft: "1px solid rgba(255,255,255,.08)", display: "flex", flexDirection: "column", padding: "16px 12px", gap: 2, overflowY: "auto" }}>
             {navItems.map(n => {
               const active = page === n;
-              return <button key={n} onClick={() => go(n)} style={{ border: "none", borderRadius: 6, padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: active ? 700 : 400, background: active ? "rgba(14,165,233,.08)" : "transparent", color: active ? T.accent : T.muted, cursor: "pointer" }}>{n}</button>;
+              return (
+                <button key={n} onClick={() => go(n)} style={{ border: "none", borderRadius: 6, padding: "11px 14px", textAlign: "left", fontSize: 13, fontWeight: active ? 600 : 400, background: active ? "rgba(14,165,233,.1)" : "transparent", color: active ? "#0ea5e9" : "#9ab0c4", cursor: "pointer" }}>
+                  {n}
+                </button>
+              );
             })}
             <div style={{ flex: 1 }} />
             {user ? (
-              <button onClick={() => { onOut(); setMenuOpen(false); }} style={{ padding: "10px 12px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, textAlign: "left", display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}><LogOut size={13} />Sign out</button>
+              <button onClick={() => { onOut(); setMenuOpen(false); }} style={{ padding: "11px 14px", borderRadius: 6, border: "1px solid rgba(255,255,255,.1)", background: "transparent", color: "#9ab0c4", fontSize: 13, textAlign: "left", display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+                <LogOut size={14} /> Sign out
+              </button>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "10px 12px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Get started</button>
-                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "10px 12px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>Sign in</button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "11px 14px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Get started</button>
+                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "11px 14px", borderRadius: 6, border: "1px solid rgba(255,255,255,.15)", background: "transparent", color: "#c8d8e8", fontSize: 13, cursor: "pointer" }}>Sign in</button>
               </div>
             )}
           </div>
