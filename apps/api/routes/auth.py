@@ -63,6 +63,12 @@ def _token_payload(account: UserAccount) -> dict:
 
 @router.post("/signup")
 async def signup(payload: AuthSignup, db: AsyncSession = Depends(get_db)):
+    settings = get_settings()
+    if not settings.allow_public_signup:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Public account creation is disabled. Contact your administrator to request access.",
+        )
     email = normalize_email(payload.email)
     existing = await db.execute(select(UserAccount).where(UserAccount.email == email))
     if existing.scalar_one_or_none():

@@ -153,6 +153,9 @@ const endpoints = {
   outcomeStats: wsId => api("GET", `/outcomes/${workspacePath(wsId)}/stats`),
   slackStatus: () => api("GET", "/integrations/slack"),
   slackTest: (webhookUrl) => api("POST", "/integrations/slack/test", webhookUrl ? { webhook_url: webhookUrl } : null, 15000),
+  adminListUsers: () => api("GET", "/admin/users"),
+  adminCreateUser: (payload) => api("POST", "/admin/users", payload),
+  adminSetStatus: (userId, status) => api("PATCH", `/admin/users/${userId}/status`, { status }),
   transcribeAudio: async (blob, language = "en") => {
     const form = new FormData();
     form.append("audio", blob, `recording-${Date.now()}.webm`);
@@ -248,6 +251,7 @@ const packIcon = (id, size = 18) => {
    ═══════════════════════════════════════════════════════════════════════ */
 const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
 const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
+const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
   const publicMatch = PUB.find(page => page.toLowerCase() === path);
@@ -382,6 +386,7 @@ export default function App() {
       {page === "Integrations" && canUsePrivateApi && <IntegrationsPage ws={ws} />}
       {page === "Digest" && canUsePrivateApi && <DigestPage ws={ws} />}
       {page === "Outcomes" && canUsePrivateApi && <OutPage ws={ws} user={user} />}
+      {page === "Admin" && isSuperAdmin(user) && <SuperAdminPage user={user} />}
       {showOnboarding && <OnboardingWizard user={user} setWs={setWs} saveWorkspace={saveWorkspace} runResearch={runResearch}
           onComplete={dest => { setShowOnboarding(false); setPage(dest || "Monitor"); }}
           onSkip={() => { setShowOnboarding(false); setPage("Monitor"); localStorage.setItem("webdataos_onboarded", "1"); }} />}
@@ -423,19 +428,15 @@ function Auth({ onClose, onAuth }) {
           <h2 id="auth-title" style={{ fontSize: 18, letterSpacing: "-.02em" }}>Sign in to WebDataOS</h2>
           <p style={{ color: T.dim, fontSize: 12, marginTop: 5 }}>Access your tenant workspace</p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, padding: 3, borderRadius: 6, border: `1px solid ${T.border}`, background: T.bgInset, marginBottom: 14 }}>
-          {[["login", "Sign in"], ["signup", "Create account"]].map(([id, label]) => (
-            <button key={id} type="button" aria-pressed={mode === id} onClick={() => { setMode(id); setError(""); }} style={{ border: "none", borderRadius: 4, padding: "7px 10px", background: mode === id ? T.accent : "transparent", color: mode === id ? "#000" : T.muted, fontSize: 12, fontWeight: 700, transition: "background .15s" }}>{label}</button>
-          ))}
-        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {mode === "signup" && <FI icon={<User size={14} />} ph="Full name" label="Full name" v={name} set={setName} />}
-          {mode === "signup" && <FI icon={<Briefcase size={14} />} ph="Organization" label="Organization" v={organization} set={setOrganization} />}
           <FI icon={<Mail size={14} />} ph="Email" label="Email" v={email} set={setEmail} type="email" />
           <FI icon={<KeyRound size={14} />} ph="Password" label="Password" v={password} set={setPassword} type="password" />
           {error && <div style={{ color: "#fca5a5", fontSize: 12, lineHeight: 1.45, padding: "8px 10px", borderRadius: 5, background: "rgba(239,68,68,.07)", border: "1px solid rgba(239,68,68,.18)" }}>{error}</div>}
-          <button type="button" aria-label={mode === "signup" ? "Create WebDataOS account" : "Sign in to WebDataOS"} onClick={submit} disabled={loading || !email || !password || (mode === "signup" && !name)} style={{ padding: "11px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontWeight: 700, fontSize: 13, cursor: loading ? "wait" : "pointer", width: "100%", opacity: loading ? .6 : 1, transition: "opacity .15s" }}>{loading ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}</button>
-          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>Public demo available without an account.</div>
+          <button type="button" aria-label="Sign in to WebDataOS" onClick={submit} disabled={loading || !email || !password} style={{ padding: "11px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontWeight: 700, fontSize: 13, cursor: loading ? "wait" : "pointer", width: "100%", opacity: loading ? .6 : 1, transition: "opacity .15s" }}>{loading ? "Signing in…" : "Sign in"}</button>
+          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.6, textAlign: "center", padding: "4px 0" }}>
+            Access is by invitation only.<br />Contact your administrator to request an account.
+          </div>
+          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center", paddingTop: 4, borderTop: `1px solid ${T.border}` }}>Public demo available without an account.</div>
         </div>
         <button type="button" aria-label="Close" onClick={onClose} style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", color: T.dim, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>&times;</button>
       </div>
@@ -711,7 +712,7 @@ const NAV_LINK = (active) => ({
 function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile();
-  const navItems = user ? PRIV : PUB;
+  const navItems = user ? [...PRIV, ...(isSuperAdmin(user) ? ["Admin"] : [])] : PUB;
   const brandTarget = user ? "Monitor" : "Home";
   const go = n => { setPage(n); setMenuOpen(false); };
 
@@ -1702,10 +1703,6 @@ function HomePage({ nav, user, auth }) {
                 </div>
               </div>
             ))}
-          </div>
-          <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: T.dim }}>Need a security questionnaire, DPA, or custom data processing agreement?</span>
-            <a href="mailto:security@webdataos.com" style={{ fontSize: 12, color: T.accent, fontWeight: 600 }}>security@webdataos.com →</a>
           </div>
         </div>
       </section>
@@ -4439,6 +4436,93 @@ function EvidencePage({ ws }) {
         </div>}
       </div>
 
+      {/* Intelligence summary — appears once records exist */}
+      {displayRecords.length > 0 && (() => {
+        const entityCounts = {};
+        const typeCounts = {};
+        const tierCounts = { 1: 0, 2: 0, 3: 0 };
+        let totalConf = 0;
+        const topFacts = [];
+        displayRecords.forEach(r => {
+          const ent = r.entity_name || "Unknown";
+          entityCounts[ent] = (entityCounts[ent] || 0) + 1;
+          const t = r.source_type || "web";
+          typeCounts[t] = (typeCounts[t] || 0) + 1;
+          const tier = r.source_tier || 3;
+          tierCounts[tier] = (tierCounts[tier] || 0) + 1;
+          totalConf += (r.confidence || 0);
+          if (r.summary && topFacts.length < 5) topFacts.push({ text: r.summary, entity: ent, conf: r.confidence || 0 });
+        });
+        const avgConf = Math.round(totalConf / displayRecords.length);
+        const topEntities = Object.entries(entityCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+        const maxCount = topEntities[0]?.[1] || 1;
+        return (
+          <div style={{ marginTop: 14, padding: "16px 18px", borderRadius: 9, background: T.bgCard, border: `1px solid ${T.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <Brain size={13} color={T.accent} />
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: T.accent }}>Intelligence summary</span>
+              <span style={{ fontSize: 11, color: T.dim, marginLeft: "auto" }}>{displayRecords.length} records · avg confidence {avgConf}%</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+              {/* Entity frequency */}
+              <div>
+                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Top entities</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {topEntities.map(([name, count]) => (
+                    <div key={name}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                        <span style={{ fontSize: 11, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "75%" }}>{name}</span>
+                        <span style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", flexShrink: 0 }}>{count}</span>
+                      </div>
+                      <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,.05)" }}>
+                        <div style={{ height: "100%", borderRadius: 2, background: T.accent, width: `${Math.round((count / maxCount) * 100)}%`, transition: "width .4s" }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Key findings */}
+              <div>
+                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Key findings</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {topFacts.map((f, i) => (
+                    <div key={i} style={{ padding: "7px 10px", borderRadius: 6, background: T.bgInset, border: `1px solid ${T.border}` }}>
+                      <div style={{ fontSize: 9, color: T.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>{f.entity}</div>
+                      <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{f.text}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Source breakdown */}
+              <div>
+                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Source tiers</div>
+                {[[1, "T1 — Official", "#22c55e"], [2, "T2 — News", T.accent], [3, "T3 — Web", "#818cf8"]].map(([tier, label, color]) => (
+                  <div key={tier} style={{ marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color, fontWeight: 600 }}>{label}</span>
+                      <span style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'" }}>{tierCounts[tier] || 0}</span>
+                    </div>
+                    <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,.05)" }}>
+                      <div style={{ height: "100%", borderRadius: 2, background: color, width: `${displayRecords.length ? Math.round(((tierCounts[tier] || 0) / displayRecords.length) * 100) : 0}%`, transition: "width .4s" }} />
+                    </div>
+                  </div>
+                ))}
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Signal types</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {Object.entries(typeCounts).slice(0, 8).map(([type, count]) => (
+                      <span key={type} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "rgba(14,165,233,.07)", border: "1px solid rgba(14,165,233,.15)", color: T.muted }}>
+                        {type} <span style={{ color: T.accent, fontWeight: 700 }}>{count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 14, alignItems: "stretch" }}>
         <section style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden", minHeight: 590 }}>
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -4515,13 +4599,55 @@ function EvidencePage({ ws }) {
             {!sources.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.5 }}>No source discovery run yet.</div>}
           </div>
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 12, fontWeight: 800 }}>Evidence graph</div>
-            <div style={{ marginTop: 9, display: "flex", gap: 18, alignItems: "center" }}>
-              <div><Lb>Nodes</Lb><div style={{ marginTop: 4, color: (graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.nodes, topicGraphCounts.nodes)}</div></div>
-              <div><Lb>Edges</Lb><div style={{ marginTop: 4, color: (graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim, fontWeight: 800 }}>{Math.max(graphCounts.relationships, topicGraphCounts.relationships)}</div></div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 12, fontWeight: 800 }}>Knowledge graph</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <span style={{ fontSize: 10, color: T.accent, fontFamily: "'JetBrains Mono'" }}>{Math.max(graphCounts.nodes, topicGraphCounts.nodes)} nodes</span>
+                <span style={{ fontSize: 10, color: "#22c55e", fontFamily: "'JetBrains Mono'" }}>{Math.max(graphCounts.relationships, topicGraphCounts.relationships)} edges</span>
+              </div>
             </div>
             <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} latestRunId={latestRunId} />
-            <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.45 }}>{explainGraph(graphView, selected, graphLabel)} {graphView?.status === "ok" ? "Fresh evidence only. Stale records are excluded from this view." : `Graph ${graphView?.status || graphStatus?.status || "checking"}.`}</div>
+            {/* Entity digest from graph */}
+            {graphView?.nodes?.length > 0 && (() => {
+              const nodes = graphView.nodes || [];
+              const rels = graphView.relationships || [];
+              const typeGroups = {};
+              nodes.forEach(n => { const t = n.labels?.[0] || n.type || "Entity"; typeGroups[t] = (typeGroups[t] || []); typeGroups[t].push(n); });
+              const connCount = {};
+              rels.forEach(r => { connCount[r.source] = (connCount[r.source] || 0) + 1; connCount[r.target] = (connCount[r.target] || 0) + 1; });
+              const topNodes = [...nodes].sort((a, b) => (connCount[b.id] || 0) - (connCount[a.id] || 0)).slice(0, 5);
+              const typeColor2 = { Entity: T.accent, Signal: "#f59e0b", Risk: "#ef4444", Action: "#22c55e", IntelligenceRun: "#818cf8" };
+              return (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Most connected</div>
+                  {topNodes.map(n => {
+                    const label = n.properties?.name || n.id?.split("_").pop() || n.id || "node";
+                    const type = n.labels?.[0] || "Entity";
+                    const conns = connCount[n.id] || 0;
+                    return (
+                      <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: typeColor2[type] || T.accent, flexShrink: 0 }} />
+                        <span style={{ fontSize: 11, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                        <span style={{ fontSize: 9, color: typeColor2[type] || T.dim, textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>{type}</span>
+                        <span style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", flexShrink: 0 }}>{conns}</span>
+                      </div>
+                    );
+                  })}
+                  {rels.slice(0, 3).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Key relationships</div>
+                      {rels.slice(0, 3).map((r, i) => {
+                        const sName = nodes.find(n => n.id === r.source)?.properties?.name || r.source?.split("_").pop() || r.source;
+                        const tName = nodes.find(n => n.id === r.target)?.properties?.name || r.target?.split("_").pop() || r.target;
+                        const rType = (r.type || r.label || "LINKED_TO").replace(/_/g, " ").toLowerCase();
+                        return <div key={i} style={{ fontSize: 11, color: T.muted, lineHeight: 1.5, padding: "3px 0" }}><span style={{ color: T.text }}>{sName}</span> <span style={{ color: T.dim }}>→ {rType} →</span> <span style={{ color: T.text }}>{tName}</span></div>;
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.45 }}>{explainGraph(graphView, selected, graphLabel)}</div>
           </div>
         </aside>
       </div>
@@ -4962,6 +5088,152 @@ const ROLE_MATRIX = [
   { action: "View evidence & sources",  analyst: true,  viewer: true,  admin: true  },
   { action: "Chat with Analyst",        analyst: true,  viewer: true,  admin: true  },
 ];
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SUPER ADMIN PAGE — user management (othnielobasi@gmail.com only)
+   ═══════════════════════════════════════════════════════════════════════ */
+const SUPER_ADMIN_EMAIL = "othnielobasi@gmail.com";
+
+function SuperAdminPage({ user }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", password: "", organization: "", role: "admin" });
+  const [formErr, setFormErr] = useState("");
+  const [actionBusy, setActionBusy] = useState({});
+
+  const load = useCallback(async () => {
+    setLoading(true); setErr("");
+    try { setUsers(await endpoints.adminListUsers()); }
+    catch (e) { setErr(e.message || "Failed to load users"); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const createUser = async () => {
+    if (!form.name || !form.email || !form.password) { setFormErr("Name, email and password are required."); return; }
+    setCreating(true); setFormErr("");
+    try {
+      await endpoints.adminCreateUser({ ...form, organization: form.organization || form.name });
+      toast.success(`Account created for ${form.email}`);
+      setShowCreate(false);
+      setForm({ name: "", email: "", password: "", organization: "", role: "admin" });
+      load();
+    } catch (e) { setFormErr(e.message || "Failed to create user"); }
+    finally { setCreating(false); }
+  };
+
+  const setStatus = async (userId, newStatus, email) => {
+    if (email.toLowerCase() === SUPER_ADMIN_EMAIL) return;
+    setActionBusy(b => ({ ...b, [userId]: true }));
+    try {
+      await endpoints.adminSetStatus(userId, newStatus);
+      toast.success(`${email} — ${newStatus}`);
+      load();
+    } catch (e) { toast.error(e.message || "Failed"); }
+    finally { setActionBusy(b => ({ ...b, [userId]: false })); }
+  };
+
+  const statusColor = { active: "#22c55e", banned: "#ef4444", suspended: "#f59e0b", deleted: "#475569" };
+
+  return (
+    <div style={{ maxWidth: 1060, margin: "0 auto", padding: "36px 24px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
+        <div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 4, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", marginBottom: 8 }}>
+            <Lock size={10} color="#ef4444" />
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "#ef4444" }}>System Admin</span>
+          </div>
+          <h2 style={{ fontSize: 22, marginTop: 4 }}>User management</h2>
+          <p style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>Manage accounts, access, and tenant provisioning.</p>
+        </div>
+        <button onClick={() => { setShowCreate(p => !p); setFormErr(""); }} style={{ padding: "9px 18px", borderRadius: 7, border: "none", background: showCreate ? "rgba(255,255,255,.06)" : "#0ea5e9", color: showCreate ? T.muted : "#000", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          {showCreate ? "Cancel" : <><Users2 size={13} /> Create account</>}
+        </button>
+      </div>
+
+      {err && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "rgba(239,68,68,.06)", border: "1px solid rgba(239,68,68,.15)", color: "#ef4444", fontSize: 13 }}>{err}</div>}
+
+      {/* Create user form */}
+      {showCreate && (
+        <div className="anim-up" style={{ padding: "20px 22px", borderRadius: 10, background: T.bgCard, border: "1px solid rgba(14,165,233,.2)", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 14 }}>New account</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 10 }}>
+            {[["Full name", "name", "text"], ["Email", "email", "email"], ["Password", "password", "password"], ["Organization", "organization", "text"]].map(([label, key, type]) => (
+              <div key={key}>
+                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>{label}</div>
+                <input type={type} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={{ width: "100%", padding: "9px 11px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+              </div>
+            ))}
+            <div>
+              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Role</div>
+              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={{ width: "100%", padding: "9px 11px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }}>
+                {["admin", "analyst", "viewer"].map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          </div>
+          {formErr && <div style={{ marginBottom: 10, fontSize: 12, color: "#fca5a5", padding: "6px 10px", borderRadius: 5, background: "rgba(239,68,68,.07)" }}>{formErr}</div>}
+          <button onClick={createUser} disabled={creating} style={{ padding: "9px 22px", borderRadius: 7, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{creating ? "Creating…" : "Create account"}</button>
+        </div>
+      )}
+
+      {/* Summary metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+        {[
+          { n: users.length, l: "Total accounts", c: T.accent },
+          { n: users.filter(u => u.status === "active").length, l: "Active", c: "#22c55e" },
+          { n: users.filter(u => u.status === "banned" || u.status === "suspended").length, l: "Banned / suspended", c: "#ef4444" },
+          { n: [...new Set(users.map(u => u.tenant_id))].length, l: "Tenants", c: "#818cf8" },
+        ].map((m, i) => (
+          <div key={i} style={{ padding: "14px 16px", borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: m.c, fontFamily: "'JetBrains Mono'" }}>{m.n}</div>
+            <div style={{ fontSize: 10, color: T.dim, marginTop: 3, textTransform: "uppercase", letterSpacing: ".05em" }}>{m.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* User table */}
+      <div style={{ borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+        <div style={{ padding: "10px 16px", borderBottom: `1px solid ${T.border}`, display: "grid", gridTemplateColumns: "1fr 1fr 80px 80px 140px 100px", gap: 8, alignItems: "center" }}>
+          {["Name", "Email", "Role", "Status", "Tenant", "Actions"].map(h => (
+            <span key={h} style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: T.dim }}>{h}</span>
+          ))}
+        </div>
+        {loading ? [1,2,3].map(i => <div key={i} className="skel" style={{ height: 52, margin: "1px 0" }} />) :
+          users.map((u, i) => {
+            const isSelf = u.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+            return (
+              <div key={u.id} style={{ padding: "12px 16px", borderBottom: i < users.length - 1 ? `1px solid ${T.border}` : "none", display: "grid", gridTemplateColumns: "1fr 1fr 80px 80px 140px 100px", gap: 8, alignItems: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {u.name}
+                  {isSelf && <span style={{ marginLeft: 6, fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "rgba(239,68,68,.1)", color: "#ef4444", textTransform: "uppercase" }}>you</span>}
+                </div>
+                <div style={{ fontSize: 12, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                <div style={{ fontSize: 11, color: T.dim, textTransform: "capitalize" }}>{u.role}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: statusColor[u.status] || T.dim, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: statusColor[u.status] || T.dim, textTransform: "capitalize" }}>{u.status}</span>
+                </div>
+                <div style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.tenant_id}</div>
+                <div style={{ display: "flex", gap: 5 }}>
+                  {!isSelf && u.status === "active" && (
+                    <button onClick={() => setStatus(u.id, "banned", u.email)} disabled={actionBusy[u.id]} style={{ padding: "4px 10px", borderRadius: 5, border: "1px solid rgba(239,68,68,.25)", background: "transparent", color: "#ef4444", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>{actionBusy[u.id] ? "…" : "Ban"}</button>
+                  )}
+                  {!isSelf && u.status !== "active" && (
+                    <button onClick={() => setStatus(u.id, "active", u.email)} disabled={actionBusy[u.id]} style={{ padding: "4px 10px", borderRadius: 5, border: "1px solid rgba(34,197,94,.25)", background: "transparent", color: "#22c55e", fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>{actionBusy[u.id] ? "…" : "Restore"}</button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        }
+        {!loading && !users.length && <EmptyState icon={Users2} title="No accounts yet" body="Create the first account using the button above." />}
+      </div>
+    </div>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    PORTFOLIO PAGE — multi-workspace executive overview

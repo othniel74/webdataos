@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     slack_webhook_url: str | None = None
     slack_notify_on_change: bool = True  # send only when signals change; False = always send
 
+    super_admin_email: str = "othnielobasi@gmail.com"
+    allow_public_signup: bool = False
+
     refresh_interval_minutes: int = 1440
     default_country: str = "us"
     request_timeout_seconds: int = Field(default=30, ge=1, le=300)
