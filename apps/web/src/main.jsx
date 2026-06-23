@@ -224,6 +224,52 @@ const endpoints = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
+   DISPLAY UTILITIES — keep technical noise out of the user-facing UI
+   ═══════════════════════════════════════════════════════════════════════ */
+const isHtmlContent = str => {
+  if (!str) return false;
+  const s = String(str).trimStart().slice(0, 300);
+  return /^<!|^<html[\s>]/i.test(s) || (s.includes("<html") && s.includes("<head"));
+};
+const stripSourceCitations = str => {
+  if (!str) return str;
+  return String(str)
+    .replace(/\s*[·\-]?\s*Source:\s*https?:\/\/\S+/gi, "")
+    .replace(/\s*\(https?:\/\/[^\s)]{10,}\)/g, "")
+    .trim();
+};
+const safeText = str => {
+  if (!str) return str;
+  if (isHtmlContent(str)) return null;
+  return stripSourceCitations(str);
+};
+const toHostname = url => {
+  if (!url) return null;
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return null; }
+};
+const humanSourceType = type => {
+  const map = { news_page: "News", company_page: "Company", official: "Official", web: "Web", social: "Social media", press_release: "Press release", regulatory: "Regulatory filing", financial: "Financial data", job_posting: "Job listing", research: "Research", forum: "Community" };
+  if (!type) return "Web";
+  return map[type] || String(type).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+};
+const renderMessageText = text => {
+  if (!text) return null;
+  const parts = [];
+  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  let last = 0, m;
+  while ((m = linkRegex.exec(text)) !== null) {
+    if (m.index > last) parts.push(<span key={last}>{text.slice(last, m.index)}</span>);
+    const label = m[1];
+    const url = m[2];
+    const host = toHostname(url) || label;
+    parts.push(<a key={m.index} href={url} target="_blank" rel="noopener noreferrer" style={{ color: "#38bdf8", textDecoration: "none", borderBottom: "1px solid rgba(56,189,248,.3)", paddingBottom: 1 }}>{label !== url ? label : host}</a>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push(<span key={last}>{text.slice(last)}</span>);
+  return parts.length > 1 ? parts : text;
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
    DATA (mirrors codebase schemas)
    ═══════════════════════════════════════════════════════════════════════ */
 const PACKS = [
@@ -636,8 +682,8 @@ function DecisionBriefPanel({ brief, onEvidence, compact = false }) {
               </div>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'" }}>Method</span>
-              <span style={{ fontSize: 10, color: T.muted, fontFamily: "'JetBrains Mono'" }}>SERP + Web Unlocker + LLM reasoning</span>
+              <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'" }}>Coverage</span>
+              <span style={{ fontSize: 10, color: T.muted, fontFamily: "'JetBrains Mono'" }}>Live web · multi-source</span>
             </div>
           </div>
         )}
@@ -2393,7 +2439,7 @@ function DemoPage({ nav }) {
                 <div key={rec.id} style={{ padding: "12px 16px", borderBottom: i < Math.min(evidence.length, 4) - 1 ? `1px solid ${T.border}` : "none" }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: T.text, marginBottom: 4 }}>{rec.entity_name || "Evidence"}</div>
                   <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.5, marginBottom: 6 }}>{(rec.summary || "").slice(0, 120)}</div>
-                  {rec.source_url && <SourceLink url={rec.source_url}><span style={{ fontSize: 10 }}>{rec.source_url.slice(0, 50)}</span></SourceLink>}
+                  {rec.source_url && <SourceLink url={rec.source_url}><span style={{ fontSize: 10 }}>{toHostname(rec.source_url) || "source"} ↗</span></SourceLink>}
                 </div>
               ))}
               {!evidence.length && <div style={{ padding: "14px 16px", color: T.dim, fontSize: 12 }}>Evidence appears after a live API run.</div>}
@@ -3071,10 +3117,10 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
     return T.dim;
   };
   const capability = [
-    ["Retrieval", backendOk?.brightdata_live ? "Bright Data live" : backendOk?.mock_brightdata ? "Mock mode" : "Not ready", backendOk?.brightdata_live],
-    ["Reasoning", backendOk?.llm_available ? backendOk.llm_provider : "Not ready", backendOk?.llm_available],
-    ["Memory", backendOk?.partner_apis?.cognee_local ? "Cognee + local" : "Local fallback", true],
-    ["Graph", backendOk?.neo4j || "checking", backendOk?.neo4j === "ok"],
+    ["Web intelligence", backendOk?.brightdata_live || backendOk?.mock_brightdata ? "Ready" : "Not ready", backendOk?.brightdata_live || backendOk?.mock_brightdata],
+    ["AI reasoning", backendOk?.llm_available ? "Ready" : "Not ready", backendOk?.llm_available],
+    ["Context memory", true, true],
+    ["Relationship graph", backendOk?.neo4j === "ok" ? "Active" : "Standard", backendOk?.neo4j === "ok"],
   ];
 
   return (
@@ -3099,24 +3145,17 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
         </section>
       )}
 
-      <section style={{ marginTop: 16, padding: 14, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>Operating loop</div>
-            <div style={{ marginTop: 4, color: T.dim, fontSize: 12 }}>The system is judged by this sequence: monitor, prove, reason, act, and record outcome.</div>
+      <section style={{ marginTop: 16, padding: "12px 16px", borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+        <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: summary ? "#22c55e" : T.dim, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: summary ? T.text : T.dim, fontWeight: 700 }}>{summary ? "Monitoring active" : "Not yet configured"}</span>
           </div>
-          <div style={{ color: T.dim, fontSize: 11, textAlign: "right" }}>{latest ? `Receipt ${latest.id?.slice(0, 8) || ""}` : "No receipt yet"}</div>
-        </div>
-        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 8 }}>
-          {valueLoop.map((item, i) => (
-            <div key={`${item.step}-${i}`} style={{ minHeight: 92, padding: 10, borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
-                <span style={{ color: T.text, fontSize: 12, fontWeight: 800 }}>{item.step}</span>
-                <span style={{ color: loopColor(item.status), fontSize: 10, fontWeight: 800 }}>{item.status}</span>
-              </div>
-              <div style={{ marginTop: 8, color: T.muted, fontSize: 11, lineHeight: 1.45 }}>{item.detail}</div>
-            </div>
-          ))}
+          <div style={{ fontSize: 12, color: T.dim }}>Last check: <span style={{ color: T.muted }}>{lastRun}</span></div>
+          <div style={{ fontSize: 12, color: T.dim }}>Next: <span style={{ color: T.muted }}>{nextDue}</span></div>
+          {records.length > 0 && <div style={{ fontSize: 12, color: T.dim }}><span style={{ color: T.muted, fontWeight: 700 }}>{records.length}</span> records collected</div>}
+          {changes.length > 0 && <div style={{ padding: "2px 9px", borderRadius: 4, background: "rgba(129,140,248,.1)", border: "1px solid rgba(129,140,248,.2)", fontSize: 11, color: "#818cf8", fontWeight: 700 }}>{changes.length} change{changes.length !== 1 ? "s" : ""} detected</div>}
+          {actions.length > 0 && <div style={{ padding: "2px 9px", borderRadius: 4, background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.2)", fontSize: 11, color: "#f59e0b", fontWeight: 700 }}>{actions.length} action{actions.length !== 1 ? "s" : ""} pending</div>}
         </div>
       </section>
 
@@ -3164,19 +3203,27 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
 
           <section style={{ padding: 16, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 800 }}>Signals needing attention</div>
-              <button onClick={() => nav("Evidence")} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 12, fontWeight: 700 }}>Open evidence</button>
+              <div style={{ fontSize: 14, fontWeight: 800 }}>Latest signals</div>
+              <button onClick={() => nav("Evidence")} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 12, fontWeight: 700 }}>View all →</button>
             </div>
             <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-              {records.slice(0, 5).map(record => <div key={record.id} style={{ padding: 11, borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800 }}>{record.entity_name || "Evidence signal"}</div>
-                  <span style={{ fontSize: 10, color: T.accent }}>{fmt(record.confidence || 0)}</span>
-                </div>
-                <div style={{ marginTop: 5, color: T.muted, fontSize: 12, lineHeight: 1.5 }}>{record.summary || "No summary saved."}</div>
-                <div style={{ marginTop: 5, fontSize: 10 }}><SourceLink url={record.source_url}>{record.source_url || record.source_type}</SourceLink></div>
-              </div>)}
-              {!records.length && <div style={{ color: T.dim, fontSize: 12 }}>No evidence yet. Monitoring will populate this from live retrieval.</div>}
+              {records.slice(0, 5).map(record => {
+                const cleanSummary = safeText(record.summary);
+                const host = toHostname(record.source_url);
+                const conf = Math.round((record.confidence || 0) * 100);
+                return (
+                  <div key={record.id} style={{ padding: 11, borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 5 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800 }}>{record.entity_name || "Intelligence signal"}</div>
+                      <span style={{ fontSize: 10, color: conf > 79 ? "#22c55e" : conf > 59 ? "#f59e0b" : T.accent, fontWeight: 700, flexShrink: 0 }}>{conf}% confidence</span>
+                    </div>
+                    {cleanSummary && <div style={{ color: T.muted, fontSize: 12, lineHeight: 1.55, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{cleanSummary}</div>}
+                    {!cleanSummary && <div style={{ color: T.dim, fontSize: 12 }}>No summary available yet.</div>}
+                    {host && <div style={{ marginTop: 6, fontSize: 10, color: T.dim }}><SourceLink url={record.source_url}>{host} ↗</SourceLink></div>}
+                  </div>
+                );
+              })}
+              {!records.length && <div style={{ color: T.dim, fontSize: 12 }}>No signals collected yet. Run monitoring to gather live intelligence.</div>}
             </div>
           </section>
         </main>
@@ -3192,7 +3239,7 @@ function MonitorPage({ ws, nav, saveWorkspace, report, setReport, setActions, ba
             </div>
           </section>
           <section style={{ padding: 16, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 14, fontWeight: 800 }}>Capability</div>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>System readiness</div>
             <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
               {capability.map(([name, value, ok]) => <div key={name} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12 }}><span style={{ color: T.dim }}>{name}</span><span style={{ color: ok ? "#22c55e" : "#f59e0b", fontWeight: 800 }}>{value}</span></div>)}
             </div>
@@ -3745,8 +3792,7 @@ function AgentPage({ pack, ws, actions, setActions, runResearch, report }) {
           <div style={{ padding: 12, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
             <Lb>Org context</Lb>
             <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{report.org_context_used ? "Contract and risk context used" : "Workspace entities used; no contract/risk context saved"}</div>
-            <div style={{ fontSize: 11, color: T.muted }}>Sources: {report.sources?.length || 0}</div>
-            <div style={{ fontSize: 11, color: T.muted }}>Partner trace: {report.partner_trace?.length || 0}</div>
+            <div style={{ fontSize: 11, color: T.muted }}>Sources used: {report.sources?.length || 0}</div>
           </div>
           {receipt && <div style={{ padding: 12, borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
             <Lb>Run receipt</Lb>
@@ -4043,11 +4089,11 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
   const activeStages = receipt?.stages || [];
   const evidence = activeReport?.records_used || [];
   const agentProviders = [
-    ["Retrieval", compactProviders.retrieval || (backendOk?.brightdata_live ? "Bright Data live" : backendOk?.mock_brightdata ? "mock mode" : "pending")],
-    ["Reasoning", compactProviders.llm || (backendOk?.llm_available ? backendOk.llm_provider : "pending")],
-    ["Memory", compactProviders.memory || (backendOk?.partner_apis?.cognee_local ? "Cognee + local" : "local fallback")],
-    ["Workflow", compactProviders.workflow || (backendOk?.partner_apis?.triggerware ? "TriggerWare" : "manual")],
-    ["Neo4j", graphStatus?.status || "checking"],
+    ["Web intelligence", backendOk?.brightdata_live || backendOk?.mock_brightdata ? "Ready" : "Not ready"],
+    ["AI reasoning", backendOk?.llm_available ? "Ready" : "Not ready"],
+    ["Context memory", "Ready"],
+    ["Workflow", backendOk?.partner_apis?.triggerware ? "Ready" : "Local"],
+    ["Graph", graphStatus?.status === "ok" ? "Active" : "Standard"],
   ];
   const visibleStages = (activeStages.length ? activeStages : flow.map(s => ({ name: s.title, status: s.status }))).slice(0, 9);
   const runTitle = activeRun?.task || "New research run";
@@ -4174,20 +4220,51 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
               return <div key={message.id} style={{ display: "grid", gridTemplateColumns: "34px minmax(0,1fr)", gap: 12, alignItems: "start" }}>
                 <div style={{ width: 30, height: 30, borderRadius: 999, background: isUser ? T.accent : T.bgSub, border: isUser ? "none" : `1px solid ${T.border}`, color: isUser ? "#001018" : T.accent, display: "grid", placeItems: "center", fontSize: 11, fontWeight: 800 }}>{isUser ? "U" : "A"}</div>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ color: T.text, fontSize: 14, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{message.content}</div>
+                  <div style={{ color: T.text, fontSize: 14, lineHeight: 1.75, whiteSpace: "pre-wrap" }}>{renderMessageText(message.content)}</div>
                   {messageReport && <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                     <DecisionBriefPanel brief={decisionFromReport(messageReport)} compact />
-                    {!!messageReport.key_findings?.length && <div style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>Key findings</div>{messageReport.key_findings.slice(0, 4).map((finding, i) => <div key={i} style={{ color: T.muted, fontSize: 12, lineHeight: 1.6, padding: "4px 0" }}>{finding}</div>)}</div>}
-                    {!!messageReasoning?.recommendations?.length && <div style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}><div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>Recommended actions</div>{messageReasoning.recommendations.slice(0, 3).map((item, i) => <div key={i} style={{ color: T.muted, fontSize: 12, lineHeight: 1.6, padding: "4px 0" }}>{item.action || item.title || item.recommendation || JSON.stringify(item)}</div>)}</div>}
-                    <details style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
-                      <summary style={{ cursor: "pointer", color: T.muted, fontSize: 12 }}>Evidence and receipt</summary>
-                      <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                        {(messageReport.records_used || []).slice(0, 4).map(rec => <div key={rec.id} style={{ fontSize: 11, color: T.dim, lineHeight: 1.45, wordBreak: "break-word" }}>{rec.entity_name || "Evidence"} - <SourceLink url={rec.source_url}>{rec.source_url}</SourceLink></div>)}
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
-                          {(messageReport.run_receipt?.stages || []).slice(0, 6).map(stage => <div key={`${stage.name}-${stage.status}`} style={{ padding: 7, borderRadius: 7, background: T.bgCard, border: `1px solid ${T.border}` }}><div style={{ fontSize: 9, color: T.dim }}>{stage.name}</div><div style={{ marginTop: 3, color: statusColor(stage.status), fontSize: 10, fontWeight: 800 }}>{stage.status}</div></div>)}
+                    {!!messageReport.key_findings?.length && (() => {
+                      const cleanFindings = messageReport.key_findings.slice(0, 4).map(f => safeText(String(f))).filter(Boolean);
+                      return cleanFindings.length ? (
+                        <div style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>Key findings</div>
+                          {cleanFindings.map((finding, i) => (
+                            <div key={i} style={{ color: T.muted, fontSize: 12, lineHeight: 1.6, padding: "4px 0", borderBottom: i < cleanFindings.length - 1 ? `1px solid ${T.border}` : "none" }}>{finding}</div>
+                          ))}
                         </div>
-                      </div>
-                    </details>
+                      ) : null;
+                    })()}
+                    {!!messageReasoning?.recommendations?.length && (() => {
+                      const recs = messageReasoning.recommendations.slice(0, 3).map(item => item.title || item.action || item.recommendation).filter(r => r && typeof r === "string");
+                      return recs.length ? (
+                        <div style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>Recommended actions</div>
+                          {recs.map((r, i) => (
+                            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "5px 0", borderBottom: i < recs.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                              <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#22c55e", marginTop: 6, flexShrink: 0 }} />
+                              <div style={{ color: T.muted, fontSize: 12, lineHeight: 1.55 }}>{r}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null;
+                    })()}
+                    {!!(messageReport.records_used?.length) && (
+                      <details style={{ padding: 12, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+                        <summary style={{ cursor: "pointer", color: T.muted, fontSize: 12 }}>Sources used ({messageReport.records_used.length})</summary>
+                        <div style={{ marginTop: 10, display: "grid", gap: 7 }}>
+                          {(messageReport.records_used || []).slice(0, 5).map(rec => {
+                            const host = toHostname(rec.source_url);
+                            return (
+                              <div key={rec.id} style={{ fontSize: 11, color: T.dim, lineHeight: 1.45, display: "flex", gap: 8, alignItems: "center" }}>
+                                <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.dim, flexShrink: 0 }} />
+                                <span style={{ color: T.muted, fontWeight: 600 }}>{rec.entity_name || "Evidence"}</span>
+                                {host && <SourceLink url={rec.source_url}><span style={{ color: T.dim }}>{host} ↗</span></SourceLink>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    )}
                   </div>}
                   <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", color: T.dim, fontSize: 10 }}>
                     <span>{message.at}</span>
@@ -4268,7 +4345,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
           <div style={{ padding: 14, borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 13, fontWeight: 800 }}>Live inspector</div><div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>Transcript, memory, evidence, graph, workflow</div></div>
           <div style={{ padding: 12, display: "grid", gap: 10, maxHeight: 650, overflowY: "auto" }}>
             <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Providers</Lb><div style={{ marginTop: 8, display: "grid", gap: 6 }}>{providerRows.map(([label, value]) => <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11 }}><span style={{ color: T.dim }}>{label}</span><span style={{ color: value === "disabled" || value === "not used" ? T.dim : T.text }}>{value}</span></div>)}</div></div>
-            <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Evidence used</Lb>{(activeReport?.records_used || []).slice(0, 5).map(rec => <div key={rec.id} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 11, color: T.text }}>{rec.entity_name || "Evidence"}</div><div style={{ fontSize: 10, wordBreak: "break-all" }}><SourceLink url={rec.source_url}>{rec.source_url}</SourceLink></div></div>)}{!activeReport?.records_used?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>No evidence selected yet.</div>}</div>
+            <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Evidence used</Lb>{(activeReport?.records_used || []).slice(0, 5).map(rec => { const host = toHostname(rec.source_url); return <div key={rec.id} style={{ padding: "8px 0", borderBottom: `1px solid ${T.border}` }}><div style={{ fontSize: 11, color: T.text }}>{rec.entity_name || "Evidence"}</div>{host && <div style={{ fontSize: 10, color: T.dim }}><SourceLink url={rec.source_url}>{host} ↗</SourceLink></div>}</div>; })} {!activeReport?.records_used?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>No evidence selected yet.</div>}</div>
             <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Reasoning trace</Lb>{(r.reasoning_trace || []).slice(0, 8).map((trace, i) => <div key={i} style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", padding: "4px 0", borderBottom: `1px solid ${T.border}` }}>{trace}</div>)}{!r.reasoning_trace?.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim }}>Trace appears after reasoning.</div>}</div>
             {receipt && <div style={{ padding: 12, borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}><Lb>Run receipt</Lb><pre style={{ margin: "8px 0 0", maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", color: T.muted, fontSize: 10, lineHeight: 1.5, fontFamily: "'JetBrains Mono'" }}>{JSON.stringify(receipt, null, 2)}</pre></div>}
           </div>
@@ -4392,11 +4469,9 @@ function EvidencePage({ ws }) {
   const graphView = graph?.nodes?.length ? graph : topicGraph;
   const graphLabel = graph?.nodes?.length ? (selected?.entity_name || "Selected entity") : ws.name;
   const stats = [
-    ["Sources", sources.length, T.accent],
-    ["Fresh records", records.length, T.accent],
-    ["Ranked", retrieval.length, retrieval.length ? "#22c55e" : T.dim],
-    ["Graph nodes", Math.max(graphCounts.nodes, topicGraphCounts.nodes), (graphCounts.nodes || topicGraphCounts.nodes) ? T.accent : T.dim],
-    ["Graph edges", Math.max(graphCounts.relationships, topicGraphCounts.relationships), (graphCounts.relationships || topicGraphCounts.relationships) ? "#22c55e" : T.dim],
+    ["Records", records.length, T.accent],
+    ["Sources discovered", sources.length, sources.length ? "#22c55e" : T.dim],
+    ["Ranked results", retrieval.length, retrieval.length ? "#22c55e" : T.dim],
   ];
 
   return (
@@ -4404,15 +4479,12 @@ function EvidencePage({ ws }) {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div>
           <Eye>Intelligence</Eye>
-          <h2 style={{ fontSize: 22, marginTop: 4 }}>Evidence workspace</h2>
-          <div style={{ color: T.dim, fontSize: 12, marginTop: 6 }}>{ws.name} - Neo4j {graphStatus?.status || "checking"}</div>
+          <h2 style={{ fontSize: 22, marginTop: 4 }}>Intelligence records</h2>
+          <div style={{ color: T.dim, fontSize: 12, marginTop: 6 }}>{ws.name}</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={syncGraph} disabled={graphSyncing || loading || !records.length} title="Sync fresh evidence to Neo4j" style={{ height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: records.length ? T.text : T.dim, display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 800 }}>
-            <GitBranch size={14} style={graphSyncing ? { animation: "spin 1s linear infinite" } : null} /> Sync graph
-          </button>
-          <button onClick={loadRecords} disabled={loading} title="Reload evidence" style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.muted, display: "grid", placeItems: "center" }}>
-            <RefreshCw size={14} style={loading ? { animation: "spin 1s linear infinite" } : null} />
+          <button onClick={loadRecords} disabled={loading} title="Refresh records" style={{ height: 34, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.muted, display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12 }}>
+            <RefreshCw size={14} style={loading ? { animation: "spin 1s linear infinite" } : null} /> Refresh
           </button>
         </div>
       </div>
@@ -4420,24 +4492,24 @@ function EvidencePage({ ws }) {
       {err && <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", color: "#ef4444", fontSize: 12 }}>{err}</div>}
 
       <div style={{ marginTop: 18, paddingBottom: 16, borderBottom: `1px solid ${T.border}` }}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(300px,1fr) repeat(auto-fit,minmax(104px,max-content))", gap: 8, alignItems: "end" }}>
-          <div>
-            <Lb>Question</Lb>
-            <input value={query} onChange={e => setQuery(e.target.value)} style={{ ...IS, marginTop: 5 }} />
-          </div>
-          <button onClick={() => runStep("discover")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: "none", background: T.accent, color: "#001018", fontWeight: 800, fontSize: 12 }}><Search size={13} /> Sources</button>
-          <button onClick={() => runStep("refresh")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}><Database size={13} /> Save</button>
-          <button onClick={() => runStep("retrieve")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}><Target size={13} /> Rank</button>
-        </div>
-        <div style={{ marginTop: 12, display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
           {stats.map(([label, value, color], i) => <div key={label} style={{ display: "flex", alignItems: "baseline", gap: 6, paddingRight: i < stats.length - 1 ? 18 : 0, borderRight: i < stats.length - 1 ? `1px solid ${T.border}` : "none" }}>
             <span style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</span>
             <span style={{ fontSize: 15, fontWeight: 800, color }}>{value}</span>
           </div>)}
         </div>
-        {graphBackfill && <div style={{ marginTop: 9, fontSize: 11, color: graphBackfill.status === "ok" ? T.muted : "#f59e0b" }}>
-          Graph sync: {graphBackfill.records_mirrored} mirrored from {graphBackfill.records_seen} fresh records{graphBackfill.records_skipped_stale ? `, ${graphBackfill.records_skipped_stale} stale skipped` : ""}{graphBackfill.records_failed ? `, ${graphBackfill.records_failed} failed` : ""}.
-        </div>}
+        <details style={{ marginTop: 14 }}>
+          <summary style={{ fontSize: 11, color: T.dim, cursor: "pointer", userSelect: "none" }}>Refresh intelligence data ▸</summary>
+          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "minmax(300px,1fr) repeat(auto-fit,minmax(104px,max-content))", gap: 8, alignItems: "end" }}>
+            <div>
+              <Lb>Search query</Lb>
+              <input value={query} onChange={e => setQuery(e.target.value)} style={{ ...IS, marginTop: 5 }} />
+            </div>
+            <button onClick={() => runStep("discover")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: "none", background: T.accent, color: "#001018", fontWeight: 800, fontSize: 12 }}><Search size={13} /> Discover</button>
+            <button onClick={() => runStep("refresh")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}><Database size={13} /> Collect</button>
+            <button onClick={() => runStep("retrieve")} disabled={loading} style={{ height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: T.bgSub, color: T.text, fontWeight: 800, fontSize: 12 }}><Target size={13} /> Rank</button>
+          </div>
+        </details>
       </div>
 
       {/* Intelligence summary — appears once records exist */}
@@ -4489,18 +4561,22 @@ function EvidencePage({ ws }) {
               <div>
                 <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Key findings</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {topFacts.map((f, i) => (
-                    <div key={i} style={{ padding: "7px 10px", borderRadius: 6, background: T.bgInset, border: `1px solid ${T.border}` }}>
-                      <div style={{ fontSize: 9, color: T.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>{f.entity}</div>
-                      <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{f.text}</div>
-                    </div>
-                  ))}
+                  {topFacts.map((f, i) => {
+                    const cleanFact = safeText(f.text);
+                    if (!cleanFact) return null;
+                    return (
+                      <div key={i} style={{ padding: "7px 10px", borderRadius: 6, background: T.bgInset, border: `1px solid ${T.border}` }}>
+                        <div style={{ fontSize: 9, color: T.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 3 }}>{f.entity}</div>
+                        <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{cleanFact}</div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              {/* Source breakdown */}
+              {/* Source coverage */}
               <div>
-                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Source tiers</div>
-                {[[1, "T1 — Official", "#22c55e"], [2, "T2 — News", T.accent], [3, "T3 — Web", "#818cf8"]].map(([tier, label, color]) => (
+                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Source coverage</div>
+                {[[1, "Official", "#22c55e"], [2, "News & press", T.accent], [3, "General web", "#818cf8"]].map(([tier, label, color]) => (
                   <div key={tier} style={{ marginBottom: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                       <span style={{ fontSize: 11, color, fontWeight: 600 }}>{label}</span>
@@ -4511,16 +4587,6 @@ function EvidencePage({ ws }) {
                     </div>
                   </div>
                 ))}
-                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Signal types</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {Object.entries(typeCounts).slice(0, 8).map(([type, count]) => (
-                      <span key={type} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: "rgba(14,165,233,.07)", border: "1px solid rgba(14,165,233,.15)", color: T.muted }}>
-                        {type} <span style={{ color: T.accent, fontWeight: 700 }}>{count}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -4538,15 +4604,16 @@ function EvidencePage({ ws }) {
               const active = selected?.id === item.id;
               const tierColor = item.source_tier === 1 ? "#22c55e" : item.source_tier === 2 ? T.accent : "#818cf8";
               const tierLabel = item.source_tier === 1 ? "Official" : item.source_tier === 2 ? "News" : "Web";
-              const hostname = (() => { try { return new URL(item.source_url || "").hostname.replace(/^www\./, ""); } catch { return item.source_type || "source"; } })();
+              const hostname = toHostname(item.source_url) || humanSourceType(item.source_type);
               const confPct = Math.round((item.confidence || 0) * 100);
+              const displaySummary = safeText(item.summary);
               return (
                 <button key={item.id} onClick={() => setSelectedId(item.id)} style={{ width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderBottom: `1px solid ${T.border}`, background: active ? "rgba(14,165,233,.06)" : "transparent", color: T.text, borderLeft: active ? "3px solid #0ea5e9" : "3px solid transparent", transition: "background .1s" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: active ? T.accent : T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.entity_name || "Entity"}</span>
                     <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: `${tierColor}14`, color: tierColor, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>{tierLabel}</span>
                   </div>
-                  <div style={{ fontSize: 12, lineHeight: 1.55, color: T.muted, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.summary || "No insight extracted yet."}</div>
+                  <div style={{ fontSize: 12, lineHeight: 1.55, color: displaySummary ? T.muted : T.dim, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{displaySummary || "Processing intelligence for this record."}</div>
                   <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 10, color: T.dim }}>{hostname}</span>
                     <div style={{ flex: 1, height: 2, borderRadius: 1, background: "rgba(255,255,255,.05)" }}>
@@ -4564,16 +4631,18 @@ function EvidencePage({ ws }) {
         <section style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16, minHeight: 590, minWidth: 0, overflowY: "auto" }}>
           {selected ? (() => {
             const conf = Math.round((selected.confidence || 0) * 100);
-            const tierLabel = selected.source_tier === 1 ? "T1 — Official source" : selected.source_tier === 2 ? "T2 — News / press" : "T3 — General web";
+            const tierLabel = selected.source_tier === 1 ? "Official source" : selected.source_tier === 2 ? "News & press" : "General web";
             const tierColor = selected.source_tier === 1 ? "#22c55e" : selected.source_tier === 2 ? T.accent : "#818cf8";
-            const hostname = (() => { try { return new URL(selected.source_url || "").hostname.replace(/^www\./, ""); } catch { return null; } })();
+            const hostname = toHostname(selected.source_url);
             const firstSentence = (text) => { if (!text) return ""; const m = text.match(/^[^.!?]+[.!?]/); return m ? m[0] : text.slice(0, 160); };
+            const cleanSummary = safeText(selected.summary) || "";
             const facts = selected.facts || {};
-            const factBullets = [];
-            if (Array.isArray(facts.key_facts)) factBullets.push(...facts.key_facts);
-            else if (Array.isArray(facts.signals)) factBullets.push(...facts.signals.map(s => typeof s === "string" ? s : s.description || s.signal || JSON.stringify(s)));
-            else if (Array.isArray(facts.change_indicators)) factBullets.push(...facts.change_indicators);
-            else if (typeof facts === "object") Object.entries(facts).slice(0, 6).forEach(([k, v]) => { if (typeof v === "string" && v.length > 4) factBullets.push(`${k.replace(/_/g," ")}: ${v}`); });
+            const rawBullets = [];
+            if (Array.isArray(facts.key_facts)) rawBullets.push(...facts.key_facts);
+            else if (Array.isArray(facts.signals)) rawBullets.push(...facts.signals.map(s => typeof s === "string" ? s : s.description || s.signal || ""));
+            else if (Array.isArray(facts.change_indicators)) rawBullets.push(...facts.change_indicators);
+            else if (typeof facts === "object") Object.entries(facts).slice(0, 8).forEach(([k, v]) => { if (typeof v === "string" && v.length > 4 && v.length < 600) rawBullets.push(`${k.replace(/_/g," ")}: ${v}`); });
+            const factBullets = rawBullets.map(f => safeText(String(f))).filter(Boolean);
             const copyInsight = () => { navigator.clipboard?.writeText(`${selected.entity_name}\n\n${selected.summary}\n\nSource: ${selected.source_url}`); toast.success("Insight copied"); };
             return (
               <>
@@ -4589,14 +4658,20 @@ function EvidencePage({ ws }) {
                 </div>
 
                 {/* Key insight box */}
-                <div style={{ padding: "11px 14px", borderRadius: 7, background: "rgba(14,165,233,.05)", border: "1px solid rgba(14,165,233,.14)", borderLeft: "3px solid #0ea5e9", marginBottom: 14 }}>
-                  <div style={{ fontSize: 9, color: T.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>Key insight</div>
-                  <div style={{ fontSize: 13, color: "#dde4ee", lineHeight: 1.65 }}>{firstSentence(selected.summary)}</div>
-                </div>
+                {cleanSummary ? (
+                  <div style={{ padding: "11px 14px", borderRadius: 7, background: "rgba(14,165,233,.05)", border: "1px solid rgba(14,165,233,.14)", borderLeft: "3px solid #0ea5e9", marginBottom: 14 }}>
+                    <div style={{ fontSize: 9, color: T.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>Key insight</div>
+                    <div style={{ fontSize: 13, color: "#dde4ee", lineHeight: 1.65 }}>{firstSentence(cleanSummary)}</div>
+                  </div>
+                ) : (
+                  <div style={{ padding: "11px 14px", borderRadius: 7, background: T.bgInset, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.dim}`, marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, color: T.dim, lineHeight: 1.6 }}>Intelligence is being processed for this record. Run monitoring to generate a fresh summary.</div>
+                  </div>
+                )}
 
                 {/* Full context */}
-                {selected.summary && selected.summary.length > firstSentence(selected.summary).length && (
-                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.75, marginBottom: 14 }}>{selected.summary.slice(firstSentence(selected.summary).length).trim()}</div>
+                {cleanSummary && cleanSummary.length > firstSentence(cleanSummary).length && (
+                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.75, marginBottom: 14 }}>{cleanSummary.slice(firstSentence(cleanSummary).length).trim()}</div>
                 )}
 
                 {/* Extracted facts as bullets */}
@@ -4621,8 +4696,8 @@ function EvidencePage({ ws }) {
                     <div style={{ fontSize: 13, fontWeight: 800, color: conf > 79 ? "#22c55e" : conf > 59 ? "#f59e0b" : "#ef4444" }}>{conf}%</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Signal type</div>
-                    <div style={{ fontSize: 12, color: T.muted, textTransform: "capitalize" }}>{selected.source_type || "web"}</div>
+                    <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Source type</div>
+                    <div style={{ fontSize: 12, color: T.muted }}>{humanSourceType(selected.source_type)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Freshness</div>
@@ -4680,11 +4755,8 @@ function EvidencePage({ ws }) {
           </div>
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 12, fontWeight: 800 }}>Knowledge graph</div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <span style={{ fontSize: 10, color: T.accent, fontFamily: "'JetBrains Mono'" }}>{Math.max(graphCounts.nodes, topicGraphCounts.nodes)} nodes</span>
-                <span style={{ fontSize: 10, color: "#22c55e", fontFamily: "'JetBrains Mono'" }}>{Math.max(graphCounts.relationships, topicGraphCounts.relationships)} edges</span>
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 800 }}>Entity relationships</div>
+              {(graphCounts.nodes || topicGraphCounts.nodes) > 0 && <span style={{ fontSize: 10, color: T.dim }}>{Math.max(graphCounts.nodes, topicGraphCounts.nodes)} entities mapped</span>}
             </div>
             <GraphMini graph={graphView} title={graphLabel} wsId={ws.id} latestRunId={latestRunId} />
             {/* Entity digest from graph */}
