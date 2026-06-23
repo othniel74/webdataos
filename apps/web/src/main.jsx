@@ -838,7 +838,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
       {/* Mobile drawer */}
       {isMobile && menuOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 49, background: "rgba(0,0,0,.7)", backdropFilter: "blur(4px)" }} onClick={() => setMenuOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 56, right: 0, bottom: 0, width: 260, background: "#0c0d12", borderLeft: "1px solid rgba(255,255,255,.08)", display: "flex", flexDirection: "column", padding: "16px 12px", gap: 2, overflowY: "auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 56, right: 0, bottom: 0, width: 260, background: T.bgSub, borderLeft: "1px solid rgba(255,255,255,.08)", display: "flex", flexDirection: "column", padding: "16px 12px", gap: 2, overflowY: "auto" }}>
             {navItems.map(n => {
               const active = page === n;
               return (
@@ -1022,7 +1022,7 @@ function OnboardingWizard({ user, onComplete, onSkip, setWs, saveWorkspace, runR
   const RUN_STEPS = ["Creating workspace", "Discovering sources", "Scanning live web", "Reasoning over evidence", "Building your first brief"];
 
   const overlay = { position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,.85)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 };
-  const card = { width: "100%", maxWidth: 640, background: "#0f1018", border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, overflow: "hidden", position: "relative" };
+  const card = { width: "100%", maxWidth: 640, background: T.bgCard, border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, overflow: "hidden", position: "relative" };
 
   return (
     <div style={overlay}>
@@ -1060,7 +1060,7 @@ function OnboardingWizard({ user, onComplete, onSkip, setWs, saveWorkspace, runR
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {PACKS.map(p => (
-                <button key={p.id} onClick={() => selectDomain(p)} style={{ padding: "16px 18px", borderRadius: 8, border: "1px solid rgba(255,255,255,.07)", background: "#0c0d12", cursor: "pointer", textAlign: "left", transition: "border-color .15s" }}
+                <button key={p.id} onClick={() => selectDomain(p)} style={{ padding: "16px 18px", borderRadius: 8, border: "1px solid rgba(255,255,255,.07)", background: T.bgSub, cursor: "pointer", textAlign: "left", transition: "border-color .15s" }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = p.color + "50"}
                   onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(255,255,255,.07)"}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -1107,13 +1107,13 @@ function OnboardingWizard({ user, onComplete, onSkip, setWs, saveWorkspace, runR
 
             {/* Custom input */}
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === "Enter" && addCustom()} placeholder="Add a company name…" style={{ flex: 1, padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: "1px solid rgba(255,255,255,.1)", color: "#dde4ee", fontSize: 13, outline: "none" }} />
+              <input value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === "Enter" && addCustom()} placeholder="Add a company name…" style={{ flex: 1, padding: "9px 12px", borderRadius: 6, background: T.bgSub, border: "1px solid rgba(255,255,255,.1)", color: "#dde4ee", fontSize: 13, outline: "none" }} />
               <button onClick={addCustom} style={{ padding: "9px 16px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Add</button>
             </div>
 
             {/* Selected entities */}
             {entities.length > 0 && (
-              <div style={{ padding: "12px 14px", borderRadius: 7, background: "#0c0d12", border: "1px solid rgba(255,255,255,.07)", marginBottom: 16 }}>
+              <div style={{ padding: "12px 14px", borderRadius: 7, background: T.bgSub, border: "1px solid rgba(255,255,255,.07)", marginBottom: 16 }}>
                 <div style={{ fontSize: 10, color: "#3d4a5a", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>Monitoring ({entities.length}/6)</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {entities.map(e => (
@@ -1301,7 +1301,7 @@ function HomeDemo({ nav }) {
           const active = picked?.id === sc.id;
           return (
             <button key={sc.id} onClick={() => phase !== "running" && run(sc)}
-              style={{ padding: "18px 16px", borderRadius: 8, border: `1px solid ${active ? sc.color + "40" : "rgba(255,255,255,.07)"}`, background: active ? sc.color + "08" : "#0f1018", cursor: phase === "running" ? "wait" : "pointer", textAlign: "left", transition: "border-color .2s, background .2s" }}>
+              style={{ padding: "18px 16px", borderRadius: 8, border: `1px solid ${active ? sc.color + "40" : "rgba(255,255,255,.07)"}`, background: active ? sc.color + "08" : T.bgCard, cursor: phase === "running" ? "wait" : "pointer", textAlign: "left", transition: "border-color .2s, background .2s" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: sc.color, marginBottom: 6 }}>{sc.hook}</div>
               <div style={{ fontSize: 11, color: "#7a8899", lineHeight: 1.5 }}>Entities: <span style={{ color: "#9ab0c4" }}>{sc.entities.join(", ")}</span></div>
             </button>
@@ -1311,7 +1311,7 @@ function HomeDemo({ nav }) {
 
       {/* Running state */}
       {phase === "running" && (
-        <div style={{ padding: "20px 24px", borderRadius: 8, background: "#0f1018", border: "1px solid rgba(255,255,255,.07)" }}>
+        <div style={{ padding: "20px 24px", borderRadius: 8, background: T.bgCard, border: "1px solid rgba(255,255,255,.07)" }}>
           <div style={{ fontSize: 11, color: "#0ea5e9", fontFamily: "'JetBrains Mono'", marginBottom: 16, letterSpacing: ".05em" }}>
             RUNNING INTELLIGENCE SCAN — {picked?.entities?.join(", ")}
           </div>
@@ -4428,7 +4428,7 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
         </div>
 
         {error && <div style={{ maxWidth: 820, width: "100%", margin: "0 auto 8px", padding: "0 24px", color: "#ef4444", fontSize: 12 }}>{error}</div>}
-        <div style={{ padding: "12px 24px 20px", borderTop: `1px solid ${T.border}`, background: "rgba(8,10,13,.9)" }}>
+        <div style={{ padding: "12px 24px 20px", borderTop: `1px solid ${T.border}`, background: `rgba(7,11,20,.95)` }}>
           <div style={{ maxWidth: 820, margin: "0 auto", borderRadius: 16, background: T.bgSub, border: `1px solid ${T.borderL}`, padding: 10 }}>
             <textarea value={task} onChange={e => setTask(e.target.value)} onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") run(); }} placeholder="Message the analyst..." rows={2} style={{ width: "100%", border: "none", background: "transparent", outline: "none", color: T.text, fontSize: 14, lineHeight: 1.6, resize: "none", padding: "4px 4px 8px" }} />
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
@@ -5487,12 +5487,12 @@ function SuperAdminPage({ user }) {
             {[["Full name", "name", "text"], ["Email", "email", "email"], ["Password", "password", "password"], ["Organization", "organization", "text"]].map(([label, key, type]) => (
               <div key={key}>
                 <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>{label}</div>
-                <input type={type} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={{ width: "100%", padding: "9px 11px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+                <input type={type} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} style={{ width: "100%", padding: "9px 11px", borderRadius: 6, background: T.bgSub, border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
               </div>
             ))}
             <div>
               <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Role</div>
-              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={{ width: "100%", padding: "9px 11px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }}>
+              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={{ width: "100%", padding: "9px 11px", borderRadius: 6, background: T.bgSub, border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }}>
                 {["admin", "analyst", "viewer"].map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
@@ -6498,7 +6498,7 @@ function IntegrationsPage({ ws }) {
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Webhook URL</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={slackUrl} onChange={e => setSlackUrl(e.target.value)} placeholder={slackConfigured ? "https://hooks.slack.com/services/… (already set on server)" : "https://hooks.slack.com/services/..."} style={{ flex: 1, padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+              <input value={slackUrl} onChange={e => setSlackUrl(e.target.value)} placeholder={slackConfigured ? "https://hooks.slack.com/services/… (already set on server)" : "https://hooks.slack.com/services/..."} style={{ flex: 1, padding: "9px 12px", borderRadius: 6, background: T.bgSub, border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
               <button onClick={test} disabled={testBusy || (!slackUrl && !slackConfigured)} style={{ padding: "9px 16px", borderRadius: 6, border: `1px solid ${testResult === "ok" ? "rgba(34,197,94,.4)" : testResult === "fail" ? "rgba(239,68,68,.4)" : T.borderL}`, background: "transparent", color: testResult === "ok" ? "#22c55e" : testResult === "fail" ? "#ef4444" : T.muted, fontSize: 12, cursor: "pointer", minWidth: 72 }}>
                 {testBusy ? "…" : testResult === "ok" ? "Sent ✓" : testResult === "fail" ? "Failed ✗" : "Test"}
               </button>
@@ -6563,14 +6563,14 @@ function DigestPage({ ws }) {
               {freq !== "daily" && (
                 <div>
                   <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 }}>Day</div>
-                  <select value={day} onChange={e => setDay(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }}>
+                  <select value={day} onChange={e => setDay(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: T.bgSub, border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }}>
                     {["Monday","Tuesday","Wednesday","Thursday","Friday"].map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
               )}
               <div>
                 <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 }}>Time</div>
-                <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+                <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: T.bgSub, border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
               </div>
             </div>
             {/* Channel */}
@@ -6582,7 +6582,7 @@ function DigestPage({ ws }) {
                 ))}
               </div>
               {channel === "email" && (
-                <input value={email} onChange={e => setEmail(e.target.value)} placeholder="team@company.com" style={{ marginTop: 8, width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+                <input value={email} onChange={e => setEmail(e.target.value)} placeholder="team@company.com" style={{ marginTop: 8, width: "100%", padding: "9px 12px", borderRadius: 6, background: T.bgSub, border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
               )}
             </div>
             {/* Preview */}
@@ -6667,7 +6667,7 @@ function TeamPage({ user, nav }) {
             )}
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Email address</div>
-              <input disabled={!isAdmin} value={invite.email} onChange={e => setInvite(p => ({ ...p, email: e.target.value }))} onKeyDown={e => e.key === "Enter" && sendInvite()} placeholder="colleague@company.com" style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none", opacity: isAdmin ? 1 : .5 }} />
+              <input disabled={!isAdmin} value={invite.email} onChange={e => setInvite(p => ({ ...p, email: e.target.value }))} onKeyDown={e => e.key === "Enter" && sendInvite()} placeholder="colleague@company.com" style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: T.bgSub, border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none", opacity: isAdmin ? 1 : .5 }} />
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Role</div>
