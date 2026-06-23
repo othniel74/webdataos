@@ -122,6 +122,7 @@ const endpoints = {
   signup: data => api("POST", "/auth/signup", data, 20000),
   me: () => api("GET", "/auth/me", null, 20000),
   listPacks: () => api("GET", "/workspaces/packages"),
+  listWorkspaces: () => api("GET", "/workspaces"),
   createWorkspace: data => api("POST", "/workspaces", data),
   research: data => api("POST", "/agent/research", data, 70000),
   listRuns: (topicId, limit = 50) => api("GET", `/runs?topic_id=${encodeURIComponent(topicId)}&limit=${limit}`),
@@ -250,7 +251,7 @@ const packIcon = (id, size = 18) => {
    APP
    ═══════════════════════════════════════════════════════════════════════ */
 const PUB = ["Home", "Demo", "Solution", "Pricing"];
-const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
+const PRIV = ["Brief", "Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
 const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
@@ -371,6 +372,7 @@ export default function App() {
       {page === "Pricing" && <PricingPage nav={nav} tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} user={user} auth={() => setShowAuth(true)} />}
       {page === "Docs" && <DocsManualPage />}
       {page === "Developer" && <DevPage />}
+      {page === "Brief" && canUsePrivateApi && <BriefPage ws={ws} nav={nav} runResearch={runResearch} setActions={setActions} />}
       {page === "Monitor" && canUsePrivateApi && <MonitorPage ws={ws} nav={nav} saveWorkspace={saveWorkspace} report={report} setReport={setReport} setActions={setActions} backendOk={backendOk} />}
       {page === "Workspace" && canUsePrivateApi && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
       {page === "Settings" && canUsePrivateApi && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
@@ -388,9 +390,9 @@ export default function App() {
       {page === "Outcomes" && canUsePrivateApi && <OutPage ws={ws} user={user} />}
       {page === "Admin" && isSuperAdmin(user) && <SuperAdminPage user={user} />}
       {showOnboarding && <OnboardingWizard user={user} setWs={setWs} saveWorkspace={saveWorkspace} runResearch={runResearch}
-          onComplete={dest => { setShowOnboarding(false); setPage(dest || "Monitor"); }}
-          onSkip={() => { setShowOnboarding(false); setPage("Monitor"); localStorage.setItem("webdataos_onboarded", "1"); }} />}
-      {showAuth && <Auth onClose={() => setShowAuth(false)} onAuth={(u, isNew) => { setUser(u); setShowAuth(false); if (isNew && !localStorage.getItem("webdataos_onboarded")) { setShowOnboarding(true); } else { setPage("Monitor"); } }} />}
+          onComplete={dest => { setShowOnboarding(false); setPage(dest || "Brief"); }}
+          onSkip={() => { setShowOnboarding(false); setPage("Brief"); localStorage.setItem("webdataos_onboarded", "1"); }} />}
+      {showAuth && <Auth onClose={() => setShowAuth(false)} onAuth={(u, isNew) => { setUser(u); setShowAuth(false); if (isNew && !localStorage.getItem("webdataos_onboarded")) { setShowOnboarding(true); } else { setPage("Brief"); } }} />}
       <ToastContainer toasts={toasts} onDismiss={id => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>
   );
@@ -5329,6 +5331,438 @@ function SuperAdminPage({ user }) {
         {!loading && !users.length && <EmptyState icon={Users2} title="No accounts yet" body="Create the first account using the button above." />}
       </div>
     </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INTELLIGENCE BRIEF PAGE — primary daily intelligence consumption surface
+   Shows the latest run's decision brief in a consumable executive format.
+   ═══════════════════════════════════════════════════════════════════════ */
+function BriefPage({ ws, nav, runResearch, setActions }) {
+  const [runs, setRuns] = useState([]);
+  const [selectedRunId, setSelectedRunId] = useState(null);
+  const [brief, setBrief] = useState(null);      // decision_brief
+  const [reasoning, setReasoning] = useState(null); // ReasoningOutput
+  const [fullReport, setFullReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
+  const [workspaces, setWorkspaces] = useState([]);
+  const [wsId, setWsId] = useState(ws?.id || "");
+
+  // Load workspace list
+  useEffect(() => {
+    endpoints.listWorkspaces().then(r => {
+      const list = Array.isArray(r) ? r : (r?.workspaces || []);
+      setWorkspaces(list);
+      if (!wsId && list.length) setWsId(list[0].id);
+    }).catch(() => {});
+  }, []);
+
+  // When wsId changes load run history
+  useEffect(() => {
+    if (!wsId) return;
+    setLoading(true); setError(""); setBrief(null); setReasoning(null); setFullReport(null);
+    endpoints.listRuns(wsId, 20)
+      .then(list => {
+        if (!Array.isArray(list) || !list.length) { setRuns([]); setLoading(false); return; }
+        setRuns(list);
+        const latest = list[0];
+        setSelectedRunId(latest.id);
+        // Use the brief from the list response if present
+        if (latest.decision_brief) setBrief(latest.decision_brief);
+        // Fetch full report for reasoning detail
+        return endpoints.getRun(latest.id);
+      })
+      .then(full => {
+        if (!full) return;
+        setFullReport(full.report || full);
+        setBrief(full.report?.decision_brief || full.decision_brief || brief);
+        setReasoning(full.report?.reasoning || null);
+      })
+      .catch(() => setError("Could not load the latest intelligence brief."))
+      .finally(() => setLoading(false));
+  }, [wsId]);
+
+  // Load a specific run
+  const loadRun = async (runId) => {
+    setSelectedRunId(runId);
+    setLoading(true); setBrief(null); setReasoning(null); setFullReport(null);
+    try {
+      const full = await endpoints.getRun(runId);
+      setFullReport(full.report || full);
+      setBrief(full.report?.decision_brief || full.decision_brief || null);
+      setReasoning(full.report?.reasoning || null);
+    } catch (_) { setError("Could not load this run."); }
+    finally { setLoading(false); }
+  };
+
+  const runNow = async () => {
+    setRunning(true); setError("");
+    try {
+      const result = await endpoints.runMonitor(wsId);
+      try { setActions(await endpoints.listActions(wsId)); } catch (_) {}
+      // Reload brief
+      const list = await endpoints.listRuns(wsId, 20);
+      if (Array.isArray(list) && list.length) {
+        setRuns(list);
+        await loadRun(list[0].id);
+      }
+      if (result?.decision_brief) setBrief(result.decision_brief);
+      toast.success("Intelligence brief updated");
+    } catch (e) {
+      const msg = e.message || "Monitoring run failed.";
+      setError(msg); toast.error(msg);
+    } finally { setRunning(false); }
+  };
+
+  // Risk posture colour
+  const riskColor = (p) => p === "critical" ? "#ef4444" : p === "degrading" ? "#f97316" : p === "improving" ? "#22c55e" : "#3b82f6";
+  const riskLabel = (p) => ({ critical: "Critical", degrading: "Degrading", improving: "Improving", stable: "Stable" }[p] || "Monitoring");
+
+  // Severity colour
+  const sevColor = (s) => ({ critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e", monitoring: "#3b82f6" }[s?.toLowerCase()] || "#64748b");
+  const matColor = (m) => ({ critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e", informational: "#64748b" }[m?.toLowerCase()] || "#64748b");
+
+  const rp = reasoning?.risk_posture || "stable";
+  const selectedRun = runs.find(r => r.id === selectedRunId);
+  const keyFindings = fullReport?.key_findings || [];
+  const materiality = reasoning?.materiality_assessments || [];
+  const recommendations = reasoning?.recommendations || [];
+  const sources = fullReport?.sources || brief?.evidence?.map(e => e.source_url).filter(Boolean) || [];
+  const confidence = brief?.confidence ?? reasoning?.confidence ?? 0;
+  const execSummary = reasoning?.executive_summary || "";
+
+  // Dedup sources to hostnames
+  const sourceHosts = [...new Set(sources.map(u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } }).filter(Boolean))].slice(0, 8);
+
+  const PageWrap = ({ children }) => (
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 24px 60px" }}>
+      {children}
+    </div>
+  );
+
+  const Section = ({ label, children, accent }) => (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ fontSize: 10, fontWeight: 900, color: accent || T.dim, textTransform: "uppercase", letterSpacing: ".10em", marginBottom: 10 }}>{label}</div>
+      {children}
+    </div>
+  );
+
+  // ── Empty / no workspace ──────────────────────────────────────────
+  if (!wsId) return (
+    <PageWrap>
+      <div style={{ textAlign: "center", padding: "80px 0", color: T.dim }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>◎</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 8 }}>No workspace configured</div>
+        <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>Set up a monitoring workspace to generate intelligence briefs.</div>
+        <button onClick={() => nav("Monitor")} style={{ padding: "10px 22px", borderRadius: 8, background: T.accent, color: "#000", fontWeight: 800, border: "none", fontSize: 13 }}>Configure workspace →</button>
+      </div>
+    </PageWrap>
+  );
+
+  // ── Loading ───────────────────────────────────────────────────────
+  if (loading) return (
+    <PageWrap>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "60px 0" }}>
+        <div style={{ width: 20, height: 20, borderRadius: 999, border: `2px solid ${T.border}`, borderTopColor: T.accent, animation: "spin .8s linear infinite" }} />
+        <span style={{ color: T.muted, fontSize: 13 }}>Loading intelligence brief…</span>
+      </div>
+    </PageWrap>
+  );
+
+  // ── No runs yet ───────────────────────────────────────────────────
+  if (!runs.length) return (
+    <PageWrap>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+        <div>
+          <div style={{ fontSize: 11, color: T.dim, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Intelligence Brief</div>
+          <WorkspacePicker wsId={wsId} setWsId={setWsId} workspaces={workspaces} />
+        </div>
+      </div>
+      <div style={{ border: `1px solid ${T.border}`, borderRadius: 14, padding: "56px 40px", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 16 }}>◎</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 8 }}>No briefs yet</div>
+        <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7, marginBottom: 24, maxWidth: 420, margin: "0 auto 24px" }}>
+          Run your first monitoring cycle to generate an intelligence brief. The brief will summarise what changed, assess business impact, and recommend actions.
+        </div>
+        <button onClick={runNow} disabled={running} style={{ padding: "12px 28px", borderRadius: 10, background: T.accent, color: "#000", fontWeight: 900, border: "none", fontSize: 14, cursor: "pointer", opacity: running ? 0.6 : 1 }}>
+          {running ? "Running…" : "Run first monitoring cycle →"}
+        </button>
+        {error && <div style={{ marginTop: 16, fontSize: 12, color: "#ef4444" }}>{error}</div>}
+      </div>
+    </PageWrap>
+  );
+
+  // ── Main brief ────────────────────────────────────────────────────
+  return (
+    <PageWrap>
+      {/* ── PAGE HEADER ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
+        <div>
+          <div style={{ fontSize: 11, color: T.dim, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>Intelligence Brief</div>
+          <WorkspacePicker wsId={wsId} setWsId={setWsId} workspaces={workspaces} />
+          {selectedRun && (
+            <div style={{ marginTop: 6, fontSize: 11, color: T.dim }}>
+              Last run {new Date(selectedRun.created_at).toLocaleString()} · {runs.length} run{runs.length !== 1 ? "s" : ""} on record
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Risk posture pill */}
+          <span style={{ padding: "5px 14px", borderRadius: 99, background: riskColor(rp) + "18", border: `1px solid ${riskColor(rp)}50`, color: riskColor(rp), fontSize: 11, fontWeight: 800 }}>
+            {riskLabel(rp)}
+          </span>
+          <button onClick={runNow} disabled={running} style={{ padding: "8px 18px", borderRadius: 9, background: running ? T.bgSub : T.accent, color: running ? T.muted : "#000", fontWeight: 900, border: "none", fontSize: 12, cursor: running ? "default" : "pointer" }}>
+            {running ? "Running…" : "↺ Refresh brief"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── RUN HISTORY STRIP ── */}
+      {runs.length > 1 && (
+        <div style={{ display: "flex", gap: 4, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
+          {runs.map(r => {
+            const isSelected = r.id === selectedRunId;
+            const sev = r.decision_brief?.severity;
+            const dot = sev ? sevColor(sev) : T.dim;
+            return (
+              <button key={r.id} onClick={() => loadRun(r.id)} style={{
+                flexShrink: 0, padding: "6px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700,
+                border: `1px solid ${isSelected ? T.accent : T.border}`,
+                background: isSelected ? T.accent + "18" : T.bgSub,
+                color: isSelected ? T.accent : T.muted, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 5,
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                {new Date(r.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {error && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444", fontSize: 12 }}>{error}</div>}
+
+      {brief ? (<>
+        {/* ── SITUATION CARD ── */}
+        <div style={{ borderRadius: 14, border: `1px solid ${sevColor(brief.severity)}40`, background: sevColor(brief.severity) + "08", padding: "28px 32px", marginBottom: 20, position: "relative", overflow: "hidden" }}>
+          {/* Severity glow strip */}
+          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: sevColor(brief.severity), borderRadius: "14px 0 0 14px" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 14 }}>
+            <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".10em", color: T.dim }}>Situation</div>
+            <span style={{ padding: "3px 12px", borderRadius: 99, background: sevColor(brief.severity) + "22", color: sevColor(brief.severity), fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", border: `1px solid ${sevColor(brief.severity)}50` }}>
+              {brief.severity}
+            </span>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: T.text, lineHeight: 1.35, marginBottom: 12, letterSpacing: "-.02em" }}>
+            {brief.headline}
+          </div>
+          {brief.delta_headline && (
+            <div style={{ fontSize: 12, color: T.accent, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.accent }} />
+              {brief.delta_headline}
+            </div>
+          )}
+          <div style={{ fontSize: 14, color: T.muted, lineHeight: 1.7 }}>{brief.answer}</div>
+          {execSummary && execSummary !== brief.answer && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`, fontSize: 13, color: T.text, lineHeight: 1.65 }}>{execSummary}</div>
+          )}
+          {typeof confidence === "number" && confidence > 0 && (
+            <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 10, color: T.dim, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>Confidence</span>
+              <div style={{ flex: 1, maxWidth: 120, height: 4, borderRadius: 99, background: T.border }}>
+                <div style={{ height: 4, borderRadius: 99, background: T.accent, width: `${Math.round(confidence * 100)}%` }} />
+              </div>
+              <span style={{ fontSize: 10, color: T.accent, fontWeight: 700 }}>{Math.round(confidence * 100)}%</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── THREE-COLUMN IMPACT ROW ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+          {/* What changed */}
+          <div style={{ padding: "18px 20px", borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 9, fontWeight: 900, color: T.dim, textTransform: "uppercase", letterSpacing: ".10em", marginBottom: 8 }}>What changed</div>
+            <div style={{ fontSize: 13, color: T.text, lineHeight: 1.65 }}>{brief.what_changed || "No changes detected in this run."}</div>
+          </div>
+          {/* Business impact */}
+          <div style={{ padding: "18px 20px", borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 9, fontWeight: 900, color: T.dim, textTransform: "uppercase", letterSpacing: ".10em", marginBottom: 8 }}>Business impact</div>
+            <div style={{ fontSize: 13, color: T.text, lineHeight: 1.65 }}>{brief.business_impact || "Assessment pending further evidence."}</div>
+          </div>
+          {/* Recommended action */}
+          <div style={{ padding: "18px 20px", borderRadius: 12, background: T.accent + "0c", border: `1px solid ${T.accent}30` }}>
+            <div style={{ fontSize: 9, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: ".10em", marginBottom: 8 }}>Recommended action</div>
+            <div style={{ fontSize: 13, color: T.text, lineHeight: 1.65, marginBottom: 12 }}>{brief.recommended_action || "No immediate action required."}</div>
+            <button onClick={() => nav("Actions")} style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${T.accent}50`, background: "transparent", color: T.accent, fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+              View actions →
+            </button>
+          </div>
+        </div>
+
+        {/* ── MATERIALITY ASSESSMENTS ── */}
+        {materiality.length > 0 && (
+          <Section label="Key findings">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {materiality.map((m, i) => (
+                <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 18px", borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}`, borderLeft: `3px solid ${matColor(m.materiality)}` }}>
+                  <span style={{ marginTop: 2, padding: "2px 9px", borderRadius: 99, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".07em", background: matColor(m.materiality) + "18", color: matColor(m.materiality), flexShrink: 0 }}>
+                    {m.materiality}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 4 }}>{m.finding}</div>
+                    <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.6 }}>{m.impact_description}</div>
+                    {m.urgency && m.urgency !== "standard" && (
+                      <div style={{ marginTop: 5, fontSize: 10, color: m.urgency === "immediate" ? "#ef4444" : m.urgency === "urgent" ? "#f97316" : T.dim, fontWeight: 700 }}>
+                        {m.urgency === "immediate" ? "⚡ Immediate action required" : m.urgency === "urgent" ? "⚠ Urgent" : m.urgency}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* Fallback: key_findings list when no materiality assessments */}
+        {!materiality.length && keyFindings.length > 0 && (
+          <Section label="Key findings">
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {keyFindings.map((f, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, padding: "10px 16px", borderRadius: 8, background: T.bgSub, border: `1px solid ${T.border}` }}>
+                  <span style={{ color: T.accent, fontSize: 13, flexShrink: 0, marginTop: 1 }}>●</span>
+                  <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>{f}</div>
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* ── RECOMMENDATIONS ── */}
+        {recommendations.length > 0 && (
+          <Section label="Recommendations">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
+              {recommendations.slice(0, 4).map((r, i) => (
+                <div key={i} style={{ padding: "16px 20px", borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}`, borderTop: `3px solid ${matColor(r.materiality)}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 9, color: matColor(r.materiality), fontWeight: 900, textTransform: "uppercase", letterSpacing: ".07em" }}>{r.materiality}</span>
+                    {r.confidence > 0 && <span style={{ fontSize: 10, color: T.dim }}>{Math.round(r.confidence * 100)}% confidence</span>}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: T.text, marginBottom: 6, lineHeight: 1.4 }}>{r.title}</div>
+                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.6, marginBottom: r.suggested_actions?.length ? 10 : 0 }}>{r.description}</div>
+                  {r.suggested_actions?.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {r.suggested_actions.slice(0, 3).map((a, j) => (
+                        <div key={j} style={{ fontSize: 11, color: T.text, display: "flex", gap: 6, alignItems: "baseline" }}>
+                          <span style={{ color: T.accent, flexShrink: 0 }}>→</span> {a}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {r.deadline && (
+                    <div style={{ marginTop: 8, fontSize: 10, color: T.dim, fontWeight: 700 }}>Deadline: {r.deadline}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* ── UNKNOWNS (gaps in intelligence) ── */}
+        {brief.unknowns?.length > 0 && (
+          <Section label="Intelligence gaps">
+            <div style={{ padding: "14px 18px", borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 6 }}>The following could not be determined from available evidence:</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {brief.unknowns.map((u, i) => (
+                  <div key={i} style={{ fontSize: 12, color: T.dim, display: "flex", gap: 8 }}>
+                    <span style={{ color: T.dim, flexShrink: 0 }}>?</span>{u}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+        )}
+
+        {/* ── EVIDENCE TRAIL ── */}
+        {(sourceHosts.length > 0 || brief.evidence?.length > 0) && (
+          <Section label="Evidence trail">
+            <div style={{ padding: "16px 20px", borderRadius: 12, background: T.bgSub, border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Confidence bar */}
+              {confidence > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 10, color: T.dim, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", width: 80, flexShrink: 0 }}>Confidence</span>
+                  <div style={{ flex: 1, height: 5, borderRadius: 99, background: T.border, maxWidth: 200 }}>
+                    <div style={{ height: 5, borderRadius: 99, background: confidence > 0.7 ? "#22c55e" : confidence > 0.4 ? "#eab308" : "#ef4444", width: `${Math.round(confidence * 100)}%` }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: T.text, fontWeight: 800 }}>{Math.round(confidence * 100)}%</span>
+                </div>
+              )}
+              {/* Sources */}
+              {sourceHosts.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                  <span style={{ fontSize: 10, color: T.dim, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", marginRight: 4 }}>Sources</span>
+                  {sourceHosts.map((h, i) => (
+                    <span key={i} style={{ padding: "3px 10px", borderRadius: 6, background: T.bgCard, border: `1px solid ${T.border}`, fontSize: 11, color: T.muted, fontWeight: 500 }}>{h}</span>
+                  ))}
+                </div>
+              )}
+              {/* Inline evidence items */}
+              {brief.evidence?.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {brief.evidence.slice(0, 5).map((e, i) => (
+                    <div key={i} style={{ display: "flex", gap: 10, padding: "8px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bgCard }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: T.text, fontWeight: 600, lineHeight: 1.4 }}>{e.summary || e.key_finding || "Evidence item"}</div>
+                        {e.source_url && (
+                          <a href={e.source_url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: T.accent, textDecoration: "none" }}>
+                            ↗ {(() => { try { return new URL(e.source_url).hostname.replace(/^www\./, ""); } catch { return e.source_url; } })()}
+                          </a>
+                        )}
+                      </div>
+                      {e.confidence !== undefined && (
+                        <span style={{ fontSize: 10, color: T.dim, flexShrink: 0, fontFamily: "'JetBrains Mono'" }}>{Math.round((e.confidence || 0) * 100)}%</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ paddingTop: 8, borderTop: `1px solid ${T.border}`, display: "flex", gap: 16 }}>
+                <button onClick={() => nav("Evidence")} style={{ fontSize: 11, color: T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 700, padding: 0 }}>View all evidence records →</button>
+                <button onClick={() => nav("Monitor")} style={{ fontSize: 11, color: T.dim, background: "none", border: "none", cursor: "pointer", fontWeight: 700, padding: 0 }}>Run history →</button>
+              </div>
+            </div>
+          </Section>
+        )}
+
+      </>) : (
+        // Brief data missing but runs exist
+        <div style={{ padding: "40px 0", textAlign: "center" }}>
+          <div style={{ fontSize: 14, color: T.muted, marginBottom: 8 }}>This run completed but no brief was generated.</div>
+          <div style={{ fontSize: 12, color: T.dim, marginBottom: 20 }}>This can happen when LLM synthesis is unavailable. Try running again.</div>
+          <button onClick={runNow} disabled={running} style={{ padding: "10px 22px", borderRadius: 8, background: T.accent, color: "#000", fontWeight: 800, border: "none", fontSize: 13, cursor: "pointer" }}>
+            {running ? "Running…" : "Run again"}
+          </button>
+        </div>
+      )}
+    </PageWrap>
+  );
+}
+
+/* Tiny workspace picker used inside BriefPage header */
+function WorkspacePicker({ wsId, setWsId, workspaces }) {
+  if (!workspaces.length) return <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{wsId || "Default workspace"}</div>;
+  if (workspaces.length === 1) return <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{workspaces[0]?.name || wsId}</div>;
+  return (
+    <select value={wsId} onChange={e => setWsId(e.target.value)} style={{
+      fontSize: 15, fontWeight: 800, color: T.text, background: "transparent", border: "none",
+      outline: "none", cursor: "pointer", padding: 0, appearance: "none",
+    }}>
+      {workspaces.map(w => (
+        <option key={w.id} value={w.id}>{w.name || w.id}</option>
+      ))}
+    </select>
   );
 }
 
