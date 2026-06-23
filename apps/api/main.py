@@ -26,6 +26,7 @@ from apps.api.routes.monitor import router as monitor_router
 from apps.api.routes.chat import router as chat_router
 from apps.api.routes.triggerware import router as triggerware_router
 from apps.api.routes.demo import router as demo_router
+from apps.api.routes.portfolio import router as portfolio_router
 from apps.api.routes.api_keys import router as api_keys_router
 from packages.enterprise.packs import list_packs
 from packages.common.config import get_settings
@@ -183,6 +184,7 @@ app.include_router(chat_router)
 app.include_router(triggerware_router)
 app.include_router(demo_router)
 app.include_router(api_keys_router)
+app.include_router(portfolio_router)
 
 
 @app.get("/health")

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     brightdata_web_unlocker_endpoint: str | None = None
 
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-4o"
     anthropic_api_key: str | None = None
     aimlapi_api_key: str | None = None
     aimlapi_base_url: str = "https://api.aimlapi.com/v1"

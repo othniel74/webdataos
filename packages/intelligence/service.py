@@ -96,6 +96,12 @@ class IntelligenceService:
         entities = [x for x in (topic.entities or []) if x]
         signals = [x for x in (topic.watch_types or []) if x]
         queries = []
+        # T1-priority queries run first — SEC filings, press releases, investor relations
+        t1_queries = []
+        for entity in entities[:4]:
+            if entity:
+                t1_queries.append(f'"{entity}" site:sec.gov OR site:businesswire.com OR site:prnewswire.com')
+                t1_queries.append(f'"{entity}" investor relations annual report')
         if query:
             queries.append(query.strip())
             for entity in entities[:3]:
@@ -104,12 +110,14 @@ class IntelligenceService:
         queries.extend(f"{entity} {' '.join(signals[:4])}".strip() for entity in entities[: max(limit, 1)])
         if not queries:
             queries = [" ".join([x for x in [topic.name, *signals] if x]) or topic_id]
-        per_query_limit = max(1, (limit + len(queries) - 1) // len(queries))
+        # Prepend T1 queries so official sources surface first; cap total to avoid explosion
+        all_queries = (t1_queries + queries)[: max(limit, len(queries))]
+        per_query_limit = max(1, (limit + len(all_queries) - 1) // len(all_queries))
         results = []
         seen_urls: set[str] = set()
-        for query in queries:
+        for q in all_queries:
             added_for_query = 0
-            for item in await self.brightdata.serp_search(query):
+            for item in await self.brightdata.serp_search(q):
                 if item.url and item.url not in seen_urls:
                     results.append(item)
                     seen_urls.add(item.url)

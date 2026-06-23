@@ -13,6 +13,7 @@ from packages.common.identifiers import normalize_workspace_id
 from packages.common.security import AuthContext
 from packages.common.time import utc_now
 from packages.outcomes.service import OutcomeService
+from packages.partners.slack import SlackService
 from packages.schemas.reasoning import (
     ActionApproval,
     ActionRead,
@@ -151,10 +152,24 @@ async def execute_action(
         raise HTTPException(status_code=404, detail="Action not found")
     if action.status not in {"approved", "auto_approved"}:
         raise HTTPException(status_code=400, detail=f"Cannot execute action in status: {action.status}")
-    # In production, this would actually execute the action (send email, update register, etc.)
     action.status = "executed"
     action.executed_at = utc_now()
     await db.commit()
+    # Notify Slack that the action was executed
+    try:
+        slack = SlackService()
+        if slack.enabled:
+            await slack.post_brief(
+                workspace_name=action.workspace_id or "workspace",
+                headline=f"Action executed: {action.title or action.action_type}",
+                delta_headline=None,
+                what_changed=action.description or action.title or "",
+                severity="medium",
+                recommended_action=None,
+                run_id=action.run_id,
+            )
+    except Exception:
+        pass
     return _action_read(action)
 
 
