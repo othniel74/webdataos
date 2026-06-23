@@ -123,6 +123,7 @@ const endpoints = {
   me: () => api("GET", "/auth/me", null, 20000),
   listPacks: () => api("GET", "/workspaces/packages"),
   listWorkspaces: () => api("GET", "/workspaces"),
+  listAllRuns: (limit = 50) => api("GET", `/runs?limit=${limit}`),
   createWorkspace: data => api("POST", "/workspaces", data),
   research: data => api("POST", "/agent/research", data, 70000),
   listRuns: (topicId, limit = 50) => api("GET", `/runs?topic_id=${encodeURIComponent(topicId)}&limit=${limit}`),
@@ -251,7 +252,7 @@ const packIcon = (id, size = 18) => {
    APP
    ═══════════════════════════════════════════════════════════════════════ */
 const PUB = ["Home", "Demo", "Solution", "Pricing"];
-const PRIV = ["Brief", "Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
+const PRIV = ["Feed", "Brief", "Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
 const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
@@ -372,6 +373,7 @@ export default function App() {
       {page === "Pricing" && <PricingPage nav={nav} tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} user={user} auth={() => setShowAuth(true)} />}
       {page === "Docs" && <DocsManualPage />}
       {page === "Developer" && <DevPage />}
+      {page === "Feed" && canUsePrivateApi && <FeedPage nav={nav} ws={ws} />}
       {page === "Brief" && canUsePrivateApi && <BriefPage ws={ws} nav={nav} runResearch={runResearch} setActions={setActions} />}
       {page === "Monitor" && canUsePrivateApi && <MonitorPage ws={ws} nav={nav} saveWorkspace={saveWorkspace} report={report} setReport={setReport} setActions={setActions} backendOk={backendOk} />}
       {page === "Workspace" && canUsePrivateApi && <WsPage tierId={tierId} setTierId={setTierId} selDomains={selDomains} toggleDomain={toggleDomain} tier={tier} activeDomains={activeDomains} pack={pack} packId={packId} setPackId={setPackId} ws={ws} setWs={setWs} nav={nav} saveWorkspace={saveWorkspace} report={report} actions={actions} backendOk={backendOk} />}
@@ -381,7 +383,7 @@ export default function App() {
       {page === "Evidence" && canUsePrivateApi && <EvidencePage ws={ws} />}
       {page === "Intelligence" && canUsePrivateApi && <EvidencePage ws={ws} />}
       {page === "Gateway" && canUsePrivateApi && <GwPage />}
-      {page === "Actions" && canUsePrivateApi && <ActPage actions={actions} setActions={setActions} user={user} />}
+      {page === "Actions" && canUsePrivateApi && <ActPage actions={actions} setActions={setActions} user={user} ws={ws} nav={nav} />}
       {page === "Team" && canUsePrivateApi && <TeamPage user={user} nav={nav} />}
       {page === "Portfolio" && canUsePrivateApi && <PortfolioPage nav={nav} ws={ws} />}
       {page === "Audit" && canUsePrivateApi && <AuditPage ws={ws} nav={nav} />}
@@ -390,9 +392,9 @@ export default function App() {
       {page === "Outcomes" && canUsePrivateApi && <OutPage ws={ws} user={user} />}
       {page === "Admin" && isSuperAdmin(user) && <SuperAdminPage user={user} />}
       {showOnboarding && <OnboardingWizard user={user} setWs={setWs} saveWorkspace={saveWorkspace} runResearch={runResearch}
-          onComplete={dest => { setShowOnboarding(false); setPage(dest || "Brief"); }}
-          onSkip={() => { setShowOnboarding(false); setPage("Brief"); localStorage.setItem("webdataos_onboarded", "1"); }} />}
-      {showAuth && <Auth onClose={() => setShowAuth(false)} onAuth={(u, isNew) => { setUser(u); setShowAuth(false); if (isNew && !localStorage.getItem("webdataos_onboarded")) { setShowOnboarding(true); } else { setPage("Brief"); } }} />}
+          onComplete={dest => { setShowOnboarding(false); setPage(dest || "Feed"); }}
+          onSkip={() => { setShowOnboarding(false); setPage("Feed"); localStorage.setItem("webdataos_onboarded", "1"); }} />}
+      {showAuth && <Auth onClose={() => setShowAuth(false)} onAuth={(u, isNew) => { setUser(u); setShowAuth(false); if (isNew && !localStorage.getItem("webdataos_onboarded")) { setShowOnboarding(true); } else { setPage("Feed"); } }} />}
       <ToastContainer toasts={toasts} onDismiss={id => setToasts(prev => prev.filter(t => t.id !== id))} />
     </div>
   );
@@ -5335,6 +5337,282 @@ function SuperAdminPage({ user }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+   SIGNAL FEED — intelligence inbox, newest first, across all workspaces
+   ═══════════════════════════════════════════════════════════════════════ */
+function FeedPage({ nav, ws }) {
+  const [runs, setRuns] = useState([]);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+  const [search, setSearch] = useState("");
+  const [filterWs, setFilterWs] = useState("");
+  const [filterSev, setFilterSev] = useState("");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    Promise.all([
+      endpoints.listAllRuns(80),
+      endpoints.listWorkspaces().catch(() => [])
+    ]).then(([runList, wsList]) => {
+      setRuns(Array.isArray(runList) ? runList : []);
+      const list = Array.isArray(wsList) ? wsList : (wsList?.workspaces || []);
+      setWorkspaces(list);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const wsName = (topicId) => {
+    const w = workspaces.find(w => w.id === topicId);
+    if (w?.name) return w.name;
+    const extracted = (topicId || "").replace(/^.*workspace_/, "").replace(/_/g, " ").trim();
+    return extracted || topicId || "Workspace";
+  };
+
+  const sevColor = (s) => ({ critical: "#ef4444", high: "#f97316", medium: "#eab308", low: "#22c55e", monitoring: "#3b82f6" })[s?.toLowerCase()] || T.border;
+  const sevLabel = (s) => (s || "monitoring").charAt(0).toUpperCase() + (s || "monitoring").slice(1).toLowerCase();
+
+  const ago = (d) => {
+    const mins = Math.floor((Date.now() - new Date(d)) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return "yesterday";
+    if (days < 7) return `${days}d ago`;
+    return new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: days > 365 ? "numeric" : undefined });
+  };
+
+  const hasFilters = !!(search || filterWs || filterSev || filterFrom || filterTo);
+
+  const filtered = runs.filter(r => {
+    const b = r.decision_brief || {};
+    if (filterWs && r.topic_id !== filterWs) return false;
+    if (filterSev && b.severity?.toLowerCase() !== filterSev) return false;
+    if (filterFrom && new Date(r.created_at) < new Date(filterFrom)) return false;
+    if (filterTo && new Date(r.created_at) > new Date(filterTo + "T23:59:59")) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (b.headline?.toLowerCase().includes(q) ||
+              b.answer?.toLowerCase().includes(q) ||
+              r.summary?.toLowerCase().includes(q) ||
+              r.task?.toLowerCase().includes(q) ||
+              r.topic_id?.toLowerCase().includes(q));
+    }
+    return true;
+  });
+
+  const SHOW_COUNT = 5;
+  const shown = (showAll || hasFilters) ? filtered : filtered.slice(0, SHOW_COUNT);
+  const hiddenCount = hasFilters ? 0 : filtered.length - SHOW_COUNT;
+
+  const goToBrief = (runId) => {
+    localStorage.setItem("webdataos.brief.runId", runId);
+    nav("Brief");
+  };
+
+  const IS2 = { padding: "7px 10px", borderRadius: 7, border: `1px solid ${T.border}`, background: T.bgSub, color: T.text, fontSize: 11, outline: "none", width: "100%" };
+
+  // Unique workspaces for filter
+  const wsOptions = [...new Map(runs.filter(r => r.topic_id).map(r => [r.topic_id, wsName(r.topic_id)])).entries()];
+
+  if (loading) return (
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "60px 24px" }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ width: 18, height: 18, borderRadius: 999, border: `2px solid ${T.border}`, borderTopColor: T.accent, animation: "spin .8s linear infinite" }} />
+        <span style={{ color: T.muted, fontSize: 13 }}>Loading your intelligence feed…</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "28px 24px 80px" }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: ".10em", marginBottom: 4 }}>Signal Feed</div>
+          <h1 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: 0, letterSpacing: "-.02em" }}>Intelligence Inbox</h1>
+          <div style={{ fontSize: 12, color: T.dim, marginTop: 4 }}>
+            {runs.length ? `${runs.length} update${runs.length !== 1 ? "s" : ""} across ${wsOptions.length} workspace${wsOptions.length !== 1 ? "s" : ""}` : "No updates yet"}
+          </div>
+        </div>
+        <button onClick={load} disabled={loading} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bgSub, color: T.muted, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+          <RefreshCw size={12} /> Refresh
+        </button>
+      </div>
+
+      {/* ── FILTERS ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto", gap: 8, marginBottom: 24, alignItems: "center" }}>
+        <div style={{ position: "relative" }}>
+          <Search size={12} color={T.dim} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+          <input
+            value={search} onChange={e => { setSearch(e.target.value); setShowAll(true); }}
+            placeholder="Search intelligence updates…"
+            style={{ ...IS2, paddingLeft: 30 }}
+          />
+        </div>
+        {wsOptions.length > 1 && (
+          <select value={filterWs} onChange={e => { setFilterWs(e.target.value); setShowAll(true); }} style={{ ...IS2, width: "auto", minWidth: 120 }}>
+            <option value="">All workspaces</option>
+            {wsOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        )}
+        <select value={filterSev} onChange={e => { setFilterSev(e.target.value); setShowAll(true); }} style={{ ...IS2, width: "auto" }}>
+          <option value="">All severity</option>
+          {["critical", "high", "medium", "low", "monitoring"].map(s => (
+            <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+          ))}
+        </select>
+        <input type="date" value={filterFrom} onChange={e => { setFilterFrom(e.target.value); setShowAll(true); }} title="From date" style={{ ...IS2, width: "auto", colorScheme: "dark" }} />
+        <input type="date" value={filterTo} onChange={e => { setFilterTo(e.target.value); setShowAll(true); }} title="To date" style={{ ...IS2, width: "auto", colorScheme: "dark" }} />
+      </div>
+      {hasFilters && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 12, color: T.dim }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+          <button onClick={() => { setSearch(""); setFilterWs(""); setFilterSev(""); setFilterFrom(""); setFilterTo(""); setShowAll(false); }} style={{ fontSize: 11, color: T.accent, background: "none", border: "none", cursor: "pointer" }}>Clear filters</button>
+        </div>
+      )}
+
+      {/* ── EMPTY STATE ── */}
+      {!runs.length && (
+        <div style={{ padding: "60px 40px", textAlign: "center", borderRadius: 14, border: `1px solid ${T.border}`, background: T.bgSub }}>
+          <div style={{ fontSize: 38, marginBottom: 14 }}>◎</div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: T.text, marginBottom: 8 }}>Your intelligence feed is empty</div>
+          <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7, marginBottom: 24, maxWidth: 400, margin: "0 auto 24px" }}>
+            Run a monitoring cycle to start receiving intelligence updates. Each run generates a brief that appears here, newest first.
+          </div>
+          <button onClick={() => nav("Monitor")} style={{ padding: "11px 24px", borderRadius: 9, background: T.accent, color: "#000", fontWeight: 900, border: "none", fontSize: 13, cursor: "pointer" }}>
+            Set up monitoring →
+          </button>
+        </div>
+      )}
+
+      {/* ── FEED ITEMS ── */}
+      {shown.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {shown.map((r, idx) => {
+            const b = r.decision_brief || {};
+            const isNew = idx === 0 && !hasFilters;
+            const sev = b.severity?.toLowerCase() || "monitoring";
+            const color = sevColor(sev);
+            const isExpanded = expanded === r.id;
+            const snippet = b.answer ? (b.answer.length > 160 ? b.answer.slice(0, 160) + "…" : b.answer) : (r.summary ? (r.summary.length > 160 ? r.summary.slice(0, 160) + "…" : r.summary) : "No summary available.");
+            const hasContent = !!(b.headline || r.summary);
+            if (!hasContent) return null;
+
+            return (
+              <div key={r.id} style={{ borderRadius: 12, border: `1px solid ${isExpanded ? color + "60" : T.border}`, background: isExpanded ? color + "06" : T.bgSub, overflow: "hidden", transition: "border-color .15s", marginBottom: 8 }}>
+                {/* Severity strip */}
+                <div style={{ height: 3, background: `linear-gradient(90deg, ${color}, ${color}60)` }} />
+
+                <div style={{ padding: "16px 20px" }}>
+                  {/* Row 1: workspace + time + new badge */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      {isNew && (
+                        <span style={{ padding: "2px 8px", borderRadius: 99, background: T.accent + "22", color: T.accent, fontSize: 9, fontWeight: 900, letterSpacing: ".07em" }}>NEW</span>
+                      )}
+                      <span style={{ padding: "2px 10px", borderRadius: 99, background: T.bgCard, border: `1px solid ${T.border}`, fontSize: 10, color: T.muted, fontWeight: 600 }}>
+                        {wsName(r.topic_id)}
+                      </span>
+                      <span style={{ padding: "2px 8px", borderRadius: 99, background: color + "15", color: color, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em" }}>
+                        {sevLabel(sev)}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 11, color: T.dim }}>{ago(r.created_at)}</span>
+                  </div>
+
+                  {/* Row 2: Headline */}
+                  <div
+                    onClick={() => setExpanded(isExpanded ? null : r.id)}
+                    style={{ fontSize: 15, fontWeight: 800, color: T.text, lineHeight: 1.4, letterSpacing: "-.01em", cursor: "pointer", marginBottom: 8 }}
+                  >
+                    {b.headline || r.task || "Intelligence update"}
+                  </div>
+
+                  {/* Row 3: Snippet (collapsed) */}
+                  {!isExpanded && (
+                    <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.65 }}>{snippet}</div>
+                  )}
+
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div style={{ marginTop: 4 }}>
+                      {b.answer && <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7, marginBottom: 14 }}>{b.answer}</div>}
+
+                      {/* What changed + Impact side by side */}
+                      {(b.what_changed || b.business_impact) && (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                          {b.what_changed && (
+                            <div style={{ padding: "12px 14px", borderRadius: 9, background: T.bgCard, border: `1px solid ${T.border}` }}>
+                              <div style={{ fontSize: 9, color: T.dim, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>What changed</div>
+                              <div style={{ fontSize: 12, color: T.text, lineHeight: 1.6 }}>{b.what_changed}</div>
+                            </div>
+                          )}
+                          {b.business_impact && (
+                            <div style={{ padding: "12px 14px", borderRadius: 9, background: T.bgCard, border: `1px solid ${T.border}` }}>
+                              <div style={{ fontSize: 9, color: T.dim, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>Business impact</div>
+                              <div style={{ fontSize: 12, color: T.text, lineHeight: 1.6 }}>{b.business_impact}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Recommended action */}
+                      {b.recommended_action && (
+                        <div style={{ padding: "10px 14px", borderRadius: 9, background: T.accent + "0c", border: `1px solid ${T.accent}30`, marginBottom: 14 }}>
+                          <div style={{ fontSize: 9, color: T.accent, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Recommended action</div>
+                          <div style={{ fontSize: 12, color: T.text, lineHeight: 1.6 }}>{b.recommended_action}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Row: Actions row */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: isExpanded ? 12 : 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                    <button onClick={() => setExpanded(isExpanded ? null : r.id)} style={{ fontSize: 11, color: T.dim, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                      {isExpanded ? "Show less ↑" : "Show more ↓"}
+                    </button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => goToBrief(r.id)} style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${color}60`, background: color + "12", color: color, fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+                        Full brief →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── LOAD MORE ── */}
+      {hiddenCount > 0 && (
+        <div style={{ textAlign: "center", marginTop: 16 }}>
+          <button onClick={() => setShowAll(true)} style={{ padding: "10px 24px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.bgSub, color: T.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            Show {hiddenCount} earlier update{hiddenCount !== 1 ? "s" : ""} ↓
+          </button>
+        </div>
+      )}
+
+      {/* ── FILTERED EMPTY ── */}
+      {runs.length > 0 && filtered.length === 0 && (
+        <div style={{ padding: "40px 0", textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: T.dim }}>No updates match your filters.</div>
+          <button onClick={() => { setSearch(""); setFilterWs(""); setFilterSev(""); setFilterFrom(""); setFilterTo(""); }} style={{ marginTop: 10, fontSize: 11, color: T.accent, background: "none", border: "none", cursor: "pointer" }}>Clear filters</button>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    INTELLIGENCE BRIEF PAGE — primary daily intelligence consumption surface
    Shows the latest run's decision brief in a consumable executive format.
    ═══════════════════════════════════════════════════════════════════════ */
@@ -5349,6 +5627,10 @@ function BriefPage({ ws, nav, runResearch, setActions }) {
   const [error, setError] = useState("");
   const [workspaces, setWorkspaces] = useState([]);
   const [wsId, setWsId] = useState(ws?.id || "");
+
+  // Check if Feed sent us a specific run to open
+  const pinnedRunId = useRef(localStorage.getItem("webdataos.brief.runId"));
+  useEffect(() => { localStorage.removeItem("webdataos.brief.runId"); }, []);
 
   // Load workspace list
   useEffect(() => {
@@ -5367,12 +5649,12 @@ function BriefPage({ ws, nav, runResearch, setActions }) {
       .then(list => {
         if (!Array.isArray(list) || !list.length) { setRuns([]); setLoading(false); return; }
         setRuns(list);
-        const latest = list[0];
-        setSelectedRunId(latest.id);
-        // Use the brief from the list response if present
-        if (latest.decision_brief) setBrief(latest.decision_brief);
-        // Fetch full report for reasoning detail
-        return endpoints.getRun(latest.id);
+        // If Feed linked to a specific run, prefer that; otherwise latest
+        const target = pinnedRunId.current ? list.find(r => r.id === pinnedRunId.current) || list[0] : list[0];
+        pinnedRunId.current = null;
+        setSelectedRunId(target.id);
+        if (target.decision_brief) setBrief(target.decision_brief);
+        return endpoints.getRun(target.id);
       })
       .then(full => {
         if (!full) return;
@@ -6247,87 +6529,211 @@ function TeamPage({ user, nav }) {
   );
 }
 
-function ActPage({ actions, setActions, user }) {
-  const [f, setF] = useState("all");
+function ActPage({ actions, setActions, user, ws, nav }) {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [showDone, setShowDone] = useState(false);
   const isAdmin = user?.role === "admin" || user?.role === "owner";
-  const list = f === "all" ? actions : actions.filter(a => a.status === f);
+
   const patchAction = updated => setActions(p => p.map(a => a.id === updated.id ? updated : a));
+
   const approve = async id => {
     setBusy(id); setErr("");
     try { patchAction(await endpoints.approveAction(id, { approve: true, approved_by: user?.email || user?.name || "admin" })); toast.success("Action approved"); }
-    catch (e) { const m = e.message || "Could not approve action."; setErr(m); toast.error(m); }
+    catch (e) { const m = e.message || "Could not approve."; setErr(m); toast.error(m); }
     finally { setBusy(""); }
   };
   const reject = async id => {
     setBusy(id); setErr("");
     try { patchAction(await endpoints.approveAction(id, { approve: false, approved_by: user?.email || user?.name || "admin" })); toast.info("Action rejected"); }
-    catch (e) { const m = e.message || "Could not reject action."; setErr(m); toast.error(m); }
+    catch (e) { const m = e.message || "Could not reject."; setErr(m); toast.error(m); }
     finally { setBusy(""); }
   };
   const execute = async id => {
     setBusy(id); setErr("");
     try { patchAction(await endpoints.executeAction(id)); toast.success("Action executed"); }
-    catch (e) { const m = e.message || "Could not execute action."; setErr(m); toast.error(m); }
+    catch (e) { const m = e.message || "Could not execute."; setErr(m); toast.error(m); }
     finally { setBusy(""); }
   };
-  return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 24px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <Eye>Autonomous actions</Eye>
-          <h2 style={{ fontSize: 22, marginTop: 4 }}>Approval queue</h2>
+
+  const pending = actions.filter(a => a.status === "pending_approval");
+  const approved = actions.filter(a => a.status === "approved" || a.status === "auto_approved");
+  const done = actions.filter(a => a.status === "executed" || a.status === "rejected");
+
+  // Action type → readable goal framing
+  const typeLabel = (t) => ({ draft_email: "Draft communication", schedule_review: "Schedule review", update_risk_register: "Update risk register", file_report: "File report", notify_team: "Notify team" }[t] || (t || "Action").replace(/_/g, " "));
+  const typeColor = (t) => ({ draft_email: "#3b82f6", schedule_review: "#8b5cf6", update_risk_register: "#f59e0b", file_report: "#ef4444", notify_team: "#22c55e" }[t] || T.accent);
+
+  const ActionCard = ({ a, mode }) => {
+    const color = typeColor(a.action_type);
+    const isBusy = busy === a.id;
+    return (
+      <div style={{ borderRadius: 12, border: `1px solid ${T.border}`, background: T.bgSub, overflow: "hidden", marginBottom: 12 }}>
+        {/* Intent header */}
+        <div style={{ padding: "14px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ padding: "3px 10px", borderRadius: 99, background: color + "18", color: color, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".07em" }}>
+              {typeLabel(a.action_type)}
+            </span>
+            {a.run_id && <span style={{ fontSize: 10, color: T.dim }}>From monitoring run</span>}
+          </div>
+          <span style={{ fontSize: 11, color: T.dim }}>
+            {a.created_at ? new Date(a.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+          </span>
         </div>
-        {/* Role gate banner */}
+
+        {/* Title = what decision needs to be made */}
+        <div style={{ padding: "10px 20px 0", fontSize: 15, fontWeight: 800, color: T.text, lineHeight: 1.4, letterSpacing: "-.01em" }}>
+          {a.title}
+        </div>
+
+        {/* Description = the why and what */}
+        {a.description && (
+          <div style={{ padding: "8px 20px 0", fontSize: 13, color: T.muted, lineHeight: 1.7 }}>
+            {a.description}
+          </div>
+        )}
+
+        {/* Payload context (structured) */}
+        {a.payload && Object.keys(a.payload).length > 0 && (
+          <div style={{ margin: "10px 20px 0", padding: "10px 14px", borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}` }}>
+            {Object.entries(a.payload).filter(([k]) => !["recommendation_id", "tenant_id"].includes(k)).slice(0, 4).map(([k, v]) => (
+              <div key={k} style={{ display: "flex", gap: 10, marginBottom: 4, alignItems: "baseline" }}>
+                <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".05em", flexShrink: 0, width: 80 }}>{k.replace(/_/g, " ")}</span>
+                <span style={{ fontSize: 11, color: T.muted, wordBreak: "break-word" }}>{String(v).slice(0, 120)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Action row */}
+        <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          {mode === "pending" && isAdmin && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button disabled={isBusy} onClick={() => approve(a.id)} style={{
+                padding: "9px 22px", borderRadius: 8, border: "none", background: "#22c55e", color: "#000",
+                fontSize: 12, fontWeight: 900, cursor: isBusy ? "wait" : "pointer", opacity: isBusy ? 0.6 : 1,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <CheckCircle size={13} /> Approve
+              </button>
+              <button disabled={isBusy} onClick={() => reject(a.id)} style={{
+                padding: "9px 18px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent",
+                color: T.muted, fontSize: 12, cursor: isBusy ? "wait" : "pointer", opacity: isBusy ? 0.6 : 1,
+              }}>
+                Reject
+              </button>
+            </div>
+          )}
+          {mode === "pending" && !isAdmin && (
+            <span style={{ fontSize: 12, color: T.dim, display: "flex", alignItems: "center", gap: 6 }}>
+              <Shield size={12} color="#f59e0b" /> Awaiting admin approval
+            </span>
+          )}
+          {mode === "approved" && isAdmin && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button disabled={isBusy} onClick={() => execute(a.id)} style={{
+                padding: "9px 22px", borderRadius: 8, border: "none", background: T.accent, color: "#000",
+                fontSize: 12, fontWeight: 900, cursor: isBusy ? "wait" : "pointer", opacity: isBusy ? 0.6 : 1,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <Play size={13} /> Execute now
+              </button>
+              <span style={{ fontSize: 11, color: T.dim }}>Approved by {a.approved_by || "admin"}</span>
+            </div>
+          )}
+          {mode === "approved" && !isAdmin && (
+            <span style={{ fontSize: 12, color: "#22c55e" }}>Approved — awaiting execution</span>
+          )}
+          {mode === "done" && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, background: stC(a.status) + "15", color: stC(a.status), fontWeight: 700 }}>
+                {a.status === "executed" ? "Executed" : "Rejected"}
+              </span>
+              {a.approved_by && <span style={{ fontSize: 11, color: T.dim }}>by {a.approved_by}</span>}
+              {a.executed_at && <span style={{ fontSize: 11, color: T.dim }}>{new Date(a.executed_at).toLocaleDateString()}</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto", padding: "28px 24px 80px" }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28, gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: ".10em", marginBottom: 4 }}>Actions</div>
+          <h1 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: 0, letterSpacing: "-.02em" }}>
+            {pending.length > 0 ? `${pending.length} decision${pending.length !== 1 ? "s" : ""} need your attention` : "All caught up"}
+          </h1>
+          <div style={{ fontSize: 13, color: T.dim, marginTop: 5 }}>
+            {pending.length > 0 ? "Review and approve the actions your intelligence system has proposed." : "No pending approvals. Completed actions are archived below."}
+          </div>
+        </div>
         {!isAdmin && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 6, background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.15)" }}>
-            <Shield size={13} color="#f59e0b" />
-            <span style={{ fontSize: 12, color: "#f59e0b" }}>You have <strong>{user?.role || "analyst"}</strong> access — admin approval required to approve or execute actions.</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 8, background: "#f59e0b0c", border: "1px solid #f59e0b25", flexShrink: 0 }}>
+            <Shield size={12} color="#f59e0b" />
+            <span style={{ fontSize: 11, color: "#f59e0b" }}>Analyst view — approval requires admin role</span>
           </div>
         )}
       </div>
-      {err && <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", color: "#ef4444", fontSize: 12 }}>{err}</div>}
-      <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}`, marginTop: 12, width: "fit-content" }}>
-        {[["all", "All"], ["pending_approval", "Pending"], ["approved", "Approved"], ["executed", "Executed"], ["rejected", "Rejected"]].map(([id, l]) => (
-          <button key={id} onClick={() => setF(id)} style={{ border: "none", borderRadius: 999, padding: "5px 10px", fontSize: 11, background: f === id ? T.accent : "transparent", color: f === id ? "#000" : T.muted, cursor: "pointer" }}>
-            {l} ({id === "all" ? actions.length : actions.filter(a => a.status === id).length})
-          </button>
-        ))}
-      </div>
-      <div style={{ marginTop: 12, borderRadius: 10, overflow: "hidden", background: T.bgSub, border: `1px solid ${T.border}` }}>
-        {list.map(a => (
-          <div key={a.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", gap: 5, marginBottom: 4, alignItems: "center" }}>
-                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 3, background: `${stC(a.status)}12`, color: stC(a.status), fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{a.status.replace("_", " ")}</span>
-                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 3, background: "rgba(255,255,255,.04)", color: T.dim, textTransform: "uppercase", letterSpacing: ".04em" }}>{a.action_type}</span>
-                {a.approved_by && <span style={{ fontSize: 10, color: T.dim }}>approved by <span style={{ color: T.muted }}>{a.approved_by}</span></span>}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{a.title}</div>
-              <div style={{ fontSize: 11, color: T.dim, marginTop: 2, lineHeight: 1.5 }}>{a.description}</div>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-              {a.status === "pending_approval" && isAdmin && (
-                <>
-                  <button disabled={busy === a.id} onClick={() => approve(a.id)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: "#22c55e", color: "#000", fontSize: 11, fontWeight: 700, cursor: busy === a.id ? "wait" : "pointer" }}>Approve</button>
-                  <button disabled={busy === a.id} onClick={() => reject(a.id)} style={{ padding: "6px 12px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.dim, fontSize: 11, cursor: busy === a.id ? "wait" : "pointer" }}>Reject</button>
-                </>
-              )}
-              {a.status === "pending_approval" && !isAdmin && (
-                <span style={{ fontSize: 11, color: T.dim, padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: "rgba(255,255,255,.02)" }}>Awaiting admin</span>
-              )}
-              {(a.status === "approved" || a.status === "auto_approved") && isAdmin && (
-                <button disabled={busy === a.id} onClick={() => execute(a.id)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 11, fontWeight: 700, cursor: busy === a.id ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 5 }}><Play size={11} /> Execute</button>
-              )}
-              {(a.status === "approved" || a.status === "auto_approved") && !isAdmin && (
-                <span style={{ fontSize: 11, color: "#22c55e", padding: "6px 10px" }}>Approved — awaiting execution</span>
-              )}
-            </div>
+
+      {err && <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 8, background: "#ef444415", border: "1px solid #ef444440", color: "#ef4444", fontSize: 12 }}>{err}</div>}
+
+      {/* ── ALL CAUGHT UP ── */}
+      {actions.length === 0 && (
+        <div style={{ padding: "60px 40px", textAlign: "center", borderRadius: 14, border: `1px solid ${T.border}`, background: T.bgSub }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>✓</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 8 }}>No actions yet</div>
+          <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.7, marginBottom: 20, maxWidth: 380, margin: "0 auto 20px" }}>
+            When monitoring runs detect something material, the system proposes actions here for your review. Run a monitoring cycle to see them.
           </div>
-        ))}
-        {!list.length && <EmptyState icon={Zap} title="No actions in this view" body={f === "all" ? "Autonomous actions appear here after a monitoring run proposes them." : `No actions with status "${f}" yet.`} />}
-      </div>
+          <button onClick={() => nav("Monitor")} style={{ padding: "10px 22px", borderRadius: 9, background: T.accent, color: "#000", fontWeight: 900, border: "none", fontSize: 13, cursor: "pointer" }}>
+            Go to Monitor →
+          </button>
+        </div>
+      )}
+
+      {/* ── PENDING DECISIONS ── */}
+      {pending.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: ".08em" }}>Needs your decision</div>
+            <span style={{ padding: "2px 9px", borderRadius: 99, background: "#f59e0b20", color: "#f59e0b", fontSize: 10, fontWeight: 800 }}>{pending.length}</span>
+          </div>
+          {pending.map(a => <ActionCard key={a.id} a={a} mode="pending" />)}
+        </div>
+      )}
+
+      {/* ── APPROVED / READY TO EXECUTE ── */}
+      {approved.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: ".08em" }}>Approved — ready to run</div>
+            <span style={{ padding: "2px 9px", borderRadius: 99, background: "#3b82f620", color: "#3b82f6", fontSize: 10, fontWeight: 800 }}>{approved.length}</span>
+          </div>
+          {approved.map(a => <ActionCard key={a.id} a={a} mode="approved" />)}
+        </div>
+      )}
+
+      {/* ── COMPLETED (collapsible) ── */}
+      {done.length > 0 && (
+        <div>
+          <button onClick={() => setShowDone(v => !v)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", background: "none", border: "none", cursor: "pointer", width: "100%", borderTop: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em" }}>Completed</span>
+            <span style={{ padding: "2px 8px", borderRadius: 99, background: T.bgCard, color: T.dim, fontSize: 10 }}>{done.length}</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: T.dim }}>{showDone ? "↑" : "↓"}</span>
+          </button>
+          {showDone && (
+            <div style={{ marginTop: 10 }}>
+              {done.map(a => <ActionCard key={a.id} a={a} mode="done" />)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
