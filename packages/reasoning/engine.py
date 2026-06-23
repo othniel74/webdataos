@@ -6,6 +6,7 @@ In production mode, calls an LLM (Claude/GPT) with the framework prompt.
 from __future__ import annotations
 
 import uuid
+from packages.common.logging import get_logger
 from packages.reasoning.frameworks import ReasoningFramework, get_framework
 from packages.schemas.intelligence import IntelligenceRecordRead
 from packages.schemas.partners import MemoryRecord
@@ -16,6 +17,8 @@ from packages.schemas.reasoning import (
     Recommendation,
     ReasoningOutput,
 )
+
+logger = get_logger(__name__)
 
 
 class ReasoningEngine:
@@ -200,9 +203,9 @@ class ReasoningEngine:
                 id=rec_id,
                 title=title,
                 description=description,
-                reasoning=f"Assessment based on {framework.name} framework. {assessment.impact_description}",
+                reasoning=f"Rule-based assessment using {framework.name} framework. {assessment.impact_description}",
                 materiality=assessment.materiality,
-                confidence=0.82 + (i * 0.02),
+                confidence=self._evidence_confidence(records),
                 evidence_chain=assessment.evidence_ids,
                 suggested_actions=suggested,
                 affected_entities=entity_names,
@@ -244,6 +247,19 @@ class ReasoningEngine:
             confidence=confidence,
             reasoning_trace=reasoning_trace,
         )
+
+    @staticmethod
+    def _evidence_confidence(records: list[IntelligenceRecordRead]) -> float:
+        """Compute a calibrated confidence from evidence quality — not a fixed number."""
+        if not records:
+            return 0.0
+        tier_scores = {1: 1.0, 2: 0.70, 3: 0.40}
+        fresh_count = sum(1 for r in records if r.freshness_status == "fresh")
+        fresh_rate = fresh_count / len(records)
+        avg_tier = sum(tier_scores.get(getattr(r, "source_tier", 3) or 3, 0.40) for r in records) / len(records)
+        volume_score = min(len(records) / 10.0, 1.0)
+        raw = (fresh_rate * 0.40) + (avg_tier * 0.40) + (volume_score * 0.20)
+        return round(max(0.10, min(raw, 0.95)), 3)
 
     def _signal_text(self, rec: IntelligenceRecordRead) -> str:
         facts = rec.facts or {}
@@ -322,13 +338,154 @@ class ReasoningEngine:
         return ["Add to monitoring queue", "Review at next analyst checkpoint"]
 
     async def _llm_reason(self, framework, records, org_context, memories, changes):
-        """Production LLM reasoning — placeholder for real API call."""
-        # In production, this would:
-        # 1. Format the framework prompt with org_context, evidence, memory
-        # 2. Call Claude/GPT API
-        # 3. Parse structured JSON response
-        # 4. Return ReasoningOutput
-        return self._mock_reason(framework, records, org_context, memories, changes)
+        """LLM-backed reasoning — calls LLM with framework prompt, falls back to mock on failure."""
+        try:
+            evidence_text = "\n\n".join(
+                f"[{i+1}] Entity: {r.entity_name or 'unknown'}\n"
+                f"Summary: {(r.summary or '')[:400]}\n"
+                f"Source: {r.source_url or 'unknown'} (tier {r.source_tier or 3}, {r.freshness_status or 'unknown'})\n"
+                f"Signal type: {r.signal_type or 'unknown'}"
+                for i, r in enumerate(records[:20])
+            )
+
+            org_text = "No organizational context configured."
+            if org_context:
+                contracts_text = "\n".join(
+                    f"  - {c.get('entity_name', 'unknown')}: ${c.get('annual_value', 0):,.0f}/yr, "
+                    f"renewal {c.get('renewal_date', 'unknown')}, risk tier {c.get('risk_tier', 'medium')}"
+                    for c in (org_context.contracts or [])[:10]
+                )
+                org_text = (
+                    f"Industry: {org_context.industry or 'unknown'}\n"
+                    f"Risk threshold: {org_context.risk_threshold or 'medium'}\n"
+                    f"Company size: {org_context.company_size or 'unknown'}"
+                )
+                if contracts_text:
+                    org_text += f"\nContracts under monitoring:\n{contracts_text}"
+
+            memory_text = "\n".join(
+                f"- {(m.content or '')[:200]}" for m in (memories or [])[:5]
+            ) or "No prior context."
+
+            criteria_text = "\n".join(f"- {c}" for c in framework.evaluation_criteria)
+
+            changes_text = ""
+            if changes:
+                changes_text = "\n\nRECENT CHANGES DETECTED:\n" + "\n".join(
+                    f"- {c}" for c in changes[:10]
+                )
+
+            system_prompt = framework.prompt_template.format(
+                org_context=org_text,
+                evidence=evidence_text + changes_text,
+                memory=memory_text,
+                criteria=criteria_text,
+            )
+
+            user_prompt = (
+                "Analyze the evidence and produce your assessment as valid JSON "
+                "with this exact structure:\n"
+                "{\n"
+                '  "risk_posture": "stable|monitoring|elevated|degrading|critical",\n'
+                '  "confidence": 0.0-1.0,\n'
+                '  "executive_summary": "2-3 sentence summary of findings and risk posture",\n'
+                '  "materiality_assessments": [\n'
+                "    {\n"
+                '      "finding": "specific factual finding with entity name",\n'
+                '      "materiality": "informational|low|medium|high|critical",\n'
+                '      "signal_type": "breach|security_risk|compliance|competitor_move|pricing|supplier_risk|filing|model_release|informational",\n'
+                '      "impact_description": "specific business impact — name the contract, account, or obligation affected",\n'
+                '      "financial_impact": null or numeric estimate,\n'
+                '      "affected_contracts": ["entity name"],\n'
+                '      "urgency": "standard|urgent|immediate",\n'
+                '      "evidence_ids": []\n'
+                "    }\n"
+                "  ],\n"
+                '  "recommendations": [\n'
+                "    {\n"
+                '      "title": "specific action title",\n'
+                '      "description": "what to do, who owns it, and why it is urgent",\n'
+                '      "materiality": "medium|high|critical",\n'
+                '      "confidence": 0.0-1.0,\n'
+                '      "suggested_actions": ["action 1", "action 2", "action 3"],\n'
+                '      "affected_entities": ["entity name"],\n'
+                '      "framework_used": "' + framework.id + '"\n'
+                "    }\n"
+                "  ],\n"
+                '  "reasoning_trace": ["step 1: ...", "step 2: ..."]\n'
+                "}\n\n"
+                "Focus on specificity: name the exact entity, the exact change, who owns the response, "
+                "and what happens if no action is taken."
+            )
+
+            raw = await self.llm.chat_json(system=system_prompt, user=user_prompt, max_tokens=3000)
+            return self._parse_llm_output(raw, framework, records)
+
+        except Exception as exc:
+            logger.warning("llm_reason_failed", error=str(exc)[:200])
+            return self._mock_reason(framework, records, org_context, memories, changes)
+
+    def _parse_llm_output(self, raw: dict, framework, records) -> "ReasoningOutput":
+        """Parse LLM JSON output into ReasoningOutput, tolerating partial responses."""
+        record_id_map = {r.entity_name: r.id for r in records if r.entity_name}
+
+        assessments = []
+        for item in (raw.get("materiality_assessments") or [])[:20]:
+            if not isinstance(item, dict) or not item.get("finding"):
+                continue
+            affected = item.get("affected_contracts") or item.get("affected_entities") or []
+            evidence_ids = item.get("evidence_ids") or []
+            if not evidence_ids:
+                for ename in affected:
+                    rid = record_id_map.get(ename)
+                    if rid:
+                        evidence_ids.append(rid)
+            assessments.append(MaterialityAssessment(
+                finding=str(item["finding"])[:400],
+                materiality=item.get("materiality", "informational"),
+                signal_type=item.get("signal_type"),
+                impact_description=str(item.get("impact_description") or "")[:500],
+                financial_impact=item.get("financial_impact"),
+                affected_contracts=affected[:5],
+                urgency=item.get("urgency", "standard"),
+                evidence_ids=evidence_ids[:10],
+            ))
+
+        recommendations = []
+        for i, item in enumerate((raw.get("recommendations") or [])[:5]):
+            if not isinstance(item, dict) or not item.get("title"):
+                continue
+            recommendations.append(Recommendation(
+                id=f"rec_{uuid.uuid4().hex[:8]}",
+                title=str(item["title"])[:300],
+                description=str(item.get("description") or "")[:600],
+                reasoning=f"LLM assessment using {framework.name}",
+                materiality=item.get("materiality", "medium"),
+                confidence=float(item.get("confidence") or 0.75),
+                evidence_chain=[],
+                suggested_actions=item.get("suggested_actions") or [],
+                affected_entities=item.get("affected_entities") or [],
+                financial_impact=None,
+                deadline=None,
+                framework_used=item.get("framework_used") or framework.id,
+            ))
+
+        risk_posture = raw.get("risk_posture", "stable")
+        confidence = float(raw.get("confidence") or 0.0)
+        reasoning_trace = raw.get("reasoning_trace") or []
+        exec_summary = raw.get("executive_summary") or (
+            f"LLM reasoning completed using {framework.name}. "
+            f"Found {len(assessments)} signals. Risk posture: {risk_posture}."
+        )
+
+        return ReasoningOutput(
+            materiality_assessments=assessments,
+            recommendations=recommendations,
+            executive_summary=exec_summary,
+            risk_posture=risk_posture,
+            confidence=confidence,
+            reasoning_trace=reasoning_trace,
+        )
 
     def propose_actions(
         self,

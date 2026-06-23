@@ -116,27 +116,59 @@ class ChangeDetectionService:
             if name:
                 curr_entities.append(name)
 
+        # Primary key: entity+signal_type pair — stable across rewording
+        def _signal_key(entity: str, stype: str) -> str:
+            return f"{entity.lower().strip()}:{(stype or 'informational').lower()}"
+
+        prev_keys = {
+            _signal_key(a.get("affected_contracts", [""])[0] if a.get("affected_contracts") else "", a.get("signal_type", ""))
+            for a in prev_assessments
+            if a.get("finding")
+        }
+        curr_keys = {
+            _signal_key(
+                (getattr(a, "affected_contracts", None) or [""])[0],
+                getattr(a, "signal_type", None) or "",
+            )
+            for a in curr_assessments
+            if getattr(a, "finding", None)
+        }
+
+        # Fallback: normalized text comparison for assessments without signal_type
         prev_findings = {
             self._normalize_finding(a.get("finding", ""))
             for a in prev_assessments
             if a.get("finding")
         }
         curr_findings = {
-            self._normalize_finding(a.finding)
+            self._normalize_finding(getattr(a, "finding", ""))
             for a in curr_assessments
             if getattr(a, "finding", None)
         }
 
-        new_signals = [
-            a.finding for a in curr_assessments
-            if self._normalize_finding(getattr(a, "finding", "")) not in prev_findings
-            and getattr(a, "finding", "")
-        ]
-        resolved_signals = [
-            a.get("finding", "") for a in prev_assessments
-            if self._normalize_finding(a.get("finding", "")) not in curr_findings
-            and a.get("finding")
-        ]
+        new_signals = []
+        for a in curr_assessments:
+            finding = getattr(a, "finding", "") or ""
+            if not finding:
+                continue
+            key = _signal_key(
+                (getattr(a, "affected_contracts", None) or [""])[0],
+                getattr(a, "signal_type", None) or "",
+            )
+            if key not in prev_keys and self._normalize_finding(finding) not in prev_findings:
+                new_signals.append(finding)
+
+        resolved_signals = []
+        for a in prev_assessments:
+            finding = a.get("finding", "") or ""
+            if not finding:
+                continue
+            key = _signal_key(
+                (a.get("affected_contracts") or [""])[0],
+                a.get("signal_type", ""),
+            )
+            if key not in curr_keys and self._normalize_finding(finding) not in curr_findings:
+                resolved_signals.append(finding)
 
         prev_entities_raw = previous_report.get("companies") or []
         prev_entity_names = {(c.get("name") or "").lower() for c in prev_entities_raw if isinstance(c, dict)}

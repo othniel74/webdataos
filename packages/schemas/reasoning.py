@@ -55,6 +55,7 @@ class MaterialityAssessment(BaseModel):
     finding: str
     materiality: str  # critical, high, medium, low, informational
     impact_description: str
+    signal_type: str | None = None
     financial_impact: float | None = None
     affected_contracts: list[str] = Field(default_factory=list)
     urgency: str = "standard"  # immediate, urgent, standard, low

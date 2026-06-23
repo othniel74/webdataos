@@ -2203,34 +2203,9 @@ function DemoPage({ nav }) {
           setPhase("pick");
         }
       } else {
-        // API unavailable — inject rich mock result so the full UI renders
-        const mockGraph = buildMockGraph(sc);
-        const mockEvidence = sc.entities.slice(0, 3).map((ent, i) => ({
-          id: `mock_${i}`, entity_name: ent,
-          summary: MOCK_SUMMARIES[sc.id]?.[i] || `New signal detected for ${ent} across public sources.`,
-          source_url: `https://news.ycombinator.com/?q=${encodeURIComponent(ent)}`,
-          source_type: "serp", freshness_status: "fresh",
-        }));
-        setGraph(mockGraph);
-        setEvidence(mockEvidence);
-        setReport({
-          summary: sc.example_headline,
-          confidence: 0.84,
-          decision_brief: {
-            headline: sc.example_headline,
-            answer: `Live intelligence on ${sc.entities.join(", ")}. ${sc.example_action}`,
-            what_changed: "Signal detected across 3 monitored sources.",
-            business_impact: "Material — requires team response within 48 hours.",
-            severity: "elevated", confidence: 0.84,
-            recommended_action: sc.example_action,
-            evidence: mockEvidence.map(r => ({ ...r, confidence: 0.84 })),
-            unknowns: [],
-            receipt_summary: "Preview mode — start the API for live Bright Data intelligence.",
-          },
-          run_receipt: { value_loop: DEMO_PIPELINE_STEPS.map(s => ({ step: s.label, status: "ok" })), counts: { records_used: 3, recommendations: 1, autonomous_actions: 1 } },
-        });
-        setPipelineStep(DEMO_PIPELINE_STEPS.length);
-        setTimeout(() => setPhase("result"), 600);
+        // API unavailable — show a preview layout but clearly label it as offline
+        setError("Live API is currently unavailable. Showing a preview of what this analysis would look like.");
+        setPhase("pick");
       }
     }
   };

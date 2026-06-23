@@ -155,6 +155,8 @@ class Neo4jGraphClient:
             "CREATE CONSTRAINT wdos_run_id IF NOT EXISTS FOR (r:IntelligenceRun) REQUIRE r.run_id IS UNIQUE",
             "CREATE CONSTRAINT wdos_action_id IF NOT EXISTS FOR (a:WorkflowAction) REQUIRE a.id IS UNIQUE",
             "CREATE CONSTRAINT wdos_rec_id IF NOT EXISTS FOR (r:Recommendation) REQUIRE r.id IS UNIQUE",
+            "CREATE CONSTRAINT wdos_brief_id IF NOT EXISTS FOR (b:DecisionBrief) REQUIRE b.id IS UNIQUE",
+            "CREATE CONSTRAINT wdos_change_id IF NOT EXISTS FOR (c:ChangeEvent) REQUIRE c.id IS UNIQUE",
         ]
         indexes = [
             "CREATE INDEX wdos_entity_name IF NOT EXISTS FOR (e:Entity) ON (e.name)",
@@ -298,7 +300,77 @@ class Neo4jGraphClient:
                     scoped_id=source_scoped, url=source_url, tid=tenant_id, tier=source_tier,
                 )
 
-        # Signal nodes from materiality assessments
+        # DecisionBrief node — the primary user-facing output of each run
+        brief = run_data.get("decision_brief") or {}
+        if brief and brief.get("headline"):
+            brief_id = f"brief:{run_id}"
+            tx.run(
+                """
+                MERGE (b:DecisionBrief {id: $id})
+                SET b.headline=$headline, b.answer=$answer,
+                    b.what_changed=$what_changed, b.business_impact=$impact,
+                    b.severity=$severity, b.confidence=$conf,
+                    b.recommended_action=$action, b.tenant_id=$tid,
+                    b.created_at=$created_at
+                WITH b
+                MATCH (r:IntelligenceRun {run_id: $run_id})
+                MERGE (r)-[:PRODUCED]->(b)
+                """,
+                id=brief_id,
+                headline=(brief.get("headline") or "")[:400],
+                answer=(brief.get("answer") or "")[:600],
+                what_changed=(brief.get("what_changed") or "")[:400],
+                impact=(brief.get("business_impact") or "")[:400],
+                severity=brief.get("severity", "monitoring"),
+                conf=float(brief.get("confidence") or confidence),
+                action=(brief.get("recommended_action") or "")[:400],
+                tid=tenant_id, run_id=run_id, created_at=str(created_at),
+            )
+            # Link brief to its supporting evidence records
+            for ev in (brief.get("evidence") or [])[:10]:
+                ev_id = ev.get("id") or ev.get("record_id")
+                if ev_id:
+                    tx.run(
+                        """
+                        MATCH (b:DecisionBrief {id: $brief_id})
+                        MATCH (ir:IntelligenceRecord {id: $rec_id})
+                        MERGE (b)-[:SUPPORTED_BY]->(ir)
+                        """,
+                        brief_id=brief_id, rec_id=ev_id,
+                    )
+
+        # ChangeEvent nodes from change report delta
+        change_report = run_data.get("change_report") or {}
+        for signal_text in (change_report.get("new_signals") or [])[:10]:
+            change_id = f"change:{run_id}:{signal_text[:40]}"
+            tx.run(
+                """
+                MERGE (ce:ChangeEvent {id: $id})
+                SET ce.signal=$signal, ce.event_type='new_signal',
+                    ce.tenant_id=$tid, ce.detected_at=$created_at
+                WITH ce
+                MATCH (r:IntelligenceRun {run_id: $run_id})
+                MERGE (r)-[:DETECTED_CHANGE]->(ce)
+                """,
+                id=change_id, signal=signal_text[:300],
+                tid=tenant_id, run_id=run_id, created_at=str(created_at),
+            )
+        for signal_text in (change_report.get("resolved_signals") or [])[:10]:
+            change_id = f"change:{run_id}:resolved:{signal_text[:40]}"
+            tx.run(
+                """
+                MERGE (ce:ChangeEvent {id: $id})
+                SET ce.signal=$signal, ce.event_type='resolved_signal',
+                    ce.tenant_id=$tid, ce.detected_at=$created_at
+                WITH ce
+                MATCH (r:IntelligenceRun {run_id: $run_id})
+                MERGE (r)-[:DETECTED_CHANGE]->(ce)
+                """,
+                id=change_id, signal=signal_text[:300],
+                tid=tenant_id, run_id=run_id, created_at=str(created_at),
+            )
+
+        # Signal nodes from materiality assessments — also link back to supporting evidence
         for assessment in run_data.get("materiality_assessments", []):
             signal_id = assessment.get("signal_id") or f"sig:{run_id}:{assessment.get('finding', '')[:40]}"
             signal_type = assessment.get("signal_type", "informational")
@@ -324,6 +396,17 @@ class Neo4jGraphClient:
                     urgency=assessment.get("urgency", "standard"),
                     entity_id=tenant_entity_id, run_id=run_id,
                 )
+            # Link each supporting evidence record to the signal
+            for ev_id in (assessment.get("evidence_ids") or [])[:5]:
+                if ev_id:
+                    tx.run(
+                        """
+                        MATCH (ir:IntelligenceRecord {id: $rec_id})
+                        MATCH (sig:Signal {id: $sig_id})
+                        MERGE (ir)-[:HAS_SIGNAL]->(sig)
+                        """,
+                        rec_id=ev_id, sig_id=signal_id,
+                    )
 
         # Risk node from risk posture
         if risk_posture not in {"stable", "unknown"}:
