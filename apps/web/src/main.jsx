@@ -12,10 +12,10 @@ import {
    THEME
    ═══════════════════════════════════════════════════════════════════════ */
 const T = {
-  bg: "#09090b", bgSub: "#0f0f13", bgCard: "#111117", bgInset: "#07070a",
-  border: "rgba(255,255,255,0.09)", borderL: "rgba(255,255,255,0.14)",
-  text: "#f1f5f9", muted: "#94a3b8", dim: "#64748b",
-  accent: "#0ea5e9", glow: "rgba(14,165,233,0.14)",
+  bg: "#08090c", bgSub: "#0c0d12", bgCard: "#0f1018", bgInset: "#060709",
+  border: "rgba(255,255,255,0.06)", borderL: "rgba(255,255,255,0.10)",
+  text: "#dde4ee", muted: "#7a8899", dim: "#3d4a5a",
+  accent: "#0ea5e9", glow: "rgba(14,165,233,0.08)",
 };
 const matC = m => m === "critical" ? "#dc2626" : m === "high" ? "#ef4444" : m === "medium" ? "#f59e0b" : m === "low" ? "#22c55e" : "#64748b";
 
@@ -406,27 +406,27 @@ function Auth({ onClose, onAuth }) {
   };
   return (
     <div onClick={onClose} role="presentation" style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(0,0,0,.6)", backdropFilter: "blur(10px)", display: "grid", placeItems: "center" }}>
-      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="auth-title" className="au" style={{ width: 400, maxWidth: "92vw", padding: "32px 28px", borderRadius: 22, background: T.bgCard, border: `1px solid ${T.border}`, position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,.5)" }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="auth-title" className="au" style={{ width: 380, maxWidth: "92vw", padding: "28px 24px", borderRadius: 10, background: T.bgCard, border: `1px solid ${T.borderL}`, position: "relative", boxShadow: "0 40px 80px rgba(0,0,0,.8)" }}>
         <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, margin: "0 auto 12px", background: `linear-gradient(135deg,${T.accent},#0284c7)`, display: "grid", placeItems: "center" }}><Layers size={18} color="#fff" /></div>
-          <h2 id="auth-title" style={{ fontSize: 20 }}>Sign in to WebDataOS</h2>
-          <p style={{ color: T.dim, fontSize: 13, marginTop: 6 }}>Access your tenant workspace</p>
+          <div style={{ width: 36, height: 36, borderRadius: 8, margin: "0 auto 12px", background: T.accent, display: "grid", placeItems: "center" }}><Layers size={16} color="#000" /></div>
+          <h2 id="auth-title" style={{ fontSize: 18, letterSpacing: "-.02em" }}>Sign in to WebDataOS</h2>
+          <p style={{ color: T.dim, fontSize: 12, marginTop: 5 }}>Access your tenant workspace</p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: 3, borderRadius: 12, border: `1px solid ${T.border}`, background: T.bgSub, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, padding: 3, borderRadius: 6, border: `1px solid ${T.border}`, background: T.bgInset, marginBottom: 14 }}>
           {[["login", "Sign in"], ["signup", "Create account"]].map(([id, label]) => (
-            <button key={id} type="button" aria-pressed={mode === id} onClick={() => { setMode(id); setError(""); }} style={{ border: "none", borderRadius: 9, padding: "8px 10px", background: mode === id ? T.accent : "transparent", color: mode === id ? "#000" : T.muted, fontSize: 12, fontWeight: 800 }}>{label}</button>
+            <button key={id} type="button" aria-pressed={mode === id} onClick={() => { setMode(id); setError(""); }} style={{ border: "none", borderRadius: 4, padding: "7px 10px", background: mode === id ? T.accent : "transparent", color: mode === id ? "#000" : T.muted, fontSize: 12, fontWeight: 700, transition: "background .15s" }}>{label}</button>
           ))}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {mode === "signup" && <FI icon={<User size={14} />} ph="Full name" label="Full name" v={name} set={setName} />}
           {mode === "signup" && <FI icon={<Briefcase size={14} />} ph="Organization" label="Organization" v={organization} set={setOrganization} />}
           <FI icon={<Mail size={14} />} ph="Email" label="Email" v={email} set={setEmail} type="email" />
           <FI icon={<KeyRound size={14} />} ph="Password" label="Password" v={password} set={setPassword} type="password" />
-          {error && <div style={{ color: "#fca5a5", fontSize: 12, lineHeight: 1.45, padding: "8px 10px", borderRadius: 10, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>{error}</div>}
-          <button type="button" aria-label={mode === "signup" ? "Create WebDataOS account" : "Sign in to WebDataOS"} onClick={submit} disabled={loading || !email || !password || (mode === "signup" && !name)} style={{ padding: "12px", borderRadius: 12, border: "none", background: `linear-gradient(135deg,${T.accent},#0284c7)`, color: "#000", fontWeight: 800, fontSize: 14, cursor: loading ? "wait" : "pointer", width: "100%", opacity: loading ? .7 : 1 }}>{loading ? "Working..." : mode === "signup" ? "Create WebDataOS account" : "Sign in"}</button>
-          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>Public demo remains available without an account. Private workspaces are tenant-scoped.</div>
+          {error && <div style={{ color: "#fca5a5", fontSize: 12, lineHeight: 1.45, padding: "8px 10px", borderRadius: 5, background: "rgba(239,68,68,.07)", border: "1px solid rgba(239,68,68,.18)" }}>{error}</div>}
+          <button type="button" aria-label={mode === "signup" ? "Create WebDataOS account" : "Sign in to WebDataOS"} onClick={submit} disabled={loading || !email || !password || (mode === "signup" && !name)} style={{ padding: "11px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontWeight: 700, fontSize: 13, cursor: loading ? "wait" : "pointer", width: "100%", opacity: loading ? .6 : 1, transition: "opacity .15s" }}>{loading ? "Working…" : mode === "signup" ? "Create account" : "Sign in"}</button>
+          <div style={{ color: T.dim, fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>Public demo available without an account.</div>
         </div>
-        <button type="button" aria-label="Close authentication dialog" onClick={onClose} style={{ position: "absolute", top: 12, right: 14, background: "none", border: "none", color: T.dim, fontSize: 20, cursor: "pointer" }}>&times;</button>
+        <button type="button" aria-label="Close" onClick={onClose} style={{ position: "absolute", top: 10, right: 12, background: "none", border: "none", color: T.dim, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>&times;</button>
       </div>
     </div>
   );
@@ -444,9 +444,9 @@ function AuthLoadingPage() {
 
 function FI({ icon, ph, label, v, set, type = "text" }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderRadius: 10, background: T.bgSub, border: `1px solid ${T.borderL}` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 10px", borderRadius: 6, background: T.bgInset, border: `1px solid ${T.borderL}` }}>
       <span style={{ color: T.dim, flexShrink: 0 }}>{icon}</span>
-      <input aria-label={label || ph} type={type} placeholder={ph} value={v} onChange={e => set(e.target.value)} style={{ flex: 1, border: "none", background: "transparent", outline: "none", padding: "10px 0", fontSize: 13, color: T.text }} />
+      <input aria-label={label || ph} type={type} placeholder={ph} value={v} onChange={e => set(e.target.value)} style={{ flex: 1, border: "none", background: "transparent", outline: "none", padding: "9px 0", fontSize: 13, color: T.text }} />
     </div>
   );
 }
@@ -469,18 +469,18 @@ function useIsMobile(bp = 768) {
 }
 
 function Btn({ children, variant = "primary", size = "md", icon, loading: busy, onClick, disabled, style: ext, title, type = "button" }) {
-  const sz = { sm: { h: 28, px: 10, fs: 11 }, md: { h: 36, px: 14, fs: 12 }, lg: { h: 44, px: 20, fs: 14 } }[size] || { h: 36, px: 14, fs: 12 };
+  const sz = { sm: { h: 28, px: 11, fs: 11 }, md: { h: 34, px: 14, fs: 12 }, lg: { h: 42, px: 20, fs: 13 } }[size] || { h: 34, px: 14, fs: 12 };
   const va = {
-    primary: { bg: `linear-gradient(135deg,${T.accent},#0284c7)`, color: "#000", border: "none" },
-    ghost: { bg: "transparent", color: T.muted, border: `1px solid ${T.border}` },
-    outline: { bg: "transparent", color: T.accent, border: `1px solid ${T.accent}30` },
-    danger: { bg: "rgba(239,68,68,.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" },
-    success: { bg: "rgba(34,197,94,.1)", color: "#22c55e", border: "1px solid rgba(34,197,94,.25)" },
+    primary: { bg: T.accent, color: "#000", border: "none" },
+    ghost: { bg: "transparent", color: T.muted, border: `1px solid ${T.borderL}` },
+    outline: { bg: "transparent", color: T.accent, border: `1px solid rgba(14,165,233,.22)` },
+    danger: { bg: "transparent", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" },
+    success: { bg: "rgba(34,197,94,.08)", color: "#22c55e", border: "1px solid rgba(34,197,94,.2)" },
   }[variant] || { bg: "transparent", color: T.muted, border: `1px solid ${T.border}` };
   return (
     <button type={type} onClick={onClick} disabled={disabled || busy} title={title}
-      style={{ height: sz.h, padding: `0 ${sz.px}px`, borderRadius: 8, border: va.border, background: va.bg, color: va.color, fontSize: sz.fs, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5, cursor: disabled || busy ? "not-allowed" : "pointer", opacity: disabled || busy ? 0.6 : 1, flexShrink: 0, transition: "opacity .15s", ...ext }}>
-      {busy ? <RefreshCw size={sz.fs} style={{ animation: "spin .8s linear infinite" }} /> : icon}
+      style={{ height: sz.h, padding: `0 ${sz.px}px`, borderRadius: 6, border: va.border, background: va.bg, color: va.color, fontSize: sz.fs, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5, cursor: disabled || busy ? "not-allowed" : "pointer", opacity: disabled || busy ? 0.4 : 1, flexShrink: 0, transition: "opacity .15s", ...ext }}>
+      {busy ? <RefreshCw size={sz.fs} style={{ animation: "spin .7s linear infinite" }} /> : icon}
       {children}
     </button>
   );
@@ -520,8 +520,8 @@ function ToastContainer({ toasts, onDismiss }) {
     <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
       {toasts.map(t => (
         <div key={t.id} className="toast-in" onClick={() => onDismiss(t.id)}
-          style={{ pointerEvents: "all", padding: "11px 14px", borderRadius: 10, background: T.bgCard, border: `1px solid ${T.borderL}`, boxShadow: "0 8px 28px rgba(0,0,0,.55)", display: "flex", alignItems: "center", gap: 10, minWidth: 220, maxWidth: 340, cursor: "pointer" }}>
-          <div style={{ width: 7, height: 7, borderRadius: 99, background: col[t.type] || T.accent, flexShrink: 0 }} />
+          style={{ pointerEvents: "all", padding: "10px 14px", borderRadius: 6, background: T.bgCard, border: `1px solid ${T.borderL}`, boxShadow: "0 8px 32px rgba(0,0,0,.7)", display: "flex", alignItems: "center", gap: 10, minWidth: 220, maxWidth: 340, cursor: "pointer" }}>
+          <div style={{ width: 5, height: 5, borderRadius: 99, background: col[t.type] || T.accent, flexShrink: 0 }} />
           <span style={{ fontSize: 13, color: T.text, flex: 1 }}>{t.msg}</span>
           <X size={12} color={T.dim} />
         </div>
@@ -553,47 +553,64 @@ function decisionFromReport(report, fallbackSummary = "") {
 function DecisionBriefPanel({ brief, onEvidence, compact = false }) {
   const severity = brief?.severity || "monitoring";
   const deltaHeadline = brief?.delta_headline;
+  const sev = matC(severity);
   return (
-    <section style={{ padding: compact ? 14 : 18, borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}`, borderLeft: `3px solid ${matC(severity)}` }}>
-      {deltaHeadline && (
-        <div style={{ marginBottom: 10, padding: "6px 10px", borderRadius: 6, background: `${T.accent}12`, border: `1px solid ${T.accent}30`, fontSize: 12, fontWeight: 700, color: T.accent, fontFamily: "monospace", letterSpacing: ".02em" }}>
-          {deltaHeadline}
+    <section style={{ borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}`, borderLeft: `2px solid ${sev}`, overflow: "hidden" }}>
+      {/* header bar */}
+      <div style={{ padding: compact ? "10px 14px" : "12px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: T.dim, fontFamily: "'JetBrains Mono'" }}>Decision Brief</span>
+          {deltaHeadline && (
+            <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono'", color: T.accent, background: "rgba(14,165,233,.07)", border: "1px solid rgba(14,165,233,.15)", borderRadius: 3, padding: "1px 7px", letterSpacing: ".02em" }}>
+              {deltaHeadline}
+            </span>
+          )}
         </div>
-      )}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: T.accent, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Decision brief</div>
-          <h3 style={{ margin: "6px 0 0", fontSize: compact ? 16 : 20, lineHeight: 1.25 }}>{brief?.headline || "No decision brief yet"}</h3>
-        </div>
-        <span style={{ padding: "3px 8px", borderRadius: 999, background: `${matC(severity)}18`, color: matC(severity), fontSize: 10, fontWeight: 900, textTransform: "uppercase" }}>{severity}</span>
+        <span style={{ padding: "2px 7px", borderRadius: 3, background: `${sev}14`, color: sev, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'", border: `1px solid ${sev}25` }}>{severity}</span>
       </div>
-      <p style={{ marginTop: 10, color: T.muted, fontSize: 13, lineHeight: 1.65 }}>{brief?.answer}</p>
-      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: compact ? "1fr" : "repeat(3,1fr)", gap: 10 }}>
-        {[["What changed", brief?.what_changed], ["Why it matters", brief?.business_impact], ["Recommended action", brief?.recommended_action]].map(([label, text]) => (
-          <div key={label} style={{ paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
-            <div style={{ color: T.dim, fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</div>
-            <div style={{ marginTop: 5, color: T.text, fontSize: 12, lineHeight: 1.55 }}>{text || "Pending"}</div>
+      {/* headline */}
+      <div style={{ padding: compact ? "12px 14px" : "16px 18px", borderBottom: `1px solid ${T.border}` }}>
+        <h3 style={{ fontSize: compact ? 15 : 18, fontWeight: 700, lineHeight: 1.3, letterSpacing: "-.02em", color: "#f0f4f8" }}>{brief?.headline || "No decision brief yet"}</h3>
+        {brief?.answer && <p style={{ marginTop: 8, color: T.muted, fontSize: 12, lineHeight: 1.7 }}>{brief.answer}</p>}
+      </div>
+      {/* three-column intel grid */}
+      <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "repeat(3,1fr)", borderBottom: `1px solid ${T.border}` }}>
+        {[
+          ["WHAT CHANGED", brief?.what_changed],
+          ["WHY IT MATTERS", brief?.business_impact],
+          ["RECOMMENDED ACTION", brief?.recommended_action],
+        ].map(([label, text], i) => (
+          <div key={label} style={{ padding: compact ? "10px 14px" : "12px 18px", borderRight: (!compact && i < 2) ? `1px solid ${T.border}` : "none", borderTop: compact && i > 0 ? `1px solid ${T.border}` : "none" }}>
+            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".10em", color: T.dim, marginBottom: 6, fontFamily: "'JetBrains Mono'" }}>{label}</div>
+            <div style={{ fontSize: 12, color: T.text, lineHeight: 1.6 }}>{text || <span style={{ color: T.dim }}>Pending</span>}</div>
           </div>
         ))}
       </div>
+      {/* evidence */}
       {!!brief?.evidence?.length && (
-        <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-            <div style={{ fontSize: 12, fontWeight: 900 }}>Proof</div>
-            {onEvidence && <button onClick={onEvidence} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 11, fontWeight: 800 }}>Open evidence</button>}
+        <div style={{ padding: compact ? "10px 14px" : "12px 18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".10em", color: T.dim, fontFamily: "'JetBrains Mono'" }}>Source Evidence</span>
+            {onEvidence && <button onClick={onEvidence} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>View all →</button>}
           </div>
-          <div style={{ marginTop: 8, display: "grid", gap: 7 }}>
+          <div style={{ display: "grid", gap: 6 }}>
             {brief.evidence.slice(0, compact ? 2 : 4).map(item => (
-              <div key={item.id || item.source_url} style={{ fontSize: 11, lineHeight: 1.45, color: T.muted }}>
-                <b style={{ color: T.text }}>{item.entity_name || "Evidence"}</b>: <SourceLink url={item.source_url}>{item.source_title || item.source_url}</SourceLink>
-                {item.summary && <div style={{ marginTop: 2 }}>{item.summary}</div>}
+              <div key={item.id || item.source_url} style={{ padding: "8px 10px", borderRadius: 5, background: T.bgInset, border: `1px solid ${T.border}`, fontSize: 11, lineHeight: 1.5 }}>
+                <span style={{ fontWeight: 600, color: T.text }}>{item.entity_name || "Evidence"}</span>
+                <span style={{ color: T.dim }}> · </span>
+                <SourceLink url={item.source_url}>{item.source_title || item.source_url}</SourceLink>
+                {item.summary && <div style={{ marginTop: 3, color: T.muted }}>{item.summary}</div>}
               </div>
             ))}
           </div>
         </div>
       )}
-      {!!brief?.unknowns?.length && <div style={{ marginTop: 10, color: T.dim, fontSize: 11, lineHeight: 1.45 }}>Gaps: {brief.unknowns.join(" ")}</div>}
-      {brief?.receipt_summary && <div style={{ marginTop: 8, color: T.dim, fontSize: 11 }}>{brief.receipt_summary}</div>}
+      {(brief?.unknowns?.length || brief?.receipt_summary) && (
+        <div style={{ padding: compact ? "6px 14px 10px" : "6px 18px 12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
+          {!!brief?.unknowns?.length && <div style={{ color: T.dim, fontSize: 10, fontFamily: "'JetBrains Mono'" }}>gaps: {brief.unknowns.join(" ")}</div>}
+          {brief?.receipt_summary && <div style={{ color: T.dim, fontSize: 10, fontFamily: "'JetBrains Mono'" }}>{brief.receipt_summary}</div>}
+        </div>
+      )}
     </section>
   );
 }
@@ -617,56 +634,55 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const go = n => { setPage(n); setMenuOpen(false); };
   return (
     <>
-      <header style={{ position: "sticky", top: 0, zIndex: 50, borderBottom: `1px solid ${T.border}`, background: "rgba(8,10,13,.86)", backdropFilter: "blur(20px)", padding: "0 20px", height: 58, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", color: T.text }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: `linear-gradient(135deg,${T.accent},#0284c7)`, display: "grid", placeItems: "center" }}><Layers size={15} color="#fff" /></div>
-          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.02em" }}>WebDataOS</span>
+      <header className="header">
+        <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", color: T.text, cursor: "pointer" }}>
+          <div style={{ width: 26, height: 26, borderRadius: 6, background: T.accent, display: "grid", placeItems: "center" }}><Layers size={13} color="#000" /></div>
+          <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-.025em", color: T.text }}>WebDataOS</span>
+          {backendOk === false && <span style={{ fontSize: 10, color: "#ef4444", fontFamily: "'JetBrains Mono'", opacity: .7 }}>offline</span>}
         </button>
         {!isMobile && (
-          <nav style={{ display: "flex", gap: 20, alignItems: "center" }}>
-            {navItems.map(n => {
-              const active = page === n;
-              return <button key={n} onClick={() => go(n)} style={{ border: "none", borderBottom: active ? `2px solid ${T.accent}` : "2px solid transparent", padding: "4px 0 6px", fontSize: 12, fontWeight: active ? 800 : 600, background: "transparent", color: active ? T.text : T.dim, cursor: "pointer" }}>{n}</button>;
-            })}
+          <nav className="nav-links">
+            {navItems.map(n => (
+              <button key={n} onClick={() => go(n)} className={page === n ? "active" : ""}>{n}</button>
+            ))}
           </nav>
         )}
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           {isMobile ? (
-            <button onClick={() => setMenuOpen(o => !o)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 8px", color: T.muted, display: "flex", alignItems: "center", cursor: "pointer" }}>
-              {menuOpen ? <X size={17} /> : <Menu size={17} />}
+            <button onClick={() => setMenuOpen(o => !o)} style={{ background: "none", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", color: T.muted, display: "flex", alignItems: "center", cursor: "pointer" }}>
+              {menuOpen ? <X size={16} /> : <Menu size={16} />}
             </button>
           ) : user ? (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px 5px 6px", borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}` }}>
-                <div style={{ width: 24, height: 24, borderRadius: 999, background: `linear-gradient(135deg,${T.accent},#0284c7)`, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 10px 4px 5px", borderRadius: 6, background: "rgba(255,255,255,.03)", border: `1px solid ${T.border}` }}>
+                <div style={{ width: 22, height: 22, borderRadius: 4, background: T.accent, display: "grid", placeItems: "center", color: "#000", fontSize: 10, fontWeight: 700 }}>{user.initials}</div>
                 <span style={{ fontSize: 12, color: T.muted }}>{user.name}</span>
               </div>
-              <button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}><LogOut size={12} /></button>
+              <button onClick={onOut} style={{ padding: "5px 9px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center" }}><LogOut size={12} /></button>
             </>
           ) : (
             <>
-              <button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button>
-              <button onClick={onAuth} style={{ padding: "7px 14px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0284c7)`, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Create account</button>
-              <button onClick={() => go("Demo")} style={{ padding: "7px 14px", borderRadius: 999, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button>
+              <button onClick={onAuth} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button>
+              <button onClick={onAuth} style={{ padding: "6px 13px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Get started</button>
+              <button onClick={() => go("Demo")} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button>
             </>
           )}
         </div>
       </header>
       {isMobile && menuOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 49, background: "rgba(0,0,0,.6)", backdropFilter: "blur(4px)" }} onClick={() => setMenuOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 58, right: 0, bottom: 0, width: 260, background: T.bgSub, borderLeft: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "20px 12px", gap: 3, overflowY: "auto" }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 49, background: "rgba(0,0,0,.7)", backdropFilter: "blur(4px)" }} onClick={() => setMenuOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ position: "absolute", top: 54, right: 0, bottom: 0, width: 240, background: T.bgSub, borderLeft: `1px solid ${T.border}`, display: "flex", flexDirection: "column", padding: "16px 10px", gap: 2, overflowY: "auto" }}>
             {navItems.map(n => {
               const active = page === n;
-              return <button key={n} onClick={() => go(n)} style={{ border: "none", borderRadius: 8, padding: "11px 14px", textAlign: "left", fontSize: 13, fontWeight: active ? 800 : 500, background: active ? `${T.accent}14` : "transparent", color: active ? T.accent : T.muted, cursor: "pointer" }}>{n}</button>;
+              return <button key={n} onClick={() => go(n)} style={{ border: "none", borderRadius: 6, padding: "10px 12px", textAlign: "left", fontSize: 13, fontWeight: active ? 700 : 400, background: active ? "rgba(14,165,233,.08)" : "transparent", color: active ? T.accent : T.muted, cursor: "pointer" }}>{n}</button>;
             })}
             <div style={{ flex: 1 }} />
             {user ? (
-              <button onClick={() => { onOut(); setMenuOpen(false); }} style={{ padding: "11px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, textAlign: "left", display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}><LogOut size={14} />Sign out</button>
+              <button onClick={() => { onOut(); setMenuOpen(false); }} style={{ padding: "10px 12px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, textAlign: "left", display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}><LogOut size={13} />Sign out</button>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "11px 14px", borderRadius: 8, border: "none", background: `linear-gradient(135deg,${T.accent},#0284c7)`, color: "#000", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Create account</button>
-                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "11px 14px", borderRadius: 8, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>Sign in</button>
-                <button onClick={() => go("Demo")} style={{ padding: "11px 14px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "10px 12px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Get started</button>
+                <button onClick={() => { onAuth(); setMenuOpen(false); }} style={{ padding: "10px 12px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>Sign in</button>
               </div>
             )}
           </div>
@@ -744,32 +760,32 @@ function HomePage({ nav, user, auth }) {
         style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 24px 50px", textAlign: "center", position: "relative", overflow: "hidden" }}
       >
         {/* Dot grid texture */}
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(6,182,212,0.07) 1px, transparent 1px)", backgroundSize: "34px 34px", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(14,165,233,0.05) 1px, transparent 1px)", backgroundSize: "32px 32px", pointerEvents: "none" }} />
         {/* Mouse-tracked glow */}
-        <div style={{ position: "absolute", top: `${15 + mouse.y * 0.45}%`, left: `${mouse.x}%`, transform: "translate(-50%,-50%)", width: 640, height: 640, borderRadius: "50%", background: `radial-gradient(circle,${T.glow},transparent 70%)`, pointerEvents: "none", transition: "top .35s ease, left .35s ease" }} />
+        <div style={{ position: "absolute", top: `${15 + mouse.y * 0.45}%`, left: `${mouse.x}%`, transform: "translate(-50%,-50%)", width: 560, height: 560, borderRadius: "50%", background: `radial-gradient(circle,rgba(14,165,233,0.06),transparent 70%)`, pointerEvents: "none", transition: "top .35s ease, left .35s ease" }} />
 
         <div className="au" style={{ display: "inline-flex", gap: 6, marginBottom: 20, flexWrap: "wrap", justifyContent: "center", position: "relative" }}>
-          {["Security & Risk teams", "RevOps & Sales", "Finance & Strategy", "Enterprise intelligence"].map(p => (
-            <span key={p} style={{ padding: "4px 12px", borderRadius: 999, fontSize: 11, fontWeight: 500, border: `1px solid rgba(6,182,212,.2)`, color: T.accent, background: `rgba(6,182,212,.06)` }}>{p}</span>
+          {["Security & Risk", "RevOps & Sales", "Finance & Strategy", "Enterprise Intel"].map(p => (
+            <span key={p} style={{ padding: "3px 10px", borderRadius: 4, fontSize: 10, fontWeight: 600, letterSpacing: ".04em", border: `1px solid rgba(14,165,233,.15)`, color: T.accent, background: `rgba(14,165,233,.07)`, fontFamily: "'JetBrains Mono'" }}>{p}</span>
           ))}
         </div>
 
-        {/* Animated gradient headline */}
+        {/* Headline */}
         <h1 className="au s1 hero-h1" style={{
-          fontSize: "clamp(36px,5vw,60px)", fontWeight: 700, letterSpacing: "-.04em", lineHeight: 1.05,
-          background: "linear-gradient(135deg,#f1f5f9 0%,#06b6d4 40%,#f1f5f9 60%,#64748b 100%)",
-          backgroundSize: "200% 200%",
+          fontSize: "clamp(34px,5vw,58px)", fontWeight: 700, letterSpacing: "-.04em", lineHeight: 1.06,
+          background: "linear-gradient(135deg,#f0f4f8 0%,#0ea5e9 45%,#f0f4f8 65%,#5a7080 100%)",
+          backgroundSize: "220% 220%",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          maxWidth: 840, margin: "0 auto", position: "relative",
+          maxWidth: 820, margin: "0 auto", position: "relative",
         }}>
           Know what changed.<br />Know why it matters.<br />Know what to do.
         </h1>
         <p className="au s2" style={{ maxWidth: 600, margin: "24px auto 0", fontSize: 16, lineHeight: 1.75, color: T.muted, position: "relative" }}>
           WebDataOS watches vendors, competitors, and markets across the live web — then turns every signal into sourced evidence, business reasoning, and approval-ready actions. Not a research tool. An intelligence operating system your entire team can act on.
         </p>
-        <div className="au s3" style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
-          <button onClick={go} style={{ padding: "13px 26px", borderRadius: 999, border: "none", background: `linear-gradient(135deg,${T.accent},#0284c7)`, color: "#000", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, boxShadow: `0 8px 24px ${T.glow}`, cursor: "pointer" }}>{label} <ArrowRight size={15} /></button>
-          <button onClick={() => nav("Demo")} style={{ padding: "13px 26px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "rgba(255,255,255,.03)", color: T.muted, fontSize: 14, cursor: "pointer" }}>See it live — 60 seconds →</button>
+        <div className="au s3" style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
+          <button onClick={go} style={{ padding: "11px 22px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>{label} <ArrowRight size={14} /></button>
+          <button onClick={() => nav("Demo")} style={{ padding: "11px 22px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 13, cursor: "pointer" }}>See it live →</button>
         </div>
         <div className="au s3" style={{ display: "flex", justifyContent: "center", gap: 0, margin: "40px auto 0", maxWidth: 860, textAlign: "left", flexWrap: "wrap" }}>
           {[
@@ -798,8 +814,8 @@ function HomePage({ nav, user, auth }) {
             { n: String(countReceipt), l: "Auditable run receipt" },
           ].map((s, i) => (
             <div key={i} style={{ opacity: statsVisible ? 1 : 0, transform: statsVisible ? "none" : "translateY(18px)", transition: `opacity .55s ease ${i * .08}s, transform .55s ease ${i * .08}s` }}>
-              <div style={{ fontSize: 26, fontWeight: 700, color: T.accent, fontFamily: "'JetBrains Mono'", minHeight: 34 }}>{s.n}</div>
-              <div style={{ fontSize: 11, color: T.dim, marginTop: 3 }}>{s.l}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontFamily: "'JetBrains Mono'", minHeight: 32 }}>{s.n}</div>
+              <div style={{ fontSize: 10, color: T.dim, marginTop: 4, textTransform: "uppercase", letterSpacing: ".06em" }}>{s.l}</div>
             </div>
           ))}
         </div>
@@ -4249,9 +4265,9 @@ function OutPage({ ws, user }) {
 }
 
 /* ═══════ SHARED ═══════ */
-function Eye({ children }) { return <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: T.accent }}>{children}</div>; }
-function Lb({ children, style }) { return <div style={{ fontSize: 10, fontWeight: 600, color: T.dim, ...style }}>{children}</div>; }
-function MC({ l, v, c }) { return <div style={{ padding: "6px 7px", borderRadius: 6, background: "rgba(255,255,255,.02)", border: `1px solid ${T.border}` }}><div style={{ fontSize: 8, color: T.dim, textTransform: "uppercase", letterSpacing: ".05em" }}>{l}</div><div style={{ fontSize: 13, fontWeight: 700, color: c, marginTop: 1, fontFamily: "'JetBrains Mono'" }}>{v}</div></div>; }
+function Eye({ children }) { return <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: T.accent, fontFamily: "'JetBrains Mono'" }}>{children}</div>; }
+function Lb({ children, style }) { return <div style={{ fontSize: 9, fontWeight: 600, color: T.dim, textTransform: "uppercase", letterSpacing: ".07em", fontFamily: "'JetBrains Mono'", ...style }}>{children}</div>; }
+function MC({ l, v, c }) { return <div style={{ padding: "7px 9px", borderRadius: 5, background: "rgba(255,255,255,.02)", border: `1px solid ${T.border}` }}><div style={{ fontSize: 8, color: T.dim, textTransform: "uppercase", letterSpacing: ".07em", fontFamily: "'JetBrains Mono'" }}>{l}</div><div style={{ fontSize: 14, fontWeight: 700, color: c, marginTop: 2, fontFamily: "'JetBrains Mono'" }}>{v}</div></div>; }
 /* ═══════════════════════════════════════════════════════════════════════
    GRAPH — production force-directed knowledge graph
    Supports all node types: Workspace, Entity subtypes (Vendor, Competitor,
