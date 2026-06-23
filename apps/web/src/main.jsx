@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
+import "./styles.css";
 import {
   Shield, Globe, TrendingUp, Layers, Mic, Brain, Zap, ArrowRight,
   CheckCircle, RefreshCw, Send, LogOut, User, Mail, KeyRound,
@@ -354,8 +355,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'DM Sans','Manrope',system-ui,sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'Inter','DM Sans',system-ui,sans-serif" }}>
       <style>{CSS}</style>
       <Nav page={page} setPage={nav} user={user} onAuth={() => setShowAuth(true)} onOut={() => { setApiBearerToken(null); setUser(null); setPage("Home"); }} backendOk={backendOk} />
       {page === "Home" && <HomePage nav={nav} user={user} auth={() => setShowAuth(true)} />}
@@ -634,16 +634,16 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
   const go = n => { setPage(n); setMenuOpen(false); };
   return (
     <>
-      <header className="header">
+      <header className="header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50, height: 54, padding: "0 24px", borderBottom: `1px solid ${T.border}`, background: "rgba(8,9,12,.94)" }}>
         <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", color: T.text, cursor: "pointer" }}>
           <div style={{ width: 26, height: 26, borderRadius: 6, background: T.accent, display: "grid", placeItems: "center" }}><Layers size={13} color="#000" /></div>
           <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: "-.025em", color: T.text }}>WebDataOS</span>
           {backendOk === false && <span style={{ fontSize: 10, color: "#ef4444", fontFamily: "'JetBrains Mono'", opacity: .7 }}>offline</span>}
         </button>
         {!isMobile && (
-          <nav className="nav-links">
+          <nav className="nav-links" style={{ display: "flex", alignItems: "center" }}>
             {navItems.map(n => (
-              <button key={n} onClick={() => go(n)} className={page === n ? "active" : ""}>{n}</button>
+              <button key={n} onClick={() => go(n)} className={page === n ? "active" : ""} style={{ border: "none", background: "transparent", color: page === n ? "#f0f4f8" : "#8fa3b8", fontSize: 12.5, fontWeight: page === n ? 600 : 500, padding: "6px 14px", cursor: "pointer" }}>{n}</button>
             ))}
           </nav>
         )}
@@ -662,9 +662,9 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
             </>
           ) : (
             <>
-              <button onClick={onAuth} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button>
+              <button onClick={onAuth} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", fontSize: 12, color: T.muted, cursor: "pointer" }}>Sign in</button>
               <button onClick={onAuth} style={{ padding: "6px 13px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Get started</button>
-              <button onClick={() => go("Demo")} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer" }}>Demo</button>
+              <button onClick={() => go("Demo")} style={{ padding: "6px 13px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>Demo</button>
             </>
           )}
         </div>
