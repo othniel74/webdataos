@@ -18,6 +18,7 @@ from packages.memory.provider import MemoryProvider
 from packages.observability.metrics import AGENT_RUN_DURATION, AGENT_RUNS
 from packages.partners.speechmatics import SpeechmaticsService
 from packages.partners.triggerware import TriggerWareService
+from packages.partners.slack import SlackService
 from packages.reasoning.engine import ReasoningEngine
 from packages.graph.neo4j_client import Neo4jGraphClient
 from packages.schemas.agent import (
@@ -57,6 +58,7 @@ class ResearchAgentOrchestrator:
         self.synthesizer = ReportSynthesizer(llm=self.llm)
         self.entity_extractor = EntityExtractor(llm=self.llm)
         self.change_detector = ChangeDetectionService()
+        self.slack = SlackService()
         self.settings = get_settings()
 
     async def run(self, db: AsyncSession, request: ResearchRequest) -> ResearchReport:
@@ -541,6 +543,24 @@ class ResearchAgentOrchestrator:
                 })
             except Exception as graph_exc:
                 logger.warning("graph_write_run_skipped", error=str(graph_exc)[:200], run_id=run_id)
+
+            # Slack alert — non-blocking, never fails the run
+            try:
+                has_changes = bool(change_report and change_report.has_changes)
+                should_notify = has_changes or not self.settings.slack_notify_on_change
+                if should_notify:
+                    await self.slack.post_brief(
+                        workspace_name=topic.name if topic else (topic_id or "workspace"),
+                        headline=decision_brief.headline,
+                        delta_headline=decision_brief.delta_headline,
+                        what_changed=decision_brief.what_changed,
+                        severity=decision_brief.severity,
+                        recommended_action=decision_brief.recommended_action,
+                        sources=[r.model_dump() for r in records[:10]],
+                        run_id=run_id,
+                    )
+            except Exception as slack_exc:
+                logger.warning("slack_notify_skipped", error=str(slack_exc)[:200], run_id=run_id)
 
             AGENT_RUNS.labels(status="success").inc()
             return report

@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     triggerware_api_key: str | None = None
     triggerware_endpoint: str | None = None
     triggerware_webhook_secret: str | None = None
+    slack_webhook_url: str | None = None
+    slack_notify_on_change: bool = True  # send only when signals change; False = always send
 
     refresh_interval_minutes: int = 1440
     default_country: str = "us"
