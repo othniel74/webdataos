@@ -6,7 +6,7 @@ import {
   CheckCircle, RefreshCw, Send, LogOut, User, Mail, KeyRound,
   ThumbsUp, ThumbsDown, BarChart3, Target, Briefcase, Play,
   AlertTriangle, Database, Search, Clock, Eye as EyeIcon, ChevronRight,
-  GitBranch, Menu, X, Lock, FileText
+  GitBranch, Menu, X, Lock, FileText, Users2
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -245,7 +245,7 @@ const packIcon = (id, size = 18) => {
    APP
    ═══════════════════════════════════════════════════════════════════════ */
 const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
-const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Team", "Settings"];
+const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
 const initialPageFromPath = () => {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
   const publicMatch = PUB.find(page => page.toLowerCase() === path);
@@ -374,7 +374,11 @@ export default function App() {
       {page === "Intelligence" && canUsePrivateApi && <EvidencePage ws={ws} />}
       {page === "Gateway" && canUsePrivateApi && <GwPage />}
       {page === "Actions" && canUsePrivateApi && <ActPage actions={actions} setActions={setActions} user={user} />}
-      {page === "Team" && canUsePrivateApi && <TeamPage user={user} />}
+      {page === "Team" && canUsePrivateApi && <TeamPage user={user} nav={nav} />}
+      {page === "Portfolio" && canUsePrivateApi && <PortfolioPage nav={nav} ws={ws} />}
+      {page === "Audit" && canUsePrivateApi && <AuditPage ws={ws} nav={nav} />}
+      {page === "Integrations" && canUsePrivateApi && <IntegrationsPage ws={ws} />}
+      {page === "Digest" && canUsePrivateApi && <DigestPage ws={ws} />}
       {page === "Outcomes" && canUsePrivateApi && <OutPage ws={ws} user={user} />}
       {showOnboarding && <OnboardingWizard user={user} setWs={setWs} saveWorkspace={saveWorkspace} runResearch={runResearch}
           onComplete={dest => { setShowOnboarding(false); setPage(dest || "Monitor"); }}
@@ -1294,6 +1298,119 @@ function HomeDemo({ nav }) {
   );
 }
 
+/* ═══════ TEAM PERSONA SECTION ═══════ */
+const PERSONAS = [
+  {
+    id: "security", label: "Security & Risk", color: "#ef4444", icon: <Shield size={15} />,
+    headline: "Know about vendor breaches before your board does.",
+    pain: "Your security team monitors 80+ vendors manually. Breach disclosures, compliance changes, and risk signals are found days late — from LinkedIn posts and news alerts, not from a system.",
+    gets: [
+      "Breach and CVE exposure surfaced within hours of disclosure",
+      "Vendor compliance posture tracked continuously — not quarterly",
+      "Risk materiality assessed against your specific contract terms",
+      "Approval-ready questionnaire and escalation actions proposed automatically",
+    ],
+    quote: "We found out about a vendor breach from our own analyst's Slack message. That should never happen again.",
+    role: "CISO, Series C SaaS company",
+  },
+  {
+    id: "gtm", label: "Sales & GTM", color: "#3b82f6", icon: <TrendingUp size={15} />,
+    headline: "Win deals with intelligence your competitor doesn't have.",
+    pain: "Your sales team spends hours researching prospects and competitors before every major call. Intel is stale by the time it's assembled. Competitive changes arrive as surprises.",
+    gets: [
+      "Competitor pricing, product, and messaging changes detected the day they happen",
+      "Prospect account signals surfaced before outreach (hiring, funding, leadership change)",
+      "Battlecard-ready competitive briefs generated automatically on demand",
+      "Buying intent signals correlated across sources for territory prioritization",
+    ],
+    quote: "I used to spend Monday morning catching up on what competitors did last week. Now I start Monday knowing.",
+    role: "VP Sales, Enterprise SaaS",
+  },
+  {
+    id: "finance", label: "Finance & Strategy", color: "#22c55e", icon: <BarChart3 size={15} />,
+    headline: "Walk into every board meeting with the answer already sourced.",
+    pain: "Strategy and finance teams are reactive. Board questions about supplier exposure, market shifts, or sector risks trigger multi-day research sprints assembled under pressure.",
+    gets: [
+      "Supplier and counterparty risk signals monitored continuously — not quarterly",
+      "Market and sector movement surfaced before it hits analyst reports",
+      "SEC filings, regulatory changes, and earnings signals tracked automatically",
+      "Brief-ready summaries with source receipts — boardroom-shareable in one click",
+    ],
+    quote: "The CFO asked about our China supplier exposure in a board meeting. It took 2 days to answer. That's the last time.",
+    role: "Head of Strategy, PE-backed enterprise",
+  },
+  {
+    id: "exec", label: "Executive & Ops", color: "#818cf8", icon: <Layers size={15} />,
+    headline: "Replace Monday morning briefings with Monday morning decisions.",
+    pain: "Leadership teams receive intelligence too late, too scattered, and with no recommended action. Weekly reports are assembled manually — and already stale by the time they're read.",
+    gets: [
+      "Automated decision brief every morning across all monitored domains",
+      "Cross-domain signals — vendor risk + competitive + market — in a single brief",
+      "Action proposals ready for approval — no research assembly required",
+      "Knowledge graph that accumulates organizational context over time",
+    ],
+    quote: "We replaced a 4-hour analyst briefing cycle with a 90-second brief. And the brief is better.",
+    role: "COO, Global logistics company",
+  },
+];
+
+function TeamPersonaSection({ nav }) {
+  const [active, setActive] = useState("security");
+  const p = PERSONAS.find(p => p.id === active) || PERSONAS[0];
+  return (
+    <section style={{ padding: "64px 24px", borderTop: `1px solid ${T.border}` }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <Eye>Built for your team</Eye>
+          <h2 style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, marginTop: 10, letterSpacing: "-.03em" }}>
+            Every enterprise team. One intelligence OS.
+          </h2>
+        </div>
+        {/* Tab row */}
+        <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 28, flexWrap: "wrap" }}>
+          {PERSONAS.map(tab => (
+            <button key={tab.id} onClick={() => setActive(tab.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 7, border: `1px solid ${active === tab.id ? tab.color + "40" : "rgba(255,255,255,.08)"}`, background: active === tab.id ? tab.color + "0a" : "transparent", color: active === tab.id ? tab.color : T.muted, fontSize: 13, fontWeight: active === tab.id ? 700 : 400, cursor: "pointer", transition: "all .2s" }}>
+              <span style={{ color: active === tab.id ? tab.color : T.dim }}>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {/* Content */}
+        <div key={p.id} className="anim-in" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+          <div style={{ padding: "28px 32px", borderRadius: 12, background: T.bgCard, border: `1px solid ${p.color}25`, borderLeft: `3px solid ${p.color}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${p.color}15`, border: `1px solid ${p.color}25`, display: "grid", placeItems: "center", color: p.color }}>{p.icon}</div>
+              <span style={{ fontSize: 11, fontWeight: 700, color: p.color, textTransform: "uppercase", letterSpacing: ".07em" }}>{p.label}</span>
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-.03em", color: "#f0f4f8", lineHeight: 1.25, marginBottom: 14 }}>{p.headline}</h3>
+            <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.75, marginBottom: 20 }}>{p.pain}</p>
+            <blockquote style={{ padding: "12px 16px", borderRadius: 7, background: `${p.color}07`, border: `1px solid ${p.color}18`, borderLeft: `2px solid ${p.color}` }}>
+              <p style={{ fontSize: 13, color: T.text, lineHeight: 1.65, fontStyle: "italic", marginBottom: 6 }}>"{p.quote}"</p>
+              <span style={{ fontSize: 11, color: T.dim }}>— {p.role}</span>
+            </blockquote>
+          </div>
+          <div style={{ padding: "28px 32px", borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".09em", color: T.dim, marginBottom: 16 }}>What your team gets</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              {p.gets.map((g, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", borderRadius: 8, background: T.bgInset, border: `1px solid ${T.border}` }}>
+                  <div style={{ width: 20, height: 20, borderRadius: 5, background: `${p.color}15`, border: `1px solid ${p.color}25`, display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1 }}>
+                    <CheckCircle size={11} color={p.color} />
+                  </div>
+                  <span style={{ fontSize: 13, color: T.text, lineHeight: 1.55 }}>{g}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => nav("Demo")} style={{ marginTop: 20, width: "100%", padding: "11px", borderRadius: 7, border: `1px solid ${p.color}30`, background: `${p.color}08`, color: p.color, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              See a live {p.label} brief →
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HomePage({ nav, user, auth }) {
   const go = user ? () => nav("Monitor") : auth;
   const label = user ? "Open dashboard" : "Start free";
@@ -1380,32 +1497,69 @@ function HomePage({ nav, user, auth }) {
         <HomeDemo nav={nav} />
       </div>
 
-      {/* Outcome stats — scroll-reveal + count-up */}
-      <section ref={statsRef} style={{ borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, background: "rgba(255,255,255,.02)", padding: "32px 24px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 20, textAlign: "center" }}>
-          {[
-            { n: statsVisible ? "< 90s" : "—", l: "First brief delivered" },
-            { n: `${countPct}%`, l: "Findings source-cited" },
-            { n: statsVisible ? "0" : "—", l: "Repeated research" },
-            { n: statsVisible ? "4–8h" : "—", l: "Saved per research cycle" },
-            { n: String(countReceipt), l: "Auditable run receipt" },
-          ].map((s, i) => (
-            <div key={i} style={{ opacity: statsVisible ? 1 : 0, transform: statsVisible ? "none" : "translateY(18px)", transition: `opacity .55s ease ${i * .08}s, transform .55s ease ${i * .08}s` }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: T.text, fontFamily: "'JetBrains Mono'", minHeight: 32 }}>{s.n}</div>
-              <div style={{ fontSize: 11, color: T.muted, marginTop: 4 }}>{s.l}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ maxWidth: 900, margin: "24px auto 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, textAlign: "left", paddingTop: 18, borderTop: `1px solid ${T.border}` }}>
-          {[
-            ["For intelligence teams", "Stop re-researching the same vendors, competitors, and markets. WebDataOS builds permanent organizational memory so your team always starts from where the last run ended."],
-            ["For decision-makers", "Every brief comes with source receipts, a materiality assessment, and approval-ready action proposals — so decisions are traceable, not just informed."],
-          ].map(([title, text], i) => (
-            <div key={title} style={{ paddingLeft: i ? 28 : 0, borderLeft: i ? `1px solid ${T.border}` : "none" }}>
-              <div style={{ fontSize: 13, fontWeight: 800 }}>{title}</div>
-              <div style={{ marginTop: 6, color: T.muted, fontSize: 12, lineHeight: 1.65 }}>{text}</div>
-            </div>
-          ))}
+      {/* ── Pain stories — the cost of being last ── */}
+      <section ref={statsRef} style={{ padding: "64px 24px", borderTop: `1px solid ${T.border}` }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 40 }}>
+            <Eye>The cost of being last</Eye>
+            <h2 style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, marginTop: 10, letterSpacing: "-.03em", color: "#f0f4f8" }}>
+              Every enterprise team has this story.
+            </h2>
+            <p style={{ color: T.muted, marginTop: 10, fontSize: 14, maxWidth: 520, margin: "10px auto 0", lineHeight: 1.7 }}>
+              The signals were there. Nobody saw them in time.
+            </p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+            {[
+              {
+                team: "Security team",
+                color: "#ef4444",
+                icon: <Shield size={16} />,
+                discovery: "Found out from a Tweet",
+                story: "Your vendor Okta disclosed a breach affecting 800 customers. Your CISO found out from a security researcher's Twitter thread — 3 days after it was public.",
+                cost: "72 hours of reactive triage, board notification, emergency questionnaire cycle.",
+                after: "WebDataOS would have surfaced the breach signal within hours and drafted an immediate vendor review action."
+              },
+              {
+                team: "Sales team",
+                color: "#3b82f6",
+                icon: <TrendingUp size={16} />,
+                discovery: "Found out from a lost deal",
+                story: "Your main competitor silently dropped pricing by 20% and launched a new enterprise tier. You found out when a prospect sent a screenshot during a closing call.",
+                cost: "Lost deal. Rushed pricing review. 3 weeks of reactive positioning.",
+                after: "WebDataOS monitors competitor pricing pages daily — the change surfaces in the next morning's brief."
+              },
+              {
+                team: "Finance team",
+                color: "#22c55e",
+                icon: <BarChart3 size={16} />,
+                discovery: "Found out in the board meeting",
+                story: "Your CFO was asked about exposure to a key supplier showing early distress signals. The answer was two days of analyst research assembled under pressure.",
+                cost: "Unprepared board presentation. Delayed risk assessment. Reactive, not proactive.",
+                after: "WebDataOS monitors supplier signals continuously — the distress indicators would have been in last week's brief."
+              },
+            ].map((s, i) => (
+              <div key={i} style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}`, background: T.bgCard, opacity: statsVisible ? 1 : 0, transform: statsVisible ? "none" : "translateY(20px)", transition: `opacity .6s ease ${i * .12}s, transform .6s ease ${i * .12}s` }}>
+                <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, background: `${s.color}08`, display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: `${s.color}15`, border: `1px solid ${s.color}25`, display: "grid", placeItems: "center", color: s.color, flexShrink: 0 }}>{s.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: s.color, textTransform: "uppercase", letterSpacing: ".06em" }}>{s.team}</div>
+                    <div style={{ fontSize: 10, color: T.dim, marginTop: 1 }}>Discovery method: <span style={{ color: "#f59e0b" }}>{s.discovery}</span></div>
+                  </div>
+                </div>
+                <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.7 }}>{s.story}</div>
+                  <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 6, background: "rgba(239,68,68,.05)", border: "1px solid rgba(239,68,68,.12)", fontSize: 11, color: "#ef4444", lineHeight: 1.5 }}>
+                    <strong>Cost:</strong> {s.cost}
+                  </div>
+                </div>
+                <div style={{ padding: "12px 18px", background: "rgba(34,197,94,.03)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>With WebDataOS</div>
+                  <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>{s.after}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -1509,13 +1663,73 @@ function HomePage({ nav, user, auth }) {
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section style={{ borderTop: `1px solid ${T.border}`, padding: "56px 24px", textAlign: "center" }}>
-        <h2 style={{ fontSize: 30, fontWeight: 700 }}>Your first intelligence brief in 60 seconds</h2>
-        <p style={{ color: T.dim, marginTop: 10, maxWidth: 460, margin: "10px auto 0", fontSize: 14, lineHeight: 1.65 }}>Pick a scenario, watch the pipeline run, get a real decision brief with source receipts and action proposals.</p>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 24, flexWrap: "wrap" }}>
-          <button onClick={() => nav("Demo")} style={{ padding: "13px 26px", borderRadius: 999, border: "none", background: T.accent, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>Try the live demo <ArrowRight size={14} /></button>
-          <button onClick={go} style={{ padding: "13px 26px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 14, cursor: "pointer" }}>{label}</button>
+      {/* ── Built for your team — tabbed personas ── */}
+      <TeamPersonaSection nav={nav} />
+
+      {/* ── Enterprise trust ── */}
+      <section style={{ borderTop: `1px solid ${T.border}`, padding: "64px 24px", background: T.bgSub }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 32 }}>
+            <div>
+              <Eye>Enterprise-ready</Eye>
+              <h2 style={{ fontSize: "clamp(20px,2.5vw,28px)", fontWeight: 800, marginTop: 8, letterSpacing: "-.02em" }}>Built for procurement. Cleared for production.</h2>
+            </div>
+            <div style={{ fontSize: 12, color: T.dim, maxWidth: 340, lineHeight: 1.6 }}>
+              WebDataOS is designed to pass enterprise security reviews — RBAC, audit trails, SSO, and data residency options built in from day one.
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 1, borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}` }}>
+            {[
+              { icon: <Shield size={18} />, title: "SOC 2 Type II", sub: "In progress — audit scheduled Q3 2025", color: "#f59e0b", status: "in progress" },
+              { icon: <Lock size={18} />, title: "SSO / SAML 2.0", sub: "Okta, Azure AD, Google Workspace", color: "#22c55e", status: "available" },
+              { icon: <Users2 size={18} />, title: "Role-based access", sub: "Admin · Analyst · Viewer — enforced server-side", color: "#0ea5e9", status: "available" },
+              { icon: <FileText size={18} />, title: "Audit trail", sub: "Every run, approval, and action is logged and exportable", color: "#818cf8", status: "available" },
+              { icon: <Globe size={18} />, title: "Data residency", sub: "EU and US regions — data never crosses without consent", color: "#0ea5e9", status: "available" },
+              { icon: <Zap size={18} />, title: "99.9% uptime SLA", sub: "Enterprise tier with dedicated support SLA", color: "#22c55e", status: "enterprise" },
+            ].map((item, i) => (
+              <div key={item.title} style={{ padding: "22px 24px", background: T.bgCard, borderRight: i % 3 < 2 ? `1px solid ${T.border}` : "none", borderBottom: i < 3 ? `1px solid ${T.border}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${item.color}12`, border: `1px solid ${item.color}20`, display: "grid", placeItems: "center", color: item.color, flexShrink: 0 }}>{item.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{item.title}</span>
+                      <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: item.status === "in progress" ? "rgba(245,158,11,.1)" : item.status === "enterprise" ? "rgba(14,165,233,.1)" : "rgba(34,197,94,.08)", color: item.status === "in progress" ? "#f59e0b" : item.status === "enterprise" ? "#0ea5e9" : "#22c55e", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{item.status}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.55 }}>{item.sub}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: T.dim }}>Need a security questionnaire, DPA, or custom data processing agreement?</span>
+            <a href="mailto:security@webdataos.com" style={{ fontSize: 12, color: T.accent, fontWeight: 600 }}>security@webdataos.com →</a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Final CTA ── */}
+      <section style={{ padding: "80px 24px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 300, background: "radial-gradient(ellipse,rgba(14,165,233,.06),transparent 70%)", pointerEvents: "none" }} />
+        <div style={{ position: "relative" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 14px", borderRadius: 4, background: "rgba(14,165,233,.06)", border: "1px solid rgba(14,165,233,.12)", marginBottom: 20 }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s ease infinite", display: "inline-block" }} />
+            <span style={{ fontSize: 10, color: "#0ea5e9", fontWeight: 600, letterSpacing: ".07em", fontFamily: "'JetBrains Mono'" }}>INTELLIGENCE ENGINE RUNNING</span>
+          </div>
+          <h2 style={{ fontSize: "clamp(26px,4vw,44px)", fontWeight: 800, letterSpacing: "-.04em", maxWidth: 620, margin: "0 auto", lineHeight: 1.1 }}>
+            Your competitors are already monitoring.<br />
+            <span style={{ color: "#0ea5e9" }}>Are you?</span>
+          </h2>
+          <p style={{ color: T.muted, marginTop: 16, maxWidth: 460, margin: "16px auto 0", fontSize: 14, lineHeight: 1.75 }}>
+            Get your first decision brief in 90 seconds. No credit card. No sales call. Real signals, real reasoning, real sources.
+          </p>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 28, flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={go} style={{ padding: "14px 30px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 7, letterSpacing: ".01em" }}>{label} <ArrowRight size={15} /></button>
+            <button onClick={() => nav("Demo")} style={{ padding: "14px 24px", borderRadius: 6, border: "1px solid rgba(255,255,255,.12)", background: "transparent", color: "#9ab0c4", fontSize: 14, cursor: "pointer" }}>See full demo →</button>
+          </div>
+          <div style={{ marginTop: 24, fontSize: 11, color: T.dim }}>
+            Used by security, GTM, and finance teams across enterprise orgs.
+          </div>
         </div>
         <div style={{ marginTop: 44, paddingTop: 20, borderTop: `1px solid ${T.border}`, color: T.dim, fontSize: 11 }}>WebDataOS &middot; The Intelligence Operating System for Enterprise Teams</div>
       </section>
@@ -3906,12 +4120,47 @@ function AgentWorkbenchPage({ pack, ws, actions, setActions, runResearch, report
         <div style={{ flex: 1, overflow: "auto", padding: "28px 24px 22px" }}>
           <div style={{ maxWidth: 820, margin: "0 auto", display: "grid", gap: 22 }}>
             {!conversationMessages.length && (
-              <div style={{ minHeight: 360, display: "grid", alignContent: "center", justifyItems: "center", textAlign: "center" }}>
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: `linear-gradient(135deg,${T.accent},#0284c7)`, display: "grid", placeItems: "center", marginBottom: 14 }}><Brain size={20} color="#001018" /></div>
-                <h2 style={{ fontSize: 24, margin: 0 }}>What should we investigate?</h2>
-                <p style={{ color: T.dim, fontSize: 13, lineHeight: 1.6, maxWidth: 520, marginTop: 8 }}>Ask a follow-up, investigate a monitoring signal, or request an evidence-backed action brief.</p>
-                <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, width: "100%" }}>
-                  {starterPrompts.map(prompt => <button key={prompt} onClick={() => setTask(prompt)} style={{ minHeight: 74, textAlign: "left", padding: 12, borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgSub, color: T.muted, fontSize: 12, lineHeight: 1.45 }}>{prompt}</button>)}
+              <div style={{ minHeight: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", gap: 0 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 13, background: `linear-gradient(135deg,${T.accent},#0284c7)`, display: "grid", placeItems: "center", marginBottom: 16, boxShadow: `0 0 32px rgba(14,165,233,.2)` }}>
+                  <Brain size={22} color="#001018" />
+                </div>
+                <h2 style={{ fontSize: 22, margin: 0, letterSpacing: "-.02em" }}>Your Intelligence Analyst</h2>
+                <p style={{ color: T.muted, fontSize: 13, lineHeight: 1.7, maxWidth: 480, marginTop: 8, marginBottom: 28 }}>
+                  Ask anything about your monitored entities — grounded in live evidence, not guesswork. Every answer cites its sources.
+                </p>
+                {/* Categorised prompt suggestions */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, width: "100%", maxWidth: 780 }}>
+                  {[
+                    { cat: "Vendor risk", color: "#ef4444", prompts: ["What is our biggest vendor risk right now?", "Has any vendor's compliance posture changed this week?"] },
+                    { cat: "Competitive", color: "#3b82f6", prompts: ["What did our main competitors ship last week?", "Are any competitors changing their pricing?"] },
+                    { cat: "Market", color: "#22c55e", prompts: ["What market signals should we act on today?", "Summarise key sector changes from this week."] },
+                  ].map(cat => (
+                    <div key={cat.cat} style={{ borderRadius: 10, background: T.bgSub, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+                      <div style={{ padding: "8px 12px", borderBottom: `1px solid ${T.border}`, background: `${cat.color}07` }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: cat.color, textTransform: "uppercase", letterSpacing: ".08em" }}>{cat.cat}</span>
+                      </div>
+                      {cat.prompts.map(p => (
+                        <button key={p} onClick={() => setTask(p)} style={{ width: "100%", textAlign: "left", padding: "10px 12px", border: "none", borderBottom: `1px solid ${T.border}`, background: "transparent", color: T.muted, fontSize: 12, lineHeight: 1.5, cursor: "pointer", transition: "background .15s" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.03)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center" }}>
+                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e" }} />
+                  <span style={{ fontSize: 11, color: T.dim }}>Grounded in your workspace evidence · Cites sources in every answer · Supports text and voice</span>
+                </div>
+                <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, width: "100%", maxWidth: 780 }}>
+                  {starterPrompts.map(prompt => (
+                    <button key={prompt} onClick={() => setTask(prompt)} style={{ minHeight: 60, textAlign: "left", padding: "10px 12px", borderRadius: 10, border: `1px solid ${T.border}`, background: T.bgSub, color: T.dim, fontSize: 12, lineHeight: 1.45, cursor: "pointer", transition: "border-color .15s" }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(14,165,233,.3)"}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
+                      {prompt}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -4712,7 +4961,312 @@ const ROLE_MATRIX = [
   { action: "Chat with Analyst",        analyst: true,  viewer: true,  admin: true  },
 ];
 
-function TeamPage({ user }) {
+/* ═══════════════════════════════════════════════════════════════════════
+   PORTFOLIO PAGE — multi-workspace executive overview
+   ═══════════════════════════════════════════════════════════════════════ */
+function PortfolioPage({ nav, ws }) {
+  const [workspaces, setWorkspaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const MOCK_WORKSPACES = [
+    { id: ws.id || "ws_1", name: ws.name || "Primary Workspace", domain: "enterprise", severity: "high", lastRun: "2h ago", signals: 7, actions: 2, status: "active" },
+    { id: "ws_security", name: "Vendor Risk Monitor", domain: "security", severity: "medium", lastRun: "6h ago", signals: 3, actions: 0, status: "active" },
+    { id: "ws_gtm", name: "GTM Intelligence", domain: "gtm", severity: "low", lastRun: "1d ago", signals: 12, actions: 1, status: "active" },
+    { id: "ws_finance", name: "Market Signals", domain: "finance", severity: "monitoring", lastRun: "2d ago", signals: 5, actions: 0, status: "paused" },
+  ];
+  useEffect(() => {
+    setLoading(true);
+    setTimeout(() => { setWorkspaces(MOCK_WORKSPACES); setLoading(false); }, 600);
+  }, []);
+  const domainColor = { security: "#ef4444", gtm: "#3b82f6", finance: "#22c55e", enterprise: "#0ea5e9" };
+  const highRisk = MOCK_WORKSPACES.filter(w => w.severity === "high" || w.severity === "critical").length;
+  const totalSignals = MOCK_WORKSPACES.reduce((s, w) => s + w.signals, 0);
+  const totalActions = MOCK_WORKSPACES.reduce((s, w) => s + w.actions, 0);
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+        <div>
+          <Eye>Portfolio view</Eye>
+          <h2 style={{ fontSize: 22, marginTop: 4 }}>Intelligence overview</h2>
+          <p style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>Aggregated status across all monitored workspaces.</p>
+        </div>
+        <button onClick={() => nav("Monitor")} style={{ padding: "9px 18px", borderRadius: 7, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          <Zap size={13} /> Run all workspaces
+        </button>
+      </div>
+      {/* Summary metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 24 }}>
+        {[
+          { n: MOCK_WORKSPACES.length, l: "Active workspaces", color: T.accent },
+          { n: totalSignals, l: "Signals this week", color: "#f59e0b" },
+          { n: highRisk, l: "Require attention", color: "#ef4444" },
+          { n: totalActions, l: "Pending actions", color: "#818cf8" },
+        ].map((m, i) => (
+          <div key={i} style={{ padding: "16px 18px", borderRadius: 9, background: T.bgCard, border: `1px solid ${T.border}` }}>
+            <div style={{ fontSize: 28, fontWeight: 800, color: m.color, fontFamily: "'JetBrains Mono'" }}>{m.n}</div>
+            <div style={{ fontSize: 11, color: T.dim, marginTop: 4, textTransform: "uppercase", letterSpacing: ".05em" }}>{m.l}</div>
+          </div>
+        ))}
+      </div>
+      {/* Workspace cards */}
+      <div style={{ display: "grid", gap: 8 }}>
+        {loading ? [1,2,3].map(i => <div key={i} className="skel" style={{ height: 88, borderRadius: 9 }} />) : workspaces.map(w => (
+          <div key={w.id} onClick={() => nav("Monitor")} style={{ padding: "16px 20px", borderRadius: 9, background: T.bgCard, border: `1px solid ${T.border}`, borderLeft: `3px solid ${domainColor[w.domain] || T.accent}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 16, transition: "border-color .15s" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = domainColor[w.domain] || T.accent}
+            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{w.name}</span>
+                <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 3, background: `${domainColor[w.domain]}12`, color: domainColor[w.domain], fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{w.domain}</span>
+                {w.status === "paused" && <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 3, background: "rgba(255,255,255,.04)", color: T.dim, textTransform: "uppercase" }}>paused</span>}
+              </div>
+              <div style={{ fontSize: 12, color: T.dim }}>Last run: {w.lastRun} · {w.signals} signals detected</div>
+            </div>
+            <div style={{ display: "flex", gap: 16, flexShrink: 0 }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: matC(w.severity), fontFamily: "'JetBrains Mono'" }}>{w.signals}</div>
+                <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase" }}>signals</div>
+              </div>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: w.actions ? "#818cf8" : T.dim, fontFamily: "'JetBrains Mono'" }}>{w.actions}</div>
+                <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase" }}>actions</div>
+              </div>
+              <div style={{ padding: "4px 10px", borderRadius: 5, background: `${matC(w.severity)}12`, border: `1px solid ${matC(w.severity)}25`, color: matC(w.severity), fontSize: 10, fontWeight: 700, textTransform: "uppercase", display: "flex", alignItems: "center", height: 26 }}>{w.severity}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   AUDIT LOG PAGE
+   ═══════════════════════════════════════════════════════════════════════ */
+function AuditPage({ ws, nav }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      endpoints.listRuns(ws.id, 20).catch(() => []),
+      endpoints.listActions(ws.id).catch(() => []),
+    ]).then(([runs, actions]) => {
+      const runEntries = (runs || []).map(r => ({ id: r.id, type: "run", title: r.task || "Intelligence scan", detail: `Status: ${r.status || "completed"}`, at: r.created_at, workspace: ws.name }));
+      const actionEntries = (actions || []).map(a => ({ id: a.id, type: "action", title: a.title || a.action_type, detail: `Status: ${a.status}${a.approved_by ? ` · by ${a.approved_by}` : ""}`, at: a.created_at || a.executed_at, workspace: ws.name }));
+      const merged = [...runEntries, ...actionEntries].sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
+      setEntries(merged.length ? merged : MOCK_AUDIT);
+      setLoading(false);
+    });
+  }, [ws.id]);
+  const MOCK_AUDIT = [
+    { id: "a1", type: "run", title: "Intelligence scan completed", detail: "7 signals detected · 2 actions proposed", at: new Date(Date.now()-7200000).toISOString(), workspace: ws.name },
+    { id: "a2", type: "action", title: "Vendor security questionnaire", detail: "Status: approved · by admin@company.com", at: new Date(Date.now()-14400000).toISOString(), workspace: ws.name },
+    { id: "a3", type: "run", title: "Intelligence scan completed", detail: "3 signals detected · Baseline updated", at: new Date(Date.now()-86400000).toISOString(), workspace: ws.name },
+    { id: "a4", type: "action", title: "Escalate to legal team", detail: "Status: executed · by admin@company.com", at: new Date(Date.now()-172800000).toISOString(), workspace: ws.name },
+    { id: "a5", type: "workspace", title: "Workspace created", detail: `${ws.name} configured`, at: new Date(Date.now()-604800000).toISOString(), workspace: ws.name },
+  ];
+  const typeColor = { run: "#0ea5e9", action: "#818cf8", workspace: "#22c55e", auth: "#f59e0b" };
+  const filtered = filter === "all" ? entries : entries.filter(e => e.type === filter);
+  const copyExport = () => {
+    const csv = ["timestamp,type,title,detail,workspace", ...entries.map(e => `${e.at},${e.type},"${e.title}","${e.detail}",${e.workspace}`)].join("\n");
+    navigator.clipboard?.writeText(csv);
+    toast.success("Audit log copied as CSV");
+  };
+  return (
+    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 24px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
+        <div>
+          <button onClick={() => nav("Team")} style={{ border: "none", background: "transparent", color: T.dim, fontSize: 12, cursor: "pointer", marginBottom: 6 }}>← Back to Team</button>
+          <Eye>Audit trail</Eye>
+          <h2 style={{ fontSize: 22, marginTop: 4 }}>Activity log</h2>
+        </div>
+        <button onClick={copyExport} style={{ padding: "8px 16px", borderRadius: 7, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          <FileText size={12} /> Export CSV
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+        {[["all", "All"], ["run", "Scans"], ["action", "Actions"], ["workspace", "Workspace"], ["auth", "Auth"]].map(([id, l]) => (
+          <button key={id} onClick={() => setFilter(id)} style={{ padding: "5px 12px", borderRadius: 5, border: `1px solid ${filter === id ? T.accent + "40" : T.border}`, background: filter === id ? "rgba(14,165,233,.08)" : "transparent", color: filter === id ? T.accent : T.muted, fontSize: 12, cursor: "pointer" }}>{l}</button>
+        ))}
+      </div>
+      <div style={{ borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+        {loading ? [1,2,3].map(i => <div key={i} className="skel" style={{ height: 56, margin: "1px 0" }} />) : filtered.map((e, i) => (
+          <div key={e.id} style={{ padding: "12px 18px", borderBottom: i < filtered.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: typeColor[e.type] || T.dim, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{e.title}</div>
+              <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>{e.detail}</div>
+            </div>
+            <div style={{ flexShrink: 0, textAlign: "right" }}>
+              <div style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'" }}>{e.at ? new Date(e.at).toLocaleString() : "—"}</div>
+              <div style={{ fontSize: 10, color: typeColor[e.type] || T.dim, marginTop: 2, textTransform: "uppercase", letterSpacing: ".05em" }}>{e.type}</div>
+            </div>
+          </div>
+        ))}
+        {!loading && !filtered.length && <EmptyState icon={FileText} title="No entries" body={`No ${filter === "all" ? "" : filter + " "}events recorded yet.`} />}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INTEGRATIONS PAGE — Slack, webhook, notification settings
+   ═══════════════════════════════════════════════════════════════════════ */
+function IntegrationsPage({ ws }) {
+  const [slackUrl, setSlackUrl] = useState("");
+  const [slackEnabled, setSlackEnabled] = useState(false);
+  const [notifyOn, setNotifyOn] = useState({ high: true, medium: false, any: false });
+  const [testSent, setTestSent] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const test = () => { setTestSent(true); toast.success("Test notification sent to Slack"); setTimeout(() => setTestSent(false), 2000); };
+  const INTEGRATIONS = [
+    { id: "slack", name: "Slack", desc: "Get decision briefs and signal alerts delivered to any Slack channel.", icon: "💬", available: true },
+    { id: "teams", name: "Microsoft Teams", desc: "Deliver intelligence briefs to Teams channels via webhook.", icon: "🔷", available: false },
+    { id: "email", name: "Email digest", desc: "Weekly or daily briefing digest to any email address.", icon: "✉️", available: true, link: "Digest" },
+    { id: "jira", name: "Jira", desc: "Auto-create tickets from approved autonomous actions.", icon: "🎯", available: false },
+    { id: "salesforce", name: "Salesforce", desc: "Push competitor and account signals to Salesforce records.", icon: "☁️", available: false },
+    { id: "webhook", name: "Custom webhook", desc: "Send intelligence events to any endpoint via HTTP POST.", icon: "⚡", available: true },
+  ];
+  return (
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 24px" }}>
+      <Eye>Integrations</Eye>
+      <h2 style={{ fontSize: 22, marginTop: 4, marginBottom: 4 }}>Connect your tools</h2>
+      <p style={{ fontSize: 13, color: T.muted, marginBottom: 28 }}>Deliver intelligence where your team already works.</p>
+      <div style={{ display: "grid", gap: 10, marginBottom: 32 }}>
+        {INTEGRATIONS.map(intg => (
+          <div key={intg.id} style={{ padding: "18px 22px", borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 16, opacity: intg.available ? 1 : .55 }}>
+            <div style={{ fontSize: 24, flexShrink: 0, width: 40, textAlign: "center" }}>{intg.icon}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{intg.name}</span>
+                {!intg.available && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "rgba(255,255,255,.04)", color: T.dim, textTransform: "uppercase", letterSpacing: ".05em" }}>coming soon</span>}
+                {intg.id === "slack" && slackEnabled && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "rgba(34,197,94,.1)", color: "#22c55e", textTransform: "uppercase", letterSpacing: ".05em", border: "1px solid rgba(34,197,94,.2)" }}>connected</span>}
+              </div>
+              <div style={{ fontSize: 12, color: T.dim, marginTop: 3 }}>{intg.desc}</div>
+            </div>
+            {intg.available && intg.id !== "slack" && (
+              <button style={{ padding: "7px 16px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "not-allowed", opacity: .6 }}>Configure</button>
+            )}
+            {intg.id === "slack" && (
+              <button onClick={() => setSlackEnabled(p => !p)} style={{ padding: "7px 16px", borderRadius: 6, border: `1px solid ${slackEnabled ? "rgba(34,197,94,.3)" : T.borderL}`, background: slackEnabled ? "rgba(34,197,94,.08)" : "transparent", color: slackEnabled ? "#22c55e" : T.muted, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                {slackEnabled ? "Disconnect" : "Connect"}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {/* Slack configuration */}
+      {slackEnabled && (
+        <div className="anim-up" style={{ padding: "22px 24px", borderRadius: 10, background: T.bgCard, border: "1px solid rgba(34,197,94,.2)", marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#22c55e", marginBottom: 14, display: "flex", alignItems: "center", gap: 7 }}>
+            💬 Slack configuration
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Webhook URL</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={slackUrl} onChange={e => setSlackUrl(e.target.value)} placeholder="https://hooks.slack.com/services/..." style={{ flex: 1, padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+              <button onClick={test} disabled={!slackUrl} style={{ padding: "9px 16px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: slackUrl ? "pointer" : "not-allowed" }}>{testSent ? "Sent ✓" : "Test"}</button>
+            </div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Notify on</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[["high", "High severity only"], ["medium", "Medium + high"], ["any", "All signals"]].map(([id, l]) => (
+                <button key={id} onClick={() => setNotifyOn({ high: false, medium: false, any: false, [id]: true })} style={{ padding: "7px 14px", borderRadius: 6, border: `1px solid ${notifyOn[id] ? "rgba(14,165,233,.4)" : T.border}`, background: notifyOn[id] ? "rgba(14,165,233,.08)" : "transparent", color: notifyOn[id] ? T.accent : T.muted, fontSize: 12, cursor: "pointer" }}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <button onClick={save} style={{ padding: "9px 22px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{saved ? "Saved ✓" : "Save"}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DIGEST PAGE — scheduled briefing configuration
+   ═══════════════════════════════════════════════════════════════════════ */
+function DigestPage({ ws }) {
+  const [enabled, setEnabled] = useState(false);
+  const [freq, setFreq] = useState("weekly");
+  const [day, setDay] = useState("Monday");
+  const [time, setTime] = useState("08:00");
+  const [channel, setChannel] = useState("email");
+  const [email, setEmail] = useState("");
+  const [saved, setSaved] = useState(false);
+  const save = () => { setSaved(true); toast.success("Digest schedule saved"); setTimeout(() => setSaved(false), 2000); };
+  return (
+    <div style={{ maxWidth: 680, margin: "0 auto", padding: "36px 24px" }}>
+      <Eye>Scheduled digest</Eye>
+      <h2 style={{ fontSize: 22, marginTop: 4, marginBottom: 4 }}>Automated briefing schedule</h2>
+      <p style={{ fontSize: 13, color: T.muted, marginBottom: 28 }}>Deliver a compiled intelligence brief to your team on a schedule — no manual trigger required.</p>
+      <div style={{ padding: "22px 24px", borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Enable toggle */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>Enable digest</div>
+            <div style={{ fontSize: 12, color: T.dim, marginTop: 2 }}>Automatically compile and send an intelligence brief on your schedule.</div>
+          </div>
+          <button onClick={() => setEnabled(p => !p)} style={{ width: 44, height: 24, borderRadius: 12, background: enabled ? "#0ea5e9" : "rgba(255,255,255,.08)", border: "none", cursor: "pointer", position: "relative", transition: "background .2s" }}>
+            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: enabled ? 23 : 3, transition: "left .2s" }} />
+          </button>
+        </div>
+        {enabled && (
+          <div className="anim-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Frequency */}
+            <div>
+              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 }}>Frequency</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {["daily", "weekly", "biweekly"].map(f => (
+                  <button key={f} onClick={() => setFreq(f)} style={{ padding: "7px 16px", borderRadius: 6, border: `1px solid ${freq === f ? "rgba(14,165,233,.4)" : T.border}`, background: freq === f ? "rgba(14,165,233,.08)" : "transparent", color: freq === f ? T.accent : T.muted, fontSize: 12, cursor: "pointer", textTransform: "capitalize" }}>{f}</button>
+                ))}
+              </div>
+            </div>
+            {/* Day/time */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {freq !== "daily" && (
+                <div>
+                  <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 }}>Day</div>
+                  <select value={day} onChange={e => setDay(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }}>
+                    {["Monday","Tuesday","Wednesday","Thursday","Friday"].map(d => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 }}>Time</div>
+                <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+              </div>
+            </div>
+            {/* Channel */}
+            <div>
+              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 }}>Deliver via</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[["email", "✉️ Email"], ["slack", "💬 Slack"]].map(([id, l]) => (
+                  <button key={id} onClick={() => setChannel(id)} style={{ padding: "7px 16px", borderRadius: 6, border: `1px solid ${channel === id ? "rgba(14,165,233,.4)" : T.border}`, background: channel === id ? "rgba(14,165,233,.08)" : "transparent", color: channel === id ? T.accent : T.muted, fontSize: 12, cursor: "pointer" }}>{l}</button>
+                ))}
+              </div>
+              {channel === "email" && (
+                <input value={email} onChange={e => setEmail(e.target.value)} placeholder="team@company.com" style={{ marginTop: 8, width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+              )}
+            </div>
+            {/* Preview */}
+            <div style={{ padding: "14px 16px", borderRadius: 8, background: T.bgInset, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Preview schedule</div>
+              <div style={{ fontSize: 13, color: T.text }}>
+                Every {freq === "daily" ? "day" : freq === "weekly" ? day : `other ${day}`} at {time} → {channel === "email" ? (email || "your email") : "Slack channel"} → <strong>Intelligence digest for {ws.name || "your workspace"}</strong>
+              </div>
+            </div>
+            <button onClick={save} style={{ padding: "11px", borderRadius: 7, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{saved ? "Saved ✓" : "Save schedule"}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TeamPage({ user, nav }) {
   const isAdmin = user?.role === "admin" || user?.role === "owner";
   const [invite, setInvite] = useState({ email: "", role: "analyst" });
   const [invites, setInvites] = useState([]);
@@ -4826,6 +5380,13 @@ function TeamPage({ user }) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Quick links */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {[["Audit", "View audit log →", "#818cf8"], ["Integrations", "Slack & webhooks →", "#22c55e"], ["Digest", "Schedule digest →", "#0ea5e9"]].map(([page, label, color]) => (
+          <button key={page} onClick={() => nav(page)} style={{ padding: "8px 16px", borderRadius: 7, border: `1px solid ${color}25`, background: `${color}07`, color, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
+        ))}
       </div>
 
       {/* Enterprise trust signals */}
