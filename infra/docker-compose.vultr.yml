@@ -6,13 +6,13 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: production
-      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209,*.vercel.app
+      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209,webdataos.nov-tia.com
 
   worker:
     restart: unless-stopped
     environment:
       APP_ENV: production
-      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209,*.vercel.app
+      TRUSTED_HOSTS: localhost,127.0.0.1,api,web,45.77.89.209,webdataos.nov-tia.com
 
   web:
     restart: unless-stopped
@@ -26,6 +26,12 @@ services:
 
   nginx:
     restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-proxy.conf:/etc/nginx/conf.d/default.conf
+      - /etc/letsencrypt:/etc/letsencrypt:ro
 
   prometheus:
     restart: unless-stopped
