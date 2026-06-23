@@ -281,20 +281,21 @@ class Neo4jGraphClient:
 
             # Source node
             if source_url:
+                source_tier = rec.get("source_tier") or 3
                 tx.run(
                     """
                     MERGE (s:Source {scoped_id: $scoped_id})
-                    SET s.url=$url, s.source_type=$stype, s.tenant_id=$tid
+                    SET s.url=$url, s.source_type=$stype, s.tenant_id=$tid, s.tier=$tier
                     WITH s
                     MATCH (ir:IntelligenceRecord {id: $rec_id})
                     MERGE (ir)-[:FROM_SOURCE]->(s)
                     """,
                     scoped_id=source_scoped, url=source_url,
                     stype=rec.get("source_type", "unknown"),
-                    tid=tenant_id, rec_id=rec_id,
+                    tid=tenant_id, rec_id=rec_id, tier=source_tier,
                 ) if rec_id else tx.run(
-                    "MERGE (s:Source {scoped_id: $scoped_id}) SET s.url=$url, s.tenant_id=$tid",
-                    scoped_id=source_scoped, url=source_url, tid=tenant_id,
+                    "MERGE (s:Source {scoped_id: $scoped_id}) SET s.url=$url, s.tenant_id=$tid, s.tier=$tier",
+                    scoped_id=source_scoped, url=source_url, tid=tenant_id, tier=source_tier,
                 )
 
         # Signal nodes from materiality assessments
@@ -510,7 +511,7 @@ class Neo4jGraphClient:
                 r.freshness_status=$freshness, r.source_type=$source_type
             MERGE (s:Source {{scoped_id: $source_scoped}})
             SET s.url=$source_url, s.tenant_id=$tenant_id,
-                s.source_type=$source_type
+                s.source_type=$source_type, s.tier=$source_tier
             MERGE (w)-[:MONITORS]->(e)
             MERGE (w)-[:HAS_EVIDENCE]->(r)
             MERGE (e)-[:HAS_RECORD]->(r)
@@ -527,6 +528,7 @@ class Neo4jGraphClient:
             freshness=record.get("freshness_status", "unknown"),
             source_scoped=source_scoped, source_url=source_url,
             source_type=record.get("source_type", "unknown"),
+            source_tier=record.get("source_tier") or 3,
         )
 
     @staticmethod
