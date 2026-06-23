@@ -151,6 +151,8 @@ const endpoints = {
   recordOutcome: data => api("POST", "/outcomes", data),
   listOutcomes: wsId => api("GET", `/outcomes/${workspacePath(wsId)}`),
   outcomeStats: wsId => api("GET", `/outcomes/${workspacePath(wsId)}/stats`),
+  slackStatus: () => api("GET", "/integrations/slack"),
+  slackTest: (webhookUrl) => api("POST", "/integrations/slack/test", webhookUrl ? { webhook_url: webhookUrl } : null, 15000),
   transcribeAudio: async (blob, language = "en") => {
     const form = new FormData();
     form.append("audio", blob, `recording-${Date.now()}.webm`);
@@ -5116,11 +5118,34 @@ function AuditPage({ ws, nav }) {
 function IntegrationsPage({ ws }) {
   const [slackUrl, setSlackUrl] = useState("");
   const [slackEnabled, setSlackEnabled] = useState(false);
+  const [slackConfigured, setSlackConfigured] = useState(false);
   const [notifyOn, setNotifyOn] = useState({ high: true, medium: false, any: false });
-  const [testSent, setTestSent] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState(null);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    endpoints.slackStatus().then(s => {
+      setSlackConfigured(s.configured);
+      setSlackEnabled(s.configured);
+    }).catch(() => {});
+  }, []);
+
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
-  const test = () => { setTestSent(true); toast.success("Test notification sent to Slack"); setTimeout(() => setTestSent(false), 2000); };
+  const test = async () => {
+    setTestBusy(true); setTestResult(null);
+    try {
+      await endpoints.slackTest(slackUrl || null);
+      setTestResult("ok");
+      toast.success("Test notification sent to Slack ✓");
+    } catch (e) {
+      setTestResult("fail");
+      toast.error(e.message || "Slack test failed");
+    } finally {
+      setTestBusy(false);
+      setTimeout(() => setTestResult(null), 3000);
+    }
+  };
   const INTEGRATIONS = [
     { id: "slack", name: "Slack", desc: "Get decision briefs and signal alerts delivered to any Slack channel.", icon: "💬", available: true },
     { id: "teams", name: "Microsoft Teams", desc: "Deliver intelligence briefs to Teams channels via webhook.", icon: "🔷", available: false },
@@ -5142,7 +5167,7 @@ function IntegrationsPage({ ws }) {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{intg.name}</span>
                 {!intg.available && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "rgba(255,255,255,.04)", color: T.dim, textTransform: "uppercase", letterSpacing: ".05em" }}>coming soon</span>}
-                {intg.id === "slack" && slackEnabled && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "rgba(34,197,94,.1)", color: "#22c55e", textTransform: "uppercase", letterSpacing: ".05em", border: "1px solid rgba(34,197,94,.2)" }}>connected</span>}
+                {intg.id === "slack" && slackConfigured && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "rgba(34,197,94,.1)", color: "#22c55e", textTransform: "uppercase", letterSpacing: ".05em", border: "1px solid rgba(34,197,94,.2)" }}>connected</span>}
               </div>
               <div style={{ fontSize: 12, color: T.dim, marginTop: 3 }}>{intg.desc}</div>
             </div>
@@ -5166,8 +5191,10 @@ function IntegrationsPage({ ws }) {
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Webhook URL</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={slackUrl} onChange={e => setSlackUrl(e.target.value)} placeholder="https://hooks.slack.com/services/..." style={{ flex: 1, padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
-              <button onClick={test} disabled={!slackUrl} style={{ padding: "9px 16px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: slackUrl ? "pointer" : "not-allowed" }}>{testSent ? "Sent ✓" : "Test"}</button>
+              <input value={slackUrl} onChange={e => setSlackUrl(e.target.value)} placeholder={slackConfigured ? "https://hooks.slack.com/services/… (already set on server)" : "https://hooks.slack.com/services/..."} style={{ flex: 1, padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none" }} />
+              <button onClick={test} disabled={testBusy || (!slackUrl && !slackConfigured)} style={{ padding: "9px 16px", borderRadius: 6, border: `1px solid ${testResult === "ok" ? "rgba(34,197,94,.4)" : testResult === "fail" ? "rgba(239,68,68,.4)" : T.borderL}`, background: "transparent", color: testResult === "ok" ? "#22c55e" : testResult === "fail" ? "#ef4444" : T.muted, fontSize: 12, cursor: "pointer", minWidth: 72 }}>
+                {testBusy ? "…" : testResult === "ok" ? "Sent ✓" : testResult === "fail" ? "Failed ✗" : "Test"}
+              </button>
             </div>
           </div>
           <div style={{ marginBottom: 14 }}>

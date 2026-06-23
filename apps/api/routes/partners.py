@@ -1,7 +1,14 @@
 """Partner runtime routes — Speechmatics, Memory (Cognee + self-hosted), TriggerWare."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+import os
+from pydantic import BaseModel
+from packages.common.config import get_settings
+from packages.common.logging import get_logger
+from packages.partners.slack import SlackService
+logger = get_logger(__name__)
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from starlette.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -80,3 +87,45 @@ async def memory_search(
 @router.post("/workflows/trigger", response_model=WorkflowEvent)
 async def trigger_workflow(payload: WorkflowTriggerRequest, triggerware: TriggerWareService = Depends(get_triggerware_service)) -> WorkflowEvent:
     return await triggerware.trigger(payload)
+
+
+# ── Slack integration ─────────────────────────────────────────────────
+
+class SlackConfigPayload(BaseModel):
+    webhook_url: str
+    notify_on: str = "high"  # "high" | "medium" | "any"
+
+
+@router.get("/integrations/slack")
+async def slack_status() -> dict:
+    """Return whether Slack is currently configured."""
+    settings = get_settings()
+    return {
+        "configured": bool(settings.slack_webhook_url),
+        "notify_on_change": settings.slack_notify_on_change,
+        "webhook_url_preview": (settings.slack_webhook_url or "")[:40] + "…" if settings.slack_webhook_url else None,
+    }
+
+
+@router.post("/integrations/slack/test")
+async def slack_test(payload: SlackConfigPayload | None = None) -> dict:
+    """Send a test notification to the configured (or provided) Slack webhook."""
+    settings = get_settings()
+    webhook_url = (payload.webhook_url if payload else None) or settings.slack_webhook_url
+    if not webhook_url:
+        raise HTTPException(status_code=400, detail="No Slack webhook URL configured. Provide one in the request or set SLACK_WEBHOOK_URL in environment.")
+
+    test_blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": "✅  WebDataOS — Slack connected", "emoji": True}},
+        {"type": "section", "text": {"type": "mrkdwn", "text": "Your Slack integration is working. Intelligence briefs will be delivered here when signals change."}},
+        {"type": "context", "elements": [{"type": "mrkdwn", "text": "WebDataOS Intelligence OS · test notification"}]},
+    ]
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(webhook_url, json={"blocks": test_blocks})
+            r.raise_for_status()
+        logger.info("slack_test_sent", webhook_preview=webhook_url[:40])
+        return {"ok": True, "message": "Test notification sent to Slack."}
+    except Exception as exc:
+        logger.warning("slack_test_failed", error=str(exc))
+        raise HTTPException(status_code=502, detail=f"Slack delivery failed: {exc}")
