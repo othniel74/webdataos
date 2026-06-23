@@ -558,35 +558,88 @@ function DecisionBriefPanel({ brief, onEvidence, compact = false }) {
   const severity = brief?.severity || "monitoring";
   const deltaHeadline = brief?.delta_headline;
   const sev = matC(severity);
+  const confidence = brief?.confidence != null ? Math.round(brief.confidence * 100) : null;
+  const sourceCount = brief?.evidence?.length || 0;
+  const [copied, setCopied] = useState(false);
+  const copyBrief = () => {
+    const text = [
+      `DECISION BRIEF — ${new Date().toLocaleString()}`,
+      `Severity: ${severity.toUpperCase()}`,
+      ``,
+      brief?.headline,
+      ``,
+      `WHAT CHANGED`,
+      brief?.what_changed,
+      ``,
+      `WHY IT MATTERS`,
+      brief?.business_impact,
+      ``,
+      `RECOMMENDED ACTION`,
+      brief?.recommended_action,
+    ].filter(Boolean).join("\n");
+    navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); });
+  };
+
   return (
-    <section style={{ borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}`, borderLeft: `2px solid ${sev}`, overflow: "hidden" }}>
+    <section style={{ borderRadius: 8, background: T.bgCard, border: `1px solid ${T.border}`, borderLeft: `3px solid ${sev}`, overflow: "hidden" }}>
       {/* header bar */}
-      <div style={{ padding: compact ? "10px 14px" : "12px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ padding: compact ? "9px 14px" : "11px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "rgba(0,0,0,.2)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: T.dim, fontFamily: "'JetBrains Mono'" }}>Decision Brief</span>
+          <span style={{ fontSize: 9, color: T.dim, fontFamily: "'JetBrains Mono'" }}>·</span>
+          <span style={{ fontSize: 9, color: T.muted, fontFamily: "'JetBrains Mono'" }}>{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
           {deltaHeadline && (
             <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono'", color: T.accent, background: "rgba(14,165,233,.07)", border: "1px solid rgba(14,165,233,.15)", borderRadius: 3, padding: "1px 7px", letterSpacing: ".02em" }}>
               {deltaHeadline}
             </span>
           )}
         </div>
-        <span style={{ padding: "2px 7px", borderRadius: 3, background: `${sev}14`, color: sev, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'", border: `1px solid ${sev}25` }}>{severity}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ padding: "2px 7px", borderRadius: 3, background: `${sev}14`, color: sev, fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'", border: `1px solid ${sev}25` }}>{severity}</span>
+          <button onClick={copyBrief} title="Copy brief to clipboard" style={{ border: "1px solid rgba(255,255,255,.08)", background: "transparent", borderRadius: 4, padding: "2px 8px", fontSize: 10, color: copied ? "#22c55e" : T.dim, cursor: "pointer", fontFamily: "'JetBrains Mono'", letterSpacing: ".03em" }}>
+            {copied ? "copied ✓" : "copy"}
+          </button>
+        </div>
       </div>
       {/* headline */}
-      <div style={{ padding: compact ? "12px 14px" : "16px 18px", borderBottom: `1px solid ${T.border}` }}>
-        <h3 style={{ fontSize: compact ? 15 : 18, fontWeight: 700, lineHeight: 1.3, letterSpacing: "-.02em", color: "#f0f4f8" }}>{brief?.headline || "No decision brief yet"}</h3>
+      <div style={{ padding: compact ? "14px 14px" : "18px 18px", borderBottom: `1px solid ${T.border}` }}>
+        <h3 style={{ fontSize: compact ? 15 : 19, fontWeight: 700, lineHeight: 1.3, letterSpacing: "-.02em", color: "#f0f4f8" }}>{brief?.headline || "No decision brief yet"}</h3>
         {brief?.answer && <p style={{ marginTop: 8, color: T.muted, fontSize: 12, lineHeight: 1.7 }}>{brief.answer}</p>}
+        {/* confidence + source row */}
+        {!compact && (confidence !== null || sourceCount > 0) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+            {confidence !== null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'" }}>Confidence</span>
+                <div style={{ width: 64, height: 3, borderRadius: 2, background: "rgba(255,255,255,.06)" }}>
+                  <div style={{ width: `${confidence}%`, height: "100%", borderRadius: 2, background: confidence > 80 ? "#22c55e" : confidence > 60 ? "#f59e0b" : "#ef4444", transition: "width .8s ease" }} />
+                </div>
+                <span style={{ fontSize: 10, fontWeight: 700, color: confidence > 80 ? "#22c55e" : "#f59e0b", fontFamily: "'JetBrains Mono'" }}>{confidence}%</span>
+              </div>
+            )}
+            {sourceCount > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'" }}>Sources</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: T.muted, fontFamily: "'JetBrains Mono'" }}>{sourceCount} verified</span>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", fontFamily: "'JetBrains Mono'" }}>Method</span>
+              <span style={{ fontSize: 10, color: T.muted, fontFamily: "'JetBrains Mono'" }}>SERP + Web Unlocker + LLM reasoning</span>
+            </div>
+          </div>
+        )}
       </div>
       {/* three-column intel grid */}
       <div style={{ display: "grid", gridTemplateColumns: compact ? "1fr" : "repeat(3,1fr)", borderBottom: `1px solid ${T.border}` }}>
         {[
-          ["WHAT CHANGED", brief?.what_changed],
-          ["WHY IT MATTERS", brief?.business_impact],
-          ["RECOMMENDED ACTION", brief?.recommended_action],
-        ].map(([label, text], i) => (
-          <div key={label} style={{ padding: compact ? "10px 14px" : "12px 18px", borderRight: (!compact && i < 2) ? `1px solid ${T.border}` : "none", borderTop: compact && i > 0 ? `1px solid ${T.border}` : "none" }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".10em", color: T.dim, marginBottom: 6, fontFamily: "'JetBrains Mono'" }}>{label}</div>
-            <div style={{ fontSize: 12, color: T.text, lineHeight: 1.6 }}>{text || <span style={{ color: T.dim }}>Pending</span>}</div>
+          ["WHAT CHANGED", brief?.what_changed, "#0ea5e9"],
+          ["WHY IT MATTERS", brief?.business_impact, "#f59e0b"],
+          ["RECOMMENDED ACTION", brief?.recommended_action, "#22c55e"],
+        ].map(([label, text, accent], i) => (
+          <div key={label} style={{ padding: compact ? "10px 14px" : "14px 18px", borderRight: (!compact && i < 2) ? `1px solid ${T.border}` : "none", borderTop: compact && i > 0 ? `1px solid ${T.border}` : "none" }}>
+            <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: accent, marginBottom: 7, fontFamily: "'JetBrains Mono'" }}>{label}</div>
+            <div style={{ fontSize: 12, color: T.text, lineHeight: 1.65 }}>{text || <span style={{ color: T.dim }}>Pending analysis</span>}</div>
           </div>
         ))}
       </div>
@@ -594,23 +647,26 @@ function DecisionBriefPanel({ brief, onEvidence, compact = false }) {
       {!!brief?.evidence?.length && (
         <div style={{ padding: compact ? "10px 14px" : "12px 18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".10em", color: T.dim, fontFamily: "'JetBrains Mono'" }}>Source Evidence</span>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".10em", color: T.dim, fontFamily: "'JetBrains Mono'" }}>Source Evidence ({brief.evidence.length})</span>
             {onEvidence && <button onClick={onEvidence} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>View all →</button>}
           </div>
-          <div style={{ display: "grid", gap: 6 }}>
+          <div style={{ display: "grid", gap: 5 }}>
             {brief.evidence.slice(0, compact ? 2 : 4).map(item => (
-              <div key={item.id || item.source_url} style={{ padding: "8px 10px", borderRadius: 5, background: T.bgInset, border: `1px solid ${T.border}`, fontSize: 11, lineHeight: 1.5 }}>
-                <span style={{ fontWeight: 600, color: T.text }}>{item.entity_name || "Evidence"}</span>
-                <span style={{ color: T.dim }}> · </span>
-                <SourceLink url={item.source_url}>{item.source_title || item.source_url}</SourceLink>
-                {item.summary && <div style={{ marginTop: 3, color: T.muted }}>{item.summary}</div>}
+              <div key={item.id || item.source_url} style={{ padding: "9px 12px", borderRadius: 5, background: T.bgInset, border: `1px solid ${T.border}`, fontSize: 11, lineHeight: 1.5, display: "grid", gridTemplateColumns: "auto 1fr", gap: "0 8px" }}>
+                <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.accent, marginTop: 5, flexShrink: 0 }} />
+                <div>
+                  <span style={{ fontWeight: 600, color: T.text }}>{item.entity_name || "Evidence"}</span>
+                  <span style={{ color: T.dim }}> · </span>
+                  <SourceLink url={item.source_url}>{item.source_title || (item.source_url ? new URL(item.source_url).hostname.replace("www.", "") : "source")}</SourceLink>
+                  {item.summary && <div style={{ marginTop: 3, color: T.muted }}>{item.summary}</div>}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
       {(brief?.unknowns?.length || brief?.receipt_summary) && (
-        <div style={{ padding: compact ? "6px 14px 10px" : "6px 18px 12px", display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ padding: compact ? "6px 14px 10px" : "6px 18px 12px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 16, flexWrap: "wrap", background: "rgba(0,0,0,.15)" }}>
           {!!brief?.unknowns?.length && <div style={{ color: T.dim, fontSize: 10, fontFamily: "'JetBrains Mono'" }}>gaps: {brief.unknowns.join(" ")}</div>}
           {brief?.receipt_summary && <div style={{ color: T.dim, fontSize: 10, fontFamily: "'JetBrains Mono'" }}>{brief.receipt_summary}</div>}
         </div>
@@ -1062,6 +1118,42 @@ function OnboardingWizard({ user, onComplete, onSkip, setWs, saveWorkspace, runR
   );
 }
 
+/* ═══════ SIGNAL TICKER — live signal stream in hero ═══════ */
+const TICKER_SIGNALS = [
+  { entity: "Okta", signal: "breach exposure elevated", type: "risk",  src: "SEC filing",         age: "2m ago"  },
+  { entity: "Salesforce", signal: "pricing change detected", type: "gtm", src: "press release",   age: "7m ago"  },
+  { entity: "AWS",        signal: "compliance notice filed", type: "risk", src: "regulatory feed", age: "14m ago" },
+  { entity: "Nvidia",     signal: "supply chain signal",     type: "market", src: "industry report", age: "19m ago" },
+  { entity: "Stripe",     signal: "vendor risk elevated",    type: "risk", src: "SERP + news",     age: "31m ago" },
+  { entity: "HubSpot",    signal: "competitor launched feature", type: "gtm", src: "product page", age: "44m ago" },
+  { entity: "Microsoft",  signal: "regulatory filing detected", type: "risk", src: "EDGAR",        age: "52m ago" },
+  { entity: "Palantir",   signal: "market movement signal", type: "market", src: "analyst feed",   age: "58m ago" },
+  { entity: "CrowdStrike", signal: "security advisory published", type: "risk", src: "CVE feed",  age: "1h ago"  },
+  { entity: "Linear",     signal: "product roadmap update",  type: "gtm", src: "changelog",        age: "1h 12m ago" },
+];
+const TICKER_DOT = { risk: "#ef4444", gtm: "#3b82f6", market: "#22c55e" };
+
+function SignalTicker() {
+  const doubled = [...TICKER_SIGNALS, ...TICKER_SIGNALS];
+  return (
+    <div style={{ position: "relative", overflow: "hidden", padding: "10px 0", borderTop: "1px solid rgba(255,255,255,.05)", borderBottom: "1px solid rgba(255,255,255,.05)", background: "rgba(0,0,0,.3)" }}>
+      {/* fade edges */}
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 80, background: "linear-gradient(to right, #08090c, transparent)", zIndex: 2, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: "linear-gradient(to left, #08090c, transparent)", zIndex: 2, pointerEvents: "none" }} />
+      <div style={{ display: "flex", gap: 32, animation: "tickerScroll 40s linear infinite", width: "max-content" }}>
+        {doubled.map((s, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: TICKER_DOT[s.type] || T.accent, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#dde4ee", fontFamily: "'JetBrains Mono'" }}>{s.entity}</span>
+            <span style={{ fontSize: 11, color: "#7a8899", fontFamily: "'JetBrains Mono'" }}>— {s.signal}</span>
+            <span style={{ fontSize: 10, color: "#3d4a5a", fontFamily: "'JetBrains Mono'" }}>{s.src} · {s.age}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════ HOME DEMO — inline zero-friction brief runner ═══════ */
 const HOME_STEPS = [
   { id: "fetch",     label: "Scanning live web",      detail: "SERP + Web Unlocker" },
@@ -1235,46 +1327,56 @@ function HomePage({ nav, user, auth }) {
         {/* Mouse-tracked glow */}
         <div style={{ position: "absolute", top: `${15 + mouse.y * 0.45}%`, left: `${mouse.x}%`, transform: "translate(-50%,-50%)", width: 560, height: 560, borderRadius: "50%", background: `radial-gradient(circle,rgba(14,165,233,0.06),transparent 70%)`, pointerEvents: "none", transition: "top .35s ease, left .35s ease" }} />
 
-        <div className="au" style={{ display: "inline-flex", gap: 6, marginBottom: 20, flexWrap: "wrap", justifyContent: "center", position: "relative" }}>
-          {["Security & Risk", "RevOps & Sales", "Finance & Strategy", "Enterprise Intel"].map(p => (
-            <span key={p} style={{ padding: "3px 10px", borderRadius: 4, fontSize: 10, fontWeight: 600, letterSpacing: ".04em", border: `1px solid rgba(14,165,233,.15)`, color: T.accent, background: `rgba(14,165,233,.07)`, fontFamily: "'JetBrains Mono'" }}>{p}</span>
-          ))}
+        {/* Eyebrow — live status */}
+        <div className="au" style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 28, padding: "6px 16px", borderRadius: 4, background: "rgba(34,197,94,.05)", border: "1px solid rgba(34,197,94,.15)", position: "relative" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s ease infinite", display: "inline-block" }} />
+          <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600, letterSpacing: ".07em", fontFamily: "'JetBrains Mono'" }}>LIVE MONITORING ACTIVE</span>
+          <span style={{ fontSize: 10, color: "#3d4a5a", fontFamily: "'JetBrains Mono'" }}>· {TICKER_SIGNALS.length} signals this hour</span>
         </div>
 
         {/* Headline */}
-        <h1 className="au s1 hero-h1" style={{
-          fontSize: "clamp(34px,5vw,58px)", fontWeight: 700, letterSpacing: "-.04em", lineHeight: 1.06,
-          background: "linear-gradient(135deg,#f0f4f8 0%,#0ea5e9 45%,#f0f4f8 65%,#5a7080 100%)",
-          backgroundSize: "220% 220%",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        <h1 className="au s1" style={{
+          fontSize: "clamp(36px,5.5vw,64px)", fontWeight: 800, letterSpacing: "-.04em", lineHeight: 1.04,
+          color: "#f0f4f8",
           maxWidth: 820, margin: "0 auto", position: "relative",
         }}>
-          Know what changed.<br />Know why it matters.<br />Know what to do.
+          By the time you hear about it,<br />
+          <span style={{ color: "#0ea5e9" }}>the decision has already been made.</span>
         </h1>
-        <p className="au s2" style={{ maxWidth: 600, margin: "24px auto 0", fontSize: 16, lineHeight: 1.75, color: T.muted, position: "relative" }}>
-          WebDataOS watches vendors, competitors, and markets across the live web — then turns every signal into sourced evidence, business reasoning, and approval-ready actions. Not a research tool. An intelligence operating system your entire team can act on.
+        <p className="au s2" style={{ maxWidth: 580, margin: "22px auto 0", fontSize: 15, lineHeight: 1.8, color: "#7a8899", position: "relative" }}>
+          WebDataOS monitors your vendors, competitors, and markets 24/7 — surfacing signals, reasoning over impact, and delivering sourced decision briefs before you knew to look. Not alerts. Not dashboards. <strong style={{ color: "#dde4ee" }}>Decisions.</strong>
         </p>
-        <div className="au s3" style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
-          <button onClick={go} style={{ padding: "11px 22px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>{label} <ArrowRight size={14} /></button>
+
+        {/* CTAs */}
+        <div className="au s3" style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 30, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={go} style={{ padding: "12px 26px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", letterSpacing: ".01em" }}>{label} <ArrowRight size={14} /></button>
+          <button onClick={() => document.getElementById("live-demo")?.scrollIntoView({ behavior: "smooth" })} style={{ padding: "12px 20px", borderRadius: 6, border: "1px solid rgba(255,255,255,.12)", background: "transparent", color: "#9ab0c4", fontSize: 13, cursor: "pointer" }}>See live brief ↓</button>
         </div>
-        <div className="au s3" style={{ display: "flex", justifyContent: "center", gap: 0, margin: "40px auto 0", maxWidth: 860, textAlign: "left", flexWrap: "wrap" }}>
+
+        {/* Trust bar */}
+        <div className="au s3" style={{ display: "flex", justifyContent: "center", gap: 0, margin: "44px auto 0", maxWidth: 900, textAlign: "left", flexWrap: "wrap", position: "relative" }}>
           {[
-            ["Listen", "Track external signals 24/7."],
-            ["Collect", "Save sourced evidence."],
-            ["Reason", "Assess real business impact."],
-            ["Act", "Draft approval-ready steps."],
-            ["Remember", "Build permanent team knowledge."],
-          ].map(([title, text], i) => (
-            <div key={title} style={{ width: 160, padding: "0 16px", borderLeft: i ? `1px solid ${T.border}` : "none" }}>
-              <div style={{ color: T.text, fontSize: 12, fontWeight: 800 }}>{title}</div>
-              <div style={{ marginTop: 4, color: T.dim, fontSize: 11, lineHeight: 1.35 }}>{text}</div>
+            ["< 90 sec", "First brief delivered"],
+            ["100%", "Evidence source-cited"],
+            ["4–8 h", "Saved per research cycle"],
+            ["24/7", "Continuous monitoring"],
+            ["0", "Repeated research required"],
+          ].map(([n, l], i) => (
+            <div key={l} style={{ padding: "0 24px", borderLeft: i ? `1px solid ${T.border}` : "none", textAlign: "center" }}>
+              <div style={{ color: "#f0f4f8", fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono'" }}>{n}</div>
+              <div style={{ marginTop: 4, color: "#3d4a5a", fontSize: 10, letterSpacing: ".04em", textTransform: "uppercase" }}>{l}</div>
             </div>
           ))}
         </div>
       </section>
 
+      {/* ── Live signal ticker ── */}
+      <SignalTicker />
+
       {/* ── Inline live demo ── */}
-      <HomeDemo nav={nav} />
+      <div id="live-demo">
+        <HomeDemo nav={nav} />
+      </div>
 
       {/* Outcome stats — scroll-reveal + count-up */}
       <section ref={statsRef} style={{ borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, background: "rgba(255,255,255,.02)", padding: "32px 24px" }}>

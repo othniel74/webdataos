@@ -48,6 +48,7 @@ a { color: inherit; text-decoration: none; }
 @keyframes toastIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 @keyframes gradMove { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
 @keyframes scanPulse { 0%,100%{opacity:.3} 50%{opacity:.7} }
+@keyframes tickerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
 
 .anim-up { animation: fadeUp .35s ease both; }
 .anim-in { animation: fadeIn .3s ease both; }
