@@ -297,7 +297,7 @@ const packIcon = (id, size = 18) => {
 /* ═══════════════════════════════════════════════════════════════════════
    APP
    ═══════════════════════════════════════════════════════════════════════ */
-const PUB = ["Home", "Demo", "Solution", "Pricing"];
+const PUB = ["Home", "Demo", "Pricing"];
 const PRIV = ["Feed", "Brief", "Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
 const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
@@ -1464,6 +1464,41 @@ function TeamPersonaSection({ nav }) {
   );
 }
 
+function HomeFAQ() {
+  const [open, setOpen] = useState(null);
+  const faqs = [
+    { q: "How is this different from Google Alerts or RSS?", a: "Alerts tell you a keyword appeared. WebDataOS tells you what it means for your organisation — whether it's material, how it connects to your contracts or competitors, and what action to take. Every finding is source-cited, not just surfaced." },
+    { q: "What does it actually monitor?", a: "Anything publicly accessible: company pages, regulatory filings, news, job postings, pricing pages, press releases, industry publications. You configure which entities and signal types matter to your team — nothing gets monitored that isn't in scope." },
+    { q: "Does it make up information?", a: "No. Every claim in a brief traces back to a specific source URL. The evidence trail is shown inline. If the system cannot find evidence for something, the brief says so explicitly — it does not fill gaps with assumptions." },
+    { q: "How quickly does the first brief appear?", a: "A new workspace generates its first decision brief in under 90 seconds. Scheduled monitoring then runs at the cadence you set — daily, every 6 hours, or triggered manually." },
+    { q: "Is our workspace data private?", a: "Yes. Every workspace is fully tenant-isolated — your entities, briefs, and intelligence records are never visible to or mixed with another organisation's data. Enterprise plans include EU and US data residency options." },
+    { q: "Does it require a dedicated analyst to run it?", a: "No. The system runs on a schedule without anyone actively operating it. Teams check their Signal Feed in the morning the way they check email — the intelligence is already there." },
+  ];
+  return (
+    <section style={{ borderTop: `1px solid ${T.border}`, padding: "72px 24px", background: T.bgSub }}>
+      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 44 }}>
+          <Eye>Questions</Eye>
+          <h2 style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, marginTop: 10, letterSpacing: "-.03em", color: "#f0f4f8" }}>The answers you're looking for</h2>
+        </div>
+        <div style={{ display: "grid", gap: 2 }}>
+          {faqs.map((faq, i) => (
+            <div key={i} style={{ borderRadius: open === i ? 10 : 8, background: T.bgCard, border: `1px solid ${open === i ? "rgba(14,165,233,.2)" : T.border}`, overflow: "hidden", transition: "border-color .2s" }}>
+              <button onClick={() => setOpen(open === i ? null : i)} style={{ width: "100%", textAlign: "left", padding: "18px 22px", background: "transparent", border: "none", color: T.text, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: open === i ? "#f0f4f8" : T.text, lineHeight: 1.4 }}>{faq.q}</span>
+                <span style={{ color: open === i ? "#0ea5e9" : T.dim, fontSize: 18, fontWeight: 300, flexShrink: 0, transition: "transform .2s", transform: open === i ? "rotate(45deg)" : "none" }}>+</span>
+              </button>
+              {open === i && (
+                <div style={{ padding: "0 22px 20px", fontSize: 13, color: T.muted, lineHeight: 1.75, borderTop: `1px solid ${T.border}`, paddingTop: 16, marginTop: 0 }}>{faq.a}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HomePage({ nav, user, auth }) {
   const go = user ? () => nav("Monitor") : auth;
   const label = user ? "Open dashboard" : "Start free";
@@ -1492,51 +1527,57 @@ function HomePage({ nav, user, auth }) {
       {/* ── HERO ── */}
       <section
         ref={heroRef} onMouseMove={onHeroMove}
-        style={{ maxWidth: 1100, margin: "0 auto", padding: "80px 24px 50px", textAlign: "center", position: "relative", overflow: "hidden" }}
+        style={{ maxWidth: 1100, margin: "0 auto", padding: "72px 24px 56px", textAlign: "center", position: "relative", overflow: "hidden" }}
       >
         {/* Dot grid texture */}
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(14,165,233,0.05) 1px, transparent 1px)", backgroundSize: "32px 32px", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, rgba(14,165,233,0.04) 1px, transparent 1px)", backgroundSize: "32px 32px", pointerEvents: "none" }} />
         {/* Mouse-tracked glow */}
-        <div style={{ position: "absolute", top: `${15 + mouse.y * 0.45}%`, left: `${mouse.x}%`, transform: "translate(-50%,-50%)", width: 560, height: 560, borderRadius: "50%", background: `radial-gradient(circle,rgba(14,165,233,0.06),transparent 70%)`, pointerEvents: "none", transition: "top .35s ease, left .35s ease" }} />
+        <div style={{ position: "absolute", top: `${15 + mouse.y * 0.45}%`, left: `${mouse.x}%`, transform: "translate(-50%,-50%)", width: 640, height: 640, borderRadius: "50%", background: `radial-gradient(circle,rgba(14,165,233,0.05),transparent 70%)`, pointerEvents: "none", transition: "top .35s ease, left .35s ease" }} />
 
-        {/* Eyebrow — live status */}
-        <div className="au" style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 28, padding: "6px 16px", borderRadius: 4, background: "rgba(34,197,94,.05)", border: "1px solid rgba(34,197,94,.15)", position: "relative" }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s ease infinite", display: "inline-block" }} />
-          <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600, letterSpacing: ".07em", fontFamily: "'JetBrains Mono'" }}>LIVE MONITORING ACTIVE</span>
-          <span style={{ fontSize: 10, color: "#3d4a5a", fontFamily: "'JetBrains Mono'" }}>· {TICKER_SIGNALS.length} signals this hour</span>
+        {/* WebDataOS brand wordmark — the visual anchor */}
+        <div className="au" style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 0, marginBottom: 36, position: "relative" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 28px", borderRadius: 12, background: "rgba(14,165,233,.05)", border: "1px solid rgba(14,165,233,.14)", boxShadow: "0 0 60px rgba(14,165,233,.06)" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 9, background: "linear-gradient(135deg,#0ea5e9,#0284c7)", display: "grid", placeItems: "center", boxShadow: "0 0 20px rgba(14,165,233,.3)" }}>
+              <Layers size={18} color="#fff" />
+            </div>
+            <span style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, letterSpacing: "-.05em", color: "#f0f4f8", fontFamily: "'JetBrains Mono'" }}>WebDataOS</span>
+            <span style={{ fontSize: 10, color: "rgba(14,165,233,.7)", fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", fontFamily: "'JetBrains Mono'", background: "rgba(14,165,233,.08)", padding: "2px 7px", borderRadius: 4, border: "1px solid rgba(14,165,233,.15)" }}>v0.5</span>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: "#3d5266", letterSpacing: ".14em", textTransform: "uppercase", fontFamily: "'JetBrains Mono'" }}>Enterprise Intelligence Operating System</div>
+        </div>
+
+        {/* Live status pill */}
+        <div className="au" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 24, padding: "5px 14px", borderRadius: 4, background: "rgba(34,197,94,.04)", border: "1px solid rgba(34,197,94,.12)", position: "relative" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s ease infinite", display: "inline-block", flexShrink: 0 }} />
+          <span style={{ fontSize: 10, color: "#22c55e", fontWeight: 600, letterSpacing: ".07em", fontFamily: "'JetBrains Mono'" }}>MONITORING ACTIVE</span>
         </div>
 
         {/* Headline */}
-        <h1 className="au s1" style={{
-          fontSize: "clamp(36px,5.5vw,64px)", fontWeight: 800, letterSpacing: "-.04em", lineHeight: 1.04,
-          color: "#f0f4f8",
-          maxWidth: 820, margin: "0 auto", position: "relative",
-        }}>
+        <h1 className="au s1" style={{ fontSize: "clamp(34px,5vw,60px)", fontWeight: 800, letterSpacing: "-.04em", lineHeight: 1.06, color: "#f0f4f8", maxWidth: 820, margin: "0 auto", position: "relative" }}>
           By the time you hear about it,<br />
           <span style={{ color: "#0ea5e9" }}>the decision has already been made.</span>
         </h1>
-        <p className="au s2" style={{ maxWidth: 580, margin: "22px auto 0", fontSize: 15, lineHeight: 1.8, color: "#7a8899", position: "relative" }}>
-          WebDataOS monitors your vendors, competitors, and markets 24/7 — surfacing signals, reasoning over impact, and delivering sourced decision briefs before you knew to look. Not alerts. Not dashboards. <strong style={{ color: "#dde4ee" }}>Decisions.</strong>
+        <p className="au s2" style={{ maxWidth: 560, margin: "22px auto 0", fontSize: 15, lineHeight: 1.8, color: "#7a8899", position: "relative" }}>
+          WebDataOS watches your vendors, competitors, and markets — surfacing what changed, reasoning over what it means, and delivering a sourced decision brief. Not alerts. <strong style={{ color: "#dde4ee" }}>Decisions.</strong>
         </p>
 
         {/* CTAs */}
-        <div className="au s3" style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 30, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={go} style={{ padding: "12px 26px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", letterSpacing: ".01em" }}>{label} <ArrowRight size={14} /></button>
-          <button onClick={() => document.getElementById("live-demo")?.scrollIntoView({ behavior: "smooth" })} style={{ padding: "12px 20px", borderRadius: 6, border: "1px solid rgba(255,255,255,.12)", background: "transparent", color: "#9ab0c4", fontSize: 13, cursor: "pointer" }}>See live brief ↓</button>
+        <div className="au s3" style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 32, flexWrap: "wrap", alignItems: "center" }}>
+          <button onClick={go} style={{ padding: "13px 28px", borderRadius: 7, border: "none", background: "#0ea5e9", color: "#000", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", letterSpacing: ".01em" }}>{label} <ArrowRight size={15} /></button>
+          <button onClick={() => document.getElementById("live-demo")?.scrollIntoView({ behavior: "smooth" })} style={{ padding: "13px 22px", borderRadius: 7, border: "1px solid rgba(255,255,255,.12)", background: "transparent", color: "#9ab0c4", fontSize: 14, cursor: "pointer" }}>See it run ↓</button>
         </div>
 
-        {/* Trust bar */}
-        <div className="au s3" style={{ display: "flex", justifyContent: "center", gap: 0, margin: "44px auto 0", maxWidth: 900, textAlign: "left", flexWrap: "wrap", position: "relative" }}>
+        {/* What it delivers — qualitative */}
+        <div className="au s3" style={{ display: "flex", justifyContent: "center", gap: 0, margin: "48px auto 0", maxWidth: 860, flexWrap: "wrap", position: "relative" }}>
           {[
-            ["< 90 sec", "First brief delivered"],
-            ["100%", "Evidence source-cited"],
-            ["4–8 h", "Saved per research cycle"],
-            ["24/7", "Continuous monitoring"],
-            ["0", "Repeated research required"],
-          ].map(([n, l], i) => (
-            <div key={l} style={{ padding: "0 24px", borderLeft: i ? `1px solid ${T.border}` : "none", textAlign: "center" }}>
-              <div style={{ color: "#f0f4f8", fontSize: 18, fontWeight: 800, fontFamily: "'JetBrains Mono'" }}>{n}</div>
-              <div style={{ marginTop: 4, color: "#3d4a5a", fontSize: 10, letterSpacing: ".04em", textTransform: "uppercase" }}>{l}</div>
+            ["Source-cited evidence", "Every finding links back to its source"],
+            ["Business reasoning", "Not summaries — assessed materiality"],
+            ["24/7 monitoring", "Continuous, scheduled, or on demand"],
+            ["Approval-ready actions", "Proposed next steps, not vague recommendations"],
+          ].map(([title, sub], i) => (
+            <div key={title} style={{ padding: "0 22px", borderLeft: i ? `1px solid ${T.border}` : "none", textAlign: "center", minWidth: 160 }}>
+              <div style={{ color: "#dde4ee", fontSize: 13, fontWeight: 700 }}>{title}</div>
+              <div style={{ marginTop: 4, color: "#3d4a5a", fontSize: 11, lineHeight: 1.5 }}>{sub}</div>
             </div>
           ))}
         </div>
@@ -1549,6 +1590,94 @@ function HomePage({ nav, user, auth }) {
 
       {/* ── Live signal ticker ── */}
       <SignalTicker />
+
+      {/* ── Product surface — what you actually see ── */}
+      <section style={{ padding: "72px 24px", borderTop: `1px solid ${T.border}` }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 44 }}>
+            <Eye>What you actually get</Eye>
+            <h2 style={{ fontSize: "clamp(22px,3vw,34px)", fontWeight: 800, marginTop: 10, letterSpacing: "-.03em", color: "#f0f4f8" }}>
+              Three surfaces. One operating system.
+            </h2>
+            <p style={{ color: T.muted, marginTop: 10, fontSize: 14, maxWidth: 480, margin: "10px auto 0", lineHeight: 1.7 }}>
+              Everything your team needs to go from "something changed on the web" to "here's what we should do about it."
+            </p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 }}>
+
+            {/* Signal Feed mock */}
+            <div style={{ borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, background: "rgba(14,165,233,.03)" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#f0f4f8" }}>Signal Feed</div>
+                <div style={{ fontSize: 12, color: T.dim, marginTop: 3 }}>Intelligence delivered like a news inbox — newest first</div>
+              </div>
+              <div style={{ padding: 14, display: "grid", gap: 8 }}>
+                {[
+                  { sev: "critical", color: "#ef4444", label: "Security · 1h ago", text: "Vendor compliance posture changed — review flagged" },
+                  { sev: "high", color: "#f59e0b", label: "Competitor · 4h ago", text: "Pricing page updated — enterprise tier restructured" },
+                  { sev: "medium", color: "#818cf8", label: "Market · Yesterday", text: "Regulatory filing detected — sector exposure assessed" },
+                ].map((item, i) => (
+                  <div key={i} style={{ padding: "11px 13px", borderRadius: 8, background: T.bgInset, border: `1px solid ${T.border}`, borderLeft: `3px solid ${item.color}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
+                      <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: `${item.color}15`, color: item.color, fontWeight: 700, textTransform: "uppercase" }}>{item.sev}</span>
+                      <span style={{ fontSize: 10, color: T.dim }}>{item.label}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.5 }}>{item.text}</div>
+                  </div>
+                ))}
+                <div style={{ marginTop: 4, padding: "8px 13px", borderRadius: 7, background: "rgba(14,165,233,.04)", border: "1px solid rgba(14,165,233,.12)", fontSize: 11, color: T.dim, textAlign: "center" }}>Searchable by date, entity, or severity</div>
+              </div>
+            </div>
+
+            {/* Decision Brief mock */}
+            <div style={{ borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, background: "rgba(239,68,68,.02)" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#f0f4f8" }}>Decision Brief</div>
+                <div style={{ fontSize: 12, color: T.dim, marginTop: 3 }}>What changed, why it matters, and what to do</div>
+              </div>
+              <div style={{ padding: 14 }}>
+                <div style={{ padding: "12px 14px", borderRadius: 8, background: T.bgInset, border: "1px solid rgba(239,68,68,.2)", borderLeft: "3px solid #ef4444", marginBottom: 10 }}>
+                  <div style={{ fontSize: 9, color: "#ef4444", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 5 }}>Decision Brief · Critical</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f4f8", lineHeight: 1.35 }}>Vendor exposure elevated — compliance action required before renewal window</div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                  {[["What changed", "Public security disclosure detected. Two sub-processors updated."], ["Why it matters", "Contract clause 4.2 requires notification within 72 hours of sub-processor change."]].map(([label, text], i) => (
+                    <div key={i} style={{ padding: "10px 12px", borderRadius: 7, background: T.bgInset, border: `1px solid ${T.border}` }}>
+                      <div style={{ fontSize: 9, color: T.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>{label}</div>
+                      <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5 }}>{text}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: "10px 12px", borderRadius: 7, background: "rgba(34,197,94,.04)", border: "1px solid rgba(34,197,94,.15)" }}>
+                  <div style={{ fontSize: 9, color: "#22c55e", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>Recommended action</div>
+                  <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5 }}>Send updated questionnaire to vendor. Confirm compliance before 30-day renewal date.</div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Analyst mock */}
+            <div style={{ borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+              <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, background: "rgba(129,140,248,.02)" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#f0f4f8" }}>AI Analyst</div>
+                <div style={{ fontSize: 12, color: T.dim, marginTop: 3 }}>Ask anything — grounded in your workspace evidence</div>
+              </div>
+              <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ alignSelf: "flex-end", maxWidth: "80%", padding: "10px 14px", borderRadius: "12px 12px 3px 12px", background: T.accent, color: "#001018", fontSize: 12, fontWeight: 600 }}>
+                  What is our biggest vendor risk right now?
+                </div>
+                <div style={{ alignSelf: "flex-start", maxWidth: "90%", padding: "11px 14px", borderRadius: "12px 12px 12px 3px", background: T.bgInset, border: `1px solid ${T.border}`, fontSize: 12, color: T.muted, lineHeight: 1.6 }}>
+                  Based on recent intelligence, your highest-risk vendor shows a change in compliance posture. Two sub-processors were added without prior notice. The 72-hour disclosure window in your contract has passed.
+                </div>
+                <div style={{ padding: "8px 12px", borderRadius: 7, background: T.bgInset, border: `1px solid ${T.border}`, display: "flex", gap: 10, alignItems: "center" }}>
+                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.accent, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: T.dim }}>Sources: vendor.com · reuters.com · sec.gov</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
 
       {/* ── Pain stories — the cost of being last ── */}
       <section ref={statsRef} style={{ padding: "64px 24px", borderTop: `1px solid ${T.border}` }}>
@@ -1669,24 +1798,51 @@ function HomePage({ nav, user, auth }) {
         </div>
       </section>
 
-      {/* Intelligence domains — scroll-reveal */}
-      <section ref={domainsRef} className={`sr-wrap${domainsVisible ? " in" : ""}`} style={{ padding: "56px 24px" }}>
+      {/* Intelligence domains — Bright Data style feature cards */}
+      <section ref={domainsRef} className={`sr-wrap${domainsVisible ? " in" : ""}`} style={{ padding: "72px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <Eye>Intelligence domains</Eye>
-          <h2 style={{ fontSize: 26, marginTop: 6 }}>Choose your scope. Get tailored reasoning.</h2>
-          <p style={{ color: T.dim, marginTop: 6, maxWidth: 560, fontSize: 13 }}>Each domain delivers pre-built signal frameworks, entity defaults, and materiality logic tuned for your team's decisions.</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 24 }}>
+          <h2 style={{ fontSize: "clamp(22px,3vw,32px)", marginTop: 10, fontWeight: 800, letterSpacing: "-.03em" }}>Intelligence ready-built for your team's decisions.</h2>
+          <p style={{ color: T.dim, marginTop: 8, maxWidth: 540, fontSize: 13, lineHeight: 1.7 }}>Each domain ships with pre-configured signal types, entity defaults, and materiality logic — tuned for the decisions that team actually makes.</p>
+          <div style={{ marginTop: 32, display: "grid", gap: 2, borderRadius: 14, overflow: "hidden", border: `1px solid ${T.border}` }}>
             {DOMAINS.map((d, i) => (
-              <div key={d.id} className={`sr d${(i % 4) + 1}`} style={{ padding: 22, borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}` }}>
-                <div style={{ width: 34, height: 34, borderRadius: 9, background: `${d.color}12`, border: `1px solid ${d.color}20`, display: "grid", placeItems: "center", color: d.color, marginBottom: 12 }}>{packIcon(d.icon)}</div>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 5 }}>{d.name}</div>
-                <div style={{ fontSize: 12, color: T.dim, lineHeight: 1.55, marginBottom: 10 }}>{d.description}</div>
-                {d.signals.map(s => <div key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: T.muted, padding: "2px 0" }}><CheckCircle size={10} color={d.color} />{s}</div>)}
+              <div key={d.id} className={`sr d${(i % 4) + 1}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, background: T.bgCard, borderBottom: i < DOMAINS.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                <div style={{ padding: "28px 32px", borderRight: `1px solid ${T.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 9, background: `${d.color}12`, border: `1px solid ${d.color}22`, display: "grid", placeItems: "center", color: d.color }}>{packIcon(d.icon)}</div>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: "#f0f4f8" }}>{d.name}</span>
+                  </div>
+                  <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.65, marginBottom: 16, maxWidth: 360 }}>{d.description}</p>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {d.signals.map(s => (
+                      <div key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.text }}>
+                        <div style={{ width: 16, height: 16, borderRadius: 4, background: `${d.color}12`, border: `1px solid ${d.color}20`, display: "grid", placeItems: "center", flexShrink: 0 }}>
+                          <CheckCircle size={9} color={d.color} />
+                        </div>
+                        {s}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding: "28px 32px", background: `${d.color}03` }}>
+                  <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 14 }}>What the brief delivers</div>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {d.output.map(o => (
+                      <div key={o} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 7, background: T.bgInset, border: `1px solid ${T.border}` }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, color: T.muted, textTransform: "capitalize" }}>{o.replace(/_/g, " ")}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => nav("Demo")} style={{ marginTop: 18, padding: "9px 18px", borderRadius: 7, border: `1px solid ${d.color}30`, background: `${d.color}08`, color: d.color, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    See {d.name.split(" ")[0]} brief →
+                  </button>
+                </div>
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center", marginTop: 16 }}>
-            <button onClick={() => nav("Pricing")} style={{ padding: "9px 18px", borderRadius: 999, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>View pricing <ArrowRight size={12} style={{ marginLeft: 4 }} /></button>
+          <div style={{ textAlign: "center", marginTop: 18 }}>
+            <button onClick={() => nav("Pricing")} style={{ padding: "9px 20px", borderRadius: 7, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>View plans and pricing →</button>
           </div>
         </div>
       </section>
@@ -1757,6 +1913,9 @@ function HomePage({ nav, user, auth }) {
         </div>
       </section>
 
+      {/* ── FAQ ── */}
+      <HomeFAQ />
+
       {/* ── Final CTA ── */}
       <section style={{ padding: "80px 24px", textAlign: "center", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 600, height: 300, background: "radial-gradient(ellipse,rgba(14,165,233,.06),transparent 70%)", pointerEvents: "none" }} />
@@ -1766,11 +1925,11 @@ function HomePage({ nav, user, auth }) {
             <span style={{ fontSize: 10, color: "#0ea5e9", fontWeight: 600, letterSpacing: ".07em", fontFamily: "'JetBrains Mono'" }}>INTELLIGENCE ENGINE RUNNING</span>
           </div>
           <h2 style={{ fontSize: "clamp(26px,4vw,44px)", fontWeight: 800, letterSpacing: "-.04em", maxWidth: 620, margin: "0 auto", lineHeight: 1.1 }}>
-            Your competitors are already monitoring.<br />
-            <span style={{ color: "#0ea5e9" }}>Are you?</span>
+            The web doesn't wait.<br />
+            <span style={{ color: "#0ea5e9" }}>Your intelligence shouldn't either.</span>
           </h2>
           <p style={{ color: T.muted, marginTop: 16, maxWidth: 460, margin: "16px auto 0", fontSize: 14, lineHeight: 1.75 }}>
-            Get your first decision brief in 90 seconds. No credit card. No sales call. Real signals, real reasoning, real sources.
+            WebDataOS is an enterprise intelligence operating system. Your first decision brief is ready in under 90 seconds.
           </p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 28, flexWrap: "wrap", alignItems: "center" }}>
             <button onClick={go} style={{ padding: "14px 30px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", gap: 7, letterSpacing: ".01em" }}>{label} <ArrowRight size={15} /></button>
