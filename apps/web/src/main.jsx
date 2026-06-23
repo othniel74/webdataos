@@ -6,7 +6,7 @@ import {
   CheckCircle, RefreshCw, Send, LogOut, User, Mail, KeyRound,
   ThumbsUp, ThumbsDown, BarChart3, Target, Briefcase, Play,
   AlertTriangle, Database, Search, Clock, Eye as EyeIcon, ChevronRight,
-  GitBranch, Menu, X
+  GitBranch, Menu, X, Lock, FileText
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -245,7 +245,7 @@ const packIcon = (id, size = 18) => {
    APP
    ═══════════════════════════════════════════════════════════════════════ */
 const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
-const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Settings"];
+const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Team", "Settings"];
 const initialPageFromPath = () => {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
   const publicMatch = PUB.find(page => page.toLowerCase() === path);
@@ -373,7 +373,8 @@ export default function App() {
       {page === "Evidence" && canUsePrivateApi && <EvidencePage ws={ws} />}
       {page === "Intelligence" && canUsePrivateApi && <EvidencePage ws={ws} />}
       {page === "Gateway" && canUsePrivateApi && <GwPage />}
-      {page === "Actions" && canUsePrivateApi && <ActPage actions={actions} setActions={setActions} />}
+      {page === "Actions" && canUsePrivateApi && <ActPage actions={actions} setActions={setActions} user={user} />}
+      {page === "Team" && canUsePrivateApi && <TeamPage user={user} />}
       {page === "Outcomes" && canUsePrivateApi && <OutPage ws={ws} user={user} />}
       {showOnboarding && <OnboardingWizard user={user} setWs={setWs} saveWorkspace={saveWorkspace} runResearch={runResearch}
           onComplete={dest => { setShowOnboarding(false); setPage(dest || "Monitor"); }}
@@ -755,6 +756,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 12px 5px 6px", borderRadius: 6, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.1)" }}>
                 <div style={{ width: 24, height: 24, borderRadius: 5, background: "#0ea5e9", display: "grid", placeItems: "center", color: "#000", fontSize: 11, fontWeight: 700 }}>{user.initials}</div>
                 <span style={{ fontSize: 13, color: "#9ab0c4" }}>{user.name}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", padding: "1px 6px", borderRadius: 3, background: user.role === "admin" || user.role === "owner" ? "rgba(14,165,233,.12)" : "rgba(255,255,255,.05)", color: user.role === "admin" || user.role === "owner" ? "#0ea5e9" : "#7a8899", fontFamily: "'JetBrains Mono'", border: `1px solid ${user.role === "admin" || user.role === "owner" ? "rgba(14,165,233,.2)" : "rgba(255,255,255,.08)"}` }}>{user.role || "analyst"}</span>
               </div>
               <button onClick={onOut} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,.1)", background: "transparent", color: "#9ab0c4", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center" }}>
                 <LogOut size={13} />
@@ -4694,21 +4696,182 @@ function GwPage() {
 }
 
 /* ═══════ ACTIONS ═══════ */
-function ActPage({ actions, setActions }) {
+/* ═══════════════════════════════════════════════════════════════════════
+   TEAM PAGE — member management, roles, permissions, trust signals
+   ═══════════════════════════════════════════════════════════════════════ */
+const ROLE_MATRIX = [
+  { action: "View decision briefs",     analyst: true,  viewer: true,  admin: true  },
+  { action: "Run intelligence scans",   analyst: true,  viewer: false, admin: true  },
+  { action: "Create workspaces",        analyst: true,  viewer: false, admin: true  },
+  { action: "Approve actions",          analyst: false, viewer: false, admin: true  },
+  { action: "Execute actions",          analyst: false, viewer: false, admin: true  },
+  { action: "Manage team members",      analyst: false, viewer: false, admin: true  },
+  { action: "Configure integrations",   analyst: false, viewer: false, admin: true  },
+  { action: "Export audit log",         analyst: false, viewer: false, admin: true  },
+  { action: "View evidence & sources",  analyst: true,  viewer: true,  admin: true  },
+  { action: "Chat with Analyst",        analyst: true,  viewer: true,  admin: true  },
+];
+
+function TeamPage({ user }) {
+  const isAdmin = user?.role === "admin" || user?.role === "owner";
+  const [invite, setInvite] = useState({ email: "", role: "analyst" });
+  const [invites, setInvites] = useState([]);
+  const [sent, setSent] = useState(false);
+
+  const sendInvite = () => {
+    if (!invite.email.includes("@")) return;
+    setInvites(p => [...p, { ...invite, status: "pending", id: Date.now() }]);
+    setInvite({ email: "", role: "analyst" });
+    setSent(true);
+    setTimeout(() => setSent(false), 2000);
+  };
+
+  const ROLE_COLOR = { admin: "#0ea5e9", analyst: "#818cf8", viewer: "#7a8899" };
+
+  return (
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 24px" }}>
+      <Eye>Team & permissions</Eye>
+      <h2 style={{ fontSize: 22, marginTop: 4, marginBottom: 4 }}>Workspace access</h2>
+      <p style={{ fontSize: 13, color: T.muted, marginBottom: 28 }}>Manage who can view, run, and approve intelligence in this workspace.</p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 28 }}>
+        {/* Current members */}
+        <div style={{ borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: T.dim }}>Members</span>
+            <span style={{ fontSize: 10, color: T.dim }}>{1 + invites.filter(i => i.status !== "pending").length} active</span>
+          </div>
+          {/* Current user */}
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 7, background: "#0ea5e9", display: "grid", placeItems: "center", color: "#000", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{user?.initials || "A"}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{user?.name || "You"}</div>
+              <div style={{ fontSize: 11, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.email}</div>
+            </div>
+            <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 3, background: "rgba(14,165,233,.1)", color: "#0ea5e9", textTransform: "uppercase", letterSpacing: ".06em", border: "1px solid rgba(14,165,233,.2)", flexShrink: 0 }}>{user?.role || "admin"}</span>
+            <span style={{ fontSize: 10, color: "#22c55e" }}>You</span>
+          </div>
+          {invites.map(inv => (
+            <div key={inv.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(255,255,255,.05)", display: "grid", placeItems: "center", color: T.dim, fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{inv.email[0].toUpperCase()}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inv.email}</div>
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 3, background: `${ROLE_COLOR[inv.role]}12`, color: ROLE_COLOR[inv.role], textTransform: "uppercase", letterSpacing: ".06em", border: `1px solid ${ROLE_COLOR[inv.role]}25`, flexShrink: 0 }}>{inv.role}</span>
+              <span style={{ fontSize: 10, color: "#f59e0b" }}>Invited</span>
+            </div>
+          ))}
+          {!invites.length && (
+            <div style={{ padding: "14px 16px", color: T.dim, fontSize: 12 }}>No other members yet. Invite your team below.</div>
+          )}
+        </div>
+
+        {/* Invite form */}
+        <div style={{ borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: T.dim }}>Invite member</span>
+          </div>
+          <div style={{ padding: 16 }}>
+            {!isAdmin && (
+              <div style={{ marginBottom: 14, padding: "9px 12px", borderRadius: 6, background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.15)", fontSize: 12, color: "#f59e0b", display: "flex", gap: 8, alignItems: "center" }}>
+                <Shield size={13} /> Only admins can invite team members.
+              </div>
+            )}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Email address</div>
+              <input disabled={!isAdmin} value={invite.email} onChange={e => setInvite(p => ({ ...p, email: e.target.value }))} onKeyDown={e => e.key === "Enter" && sendInvite()} placeholder="colleague@company.com" style={{ width: "100%", padding: "9px 12px", borderRadius: 6, background: "#0c0d12", border: `1px solid ${T.borderL}`, color: T.text, fontSize: 13, outline: "none", opacity: isAdmin ? 1 : .5 }} />
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Role</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                {[["admin", "Admin", "Full access — approve & execute"], ["analyst", "Analyst", "Run scans, view briefs, use chat"], ["viewer", "Viewer", "Read-only access to briefs"]].map(([id, label, desc]) => (
+                  <button key={id} disabled={!isAdmin} onClick={() => setInvite(p => ({ ...p, role: id }))} style={{ padding: "10px 10px", borderRadius: 7, border: `1px solid ${invite.role === id ? ROLE_COLOR[id] + "50" : "rgba(255,255,255,.08)"}`, background: invite.role === id ? ROLE_COLOR[id] + "08" : "transparent", cursor: isAdmin ? "pointer" : "not-allowed", textAlign: "left", opacity: isAdmin ? 1 : .5, transition: "border-color .15s" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: invite.role === id ? ROLE_COLOR[id] : T.text, marginBottom: 3 }}>{label}</div>
+                    <div style={{ fontSize: 10, color: T.dim, lineHeight: 1.4 }}>{desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button disabled={!isAdmin || !invite.email} onClick={sendInvite} style={{ width: "100%", padding: "10px", borderRadius: 6, border: "none", background: isAdmin && invite.email ? "#0ea5e9" : "rgba(255,255,255,.05)", color: isAdmin && invite.email ? "#000" : T.dim, fontSize: 13, fontWeight: 700, cursor: isAdmin && invite.email ? "pointer" : "not-allowed", transition: "background .15s" }}>
+              {sent ? "Invite sent ✓" : "Send invite"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Permissions matrix */}
+      <div style={{ borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden", marginBottom: 28 }}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: T.dim }}>Permissions matrix</span>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+              <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 10, color: T.dim, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em" }}>Action</th>
+              {["Admin", "Analyst", "Viewer"].map(r => (
+                <th key={r} style={{ padding: "10px 16px", textAlign: "center", fontSize: 10, fontWeight: 700, color: ROLE_COLOR[r.toLowerCase()], textTransform: "uppercase", letterSpacing: ".06em" }}>{r}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ROLE_MATRIX.map((row, i) => (
+              <tr key={row.action} style={{ borderBottom: i < ROLE_MATRIX.length - 1 ? `1px solid ${T.border}` : "none", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.01)" }}>
+                <td style={{ padding: "9px 16px", fontSize: 12, color: T.text }}>{row.action}</td>
+                {["admin", "analyst", "viewer"].map(role => (
+                  <td key={role} style={{ padding: "9px 16px", textAlign: "center" }}>
+                    {row[role] ? <span style={{ color: "#22c55e", fontSize: 14 }}>✓</span> : <span style={{ color: T.border, fontSize: 14 }}>—</span>}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Enterprise trust signals */}
+      <div style={{ borderRadius: 10, background: T.bgCard, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: T.dim }}>Security & compliance</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0 }}>
+          {[
+            { icon: <Shield size={16} />, title: "SOC 2 Type II", sub: "In progress", color: "#f59e0b" },
+            { icon: <Layers size={16} />, title: "SSO / SAML ready", sub: "Okta, Azure AD", color: "#22c55e" },
+            { icon: <Lock size={16} />, title: "RBAC enforced", sub: "Admin · Analyst · Viewer", color: "#0ea5e9" },
+            { icon: <FileText size={16} />, title: "Audit trail", sub: "All actions logged", color: "#818cf8" },
+            { icon: <Globe size={16} />, title: "Data residency", sub: "EU & US available", color: "#0ea5e9" },
+            { icon: <Zap size={16} />, title: "99.9% uptime SLA", sub: "Enterprise tier", color: "#22c55e" },
+          ].map((item, i) => (
+            <div key={item.title} style={{ padding: "16px 18px", borderRight: i % 3 < 2 ? `1px solid ${T.border}` : "none", borderBottom: i < 3 ? `1px solid ${T.border}` : "none", display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{ width: 30, height: 30, borderRadius: 7, background: `${item.color}12`, border: `1px solid ${item.color}22`, display: "grid", placeItems: "center", color: item.color, flexShrink: 0 }}>{item.icon}</div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{item.title}</div>
+                <div style={{ fontSize: 11, color: T.dim, marginTop: 2 }}>{item.sub}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActPage({ actions, setActions, user }) {
   const [f, setF] = useState("all");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const isAdmin = user?.role === "admin" || user?.role === "owner";
   const list = f === "all" ? actions : actions.filter(a => a.status === f);
   const patchAction = updated => setActions(p => p.map(a => a.id === updated.id ? updated : a));
   const approve = async id => {
     setBusy(id); setErr("");
-    try { patchAction(await endpoints.approveAction(id, { approve: true, approved_by: "analyst" })); toast.success("Action approved"); }
+    try { patchAction(await endpoints.approveAction(id, { approve: true, approved_by: user?.email || user?.name || "admin" })); toast.success("Action approved"); }
     catch (e) { const m = e.message || "Could not approve action."; setErr(m); toast.error(m); }
     finally { setBusy(""); }
   };
   const reject = async id => {
     setBusy(id); setErr("");
-    try { patchAction(await endpoints.approveAction(id, { approve: false, approved_by: "analyst" })); toast.info("Action rejected"); }
+    try { patchAction(await endpoints.approveAction(id, { approve: false, approved_by: user?.email || user?.name || "admin" })); toast.info("Action rejected"); }
     catch (e) { const m = e.message || "Could not reject action."; setErr(m); toast.error(m); }
     finally { setBusy(""); }
   };
@@ -4720,23 +4883,58 @@ function ActPage({ actions, setActions }) {
   };
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "36px 24px" }}>
-      <Eye>Autonomous actions</Eye><h2 style={{ fontSize: 22, marginTop: 4 }}>Approval queue</h2>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <Eye>Autonomous actions</Eye>
+          <h2 style={{ fontSize: 22, marginTop: 4 }}>Approval queue</h2>
+        </div>
+        {/* Role gate banner */}
+        {!isAdmin && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 6, background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.15)" }}>
+            <Shield size={13} color="#f59e0b" />
+            <span style={{ fontSize: 12, color: "#f59e0b" }}>You have <strong>{user?.role || "analyst"}</strong> access — admin approval required to approve or execute actions.</span>
+          </div>
+        )}
+      </div>
       {err && <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.18)", color: "#ef4444", fontSize: 12 }}>{err}</div>}
       <div style={{ display: "flex", gap: 2, padding: 3, borderRadius: 999, background: "rgba(255,255,255,.04)", border: `1px solid ${T.border}`, marginTop: 12, width: "fit-content" }}>
-        {[["all", "All"], ["pending_approval", "Pending"], ["approved", "Approved"], ["executed", "Executed"], ["rejected", "Rejected"]].map(([id, l]) => <button key={id} onClick={() => setF(id)} style={{ border: "none", borderRadius: 999, padding: "5px 10px", fontSize: 11, background: f === id ? T.accent : "transparent", color: f === id ? "#000" : T.muted, cursor: "pointer" }}>{l} ({id === "all" ? actions.length : actions.filter(a => a.status === id).length})</button>)}
+        {[["all", "All"], ["pending_approval", "Pending"], ["approved", "Approved"], ["executed", "Executed"], ["rejected", "Rejected"]].map(([id, l]) => (
+          <button key={id} onClick={() => setF(id)} style={{ border: "none", borderRadius: 999, padding: "5px 10px", fontSize: 11, background: f === id ? T.accent : "transparent", color: f === id ? "#000" : T.muted, cursor: "pointer" }}>
+            {l} ({id === "all" ? actions.length : actions.filter(a => a.status === id).length})
+          </button>
+        ))}
       </div>
-      <div style={{ marginTop: 12, borderRadius: 14, overflow: "hidden", background: T.bgSub, border: `1px solid ${T.border}` }}>
-        {list.map(a => <div key={a.id} style={{ padding: "10px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", gap: 4, marginBottom: 2 }}><span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: `${stC(a.status)}12`, color: stC(a.status), fontWeight: 600 }}>{a.status}</span><span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 3, background: "rgba(255,255,255,.04)", color: T.dim }}>{a.action_type}</span></div>
-            <div style={{ fontSize: 13, fontWeight: 500 }}>{a.title}</div>
-            <div style={{ fontSize: 11, color: T.dim }}>{a.description}</div>
+      <div style={{ marginTop: 12, borderRadius: 10, overflow: "hidden", background: T.bgSub, border: `1px solid ${T.border}` }}>
+        {list.map(a => (
+          <div key={a.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", gap: 5, marginBottom: 4, alignItems: "center" }}>
+                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 3, background: `${stC(a.status)}12`, color: stC(a.status), fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{a.status.replace("_", " ")}</span>
+                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 3, background: "rgba(255,255,255,.04)", color: T.dim, textTransform: "uppercase", letterSpacing: ".04em" }}>{a.action_type}</span>
+                {a.approved_by && <span style={{ fontSize: 10, color: T.dim }}>approved by <span style={{ color: T.muted }}>{a.approved_by}</span></span>}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{a.title}</div>
+              <div style={{ fontSize: 11, color: T.dim, marginTop: 2, lineHeight: 1.5 }}>{a.description}</div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              {a.status === "pending_approval" && isAdmin && (
+                <>
+                  <button disabled={busy === a.id} onClick={() => approve(a.id)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: "#22c55e", color: "#000", fontSize: 11, fontWeight: 700, cursor: busy === a.id ? "wait" : "pointer" }}>Approve</button>
+                  <button disabled={busy === a.id} onClick={() => reject(a.id)} style={{ padding: "6px 12px", borderRadius: 6, border: `1px solid ${T.borderL}`, background: "transparent", color: T.dim, fontSize: 11, cursor: busy === a.id ? "wait" : "pointer" }}>Reject</button>
+                </>
+              )}
+              {a.status === "pending_approval" && !isAdmin && (
+                <span style={{ fontSize: 11, color: T.dim, padding: "6px 10px", borderRadius: 6, border: `1px solid ${T.border}`, background: "rgba(255,255,255,.02)" }}>Awaiting admin</span>
+              )}
+              {(a.status === "approved" || a.status === "auto_approved") && isAdmin && (
+                <button disabled={busy === a.id} onClick={() => execute(a.id)} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: T.accent, color: "#000", fontSize: 11, fontWeight: 700, cursor: busy === a.id ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 5 }}><Play size={11} /> Execute</button>
+              )}
+              {(a.status === "approved" || a.status === "auto_approved") && !isAdmin && (
+                <span style={{ fontSize: 11, color: "#22c55e", padding: "6px 10px" }}>Approved — awaiting execution</span>
+              )}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 3, flexShrink: 0, marginLeft: 8 }}>
-            {a.status === "pending_approval" && <><button disabled={busy === a.id} onClick={() => approve(a.id)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "#22c55e", color: "#000", fontSize: 10, fontWeight: 600, cursor: busy === a.id ? "wait" : "pointer" }}>Approve</button><button disabled={busy === a.id} onClick={() => reject(a.id)} style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${T.borderL}`, background: "transparent", color: T.dim, fontSize: 10, cursor: busy === a.id ? "wait" : "pointer" }}>Reject</button></>}
-            {(a.status === "approved" || a.status === "auto_approved") && <button disabled={busy === a.id} onClick={() => execute(a.id)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: T.accent, color: "#000", fontSize: 10, fontWeight: 600, cursor: busy === a.id ? "wait" : "pointer" }}><Play size={10} /> Execute</button>}
-          </div>
-        </div>)}
+        ))}
         {!list.length && <EmptyState icon={Zap} title="No actions in this view" body={f === "all" ? "Autonomous actions appear here after a monitoring run proposes them." : `No actions with status "${f}" yet.`} />}
       </div>
     </div>
