@@ -1492,13 +1492,13 @@ function HomePage({ nav, user, auth }) {
         </div>
       </section>
 
-      {/* ── Live signal ticker ── */}
-      <SignalTicker />
-
-      {/* ── Inline live demo ── */}
+      {/* ── Inline live demo — immediately below hero so visitors feel it first ── */}
       <div id="live-demo">
         <HomeDemo nav={nav} />
       </div>
+
+      {/* ── Live signal ticker ── */}
+      <SignalTicker />
 
       {/* ── Pain stories — the cost of being last ── */}
       <section ref={statsRef} style={{ padding: "64px 24px", borderTop: `1px solid ${T.border}` }}>
@@ -4532,18 +4532,24 @@ function EvidencePage({ ws }) {
           <div style={{ maxHeight: 540, overflowY: "auto" }}>
             {displayRecords.map(item => {
               const active = selected?.id === item.id;
+              const tierColor = item.source_tier === 1 ? "#22c55e" : item.source_tier === 2 ? T.accent : "#818cf8";
+              const tierLabel = item.source_tier === 1 ? "Official" : item.source_tier === 2 ? "News" : "Web";
+              const hostname = (() => { try { return new URL(item.source_url || "").hostname.replace(/^www\./, ""); } catch { return item.source_type || "source"; } })();
+              const confPct = Math.round((item.confidence || 0) * 100);
               return (
-                <button key={item.id} onClick={() => setSelectedId(item.id)} style={{ width: "100%", textAlign: "left", padding: "11px 12px", border: "none", borderBottom: `1px solid ${T.border}`, background: active ? "rgba(6,182,212,.1)" : "transparent", color: T.text }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.entity_name || "Evidence record"}</div>
-                    <div style={{ display: "flex", gap: 5, alignItems: "center", flexShrink: 0 }}>
-                      {item.source_tier === 1 && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 999, background: "rgba(34,197,94,.15)", color: "#22c55e", fontWeight: 900, textTransform: "uppercase" }}>official</span>}
-                      {item.source_tier === 2 && <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 999, background: "rgba(6,182,212,.12)", color: T.accent, fontWeight: 900, textTransform: "uppercase" }}>news</span>}
-                      <span style={{ fontSize: 10, color: active ? T.accent : T.dim, fontFamily: "'JetBrains Mono'" }}>{fmt(item.confidence || 0)}</span>
-                    </div>
+                <button key={item.id} onClick={() => setSelectedId(item.id)} style={{ width: "100%", textAlign: "left", padding: "12px 14px", border: "none", borderBottom: `1px solid ${T.border}`, background: active ? "rgba(14,165,233,.06)" : "transparent", color: T.text, borderLeft: active ? "3px solid #0ea5e9" : "3px solid transparent", transition: "background .1s" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: active ? T.accent : T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.entity_name || "Entity"}</span>
+                    <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: `${tierColor}14`, color: tierColor, fontWeight: 700, textTransform: "uppercase", flexShrink: 0 }}>{tierLabel}</span>
                   </div>
-                  <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.45, color: T.muted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.summary || "No summary captured."}</div>
-                  <div style={{ marginTop: 6, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><SourceLink url={item.source_url}>{item.source_url || item.source_type || "source pending"}</SourceLink></div>
+                  <div style={{ fontSize: 12, lineHeight: 1.55, color: T.muted, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.summary || "No insight extracted yet."}</div>
+                  <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 10, color: T.dim }}>{hostname}</span>
+                    <div style={{ flex: 1, height: 2, borderRadius: 1, background: "rgba(255,255,255,.05)" }}>
+                      <div style={{ height: "100%", borderRadius: 1, background: confPct > 79 ? "#22c55e" : confPct > 59 ? "#f59e0b" : "#ef4444", width: `${confPct}%` }} />
+                    </div>
+                    <span style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", flexShrink: 0 }}>{confPct}%</span>
+                  </div>
                 </button>
               );
             })}
@@ -4551,52 +4557,122 @@ function EvidencePage({ ws }) {
           </div>
         </section>
 
-        <section style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16, minHeight: 590, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em" }}>Selected record</div>
-              <h3 style={{ margin: "5px 0 0", fontSize: 18, overflowWrap: "anywhere" }}>{selected?.entity_name || "Select evidence"}</h3>
-            </div>
-            {selected && <span style={{ fontSize: 10, padding: "3px 7px", borderRadius: 999, background: "rgba(6,182,212,.1)", color: T.accent, flexShrink: 0 }}>{selected.freshness_status || "unknown"}</span>}
-          </div>
-          {selected ? <>
-            <p style={{ marginTop: 14, fontSize: 13, lineHeight: 1.75, color: T.muted }}>{selected.summary || "No summary available for this record."}</p>
-            <div style={{ marginTop: 12, display: "flex", gap: 18, flexWrap: "wrap", paddingBottom: 12, borderBottom: `1px solid ${T.border}` }}>
-              <div><Lb>Confidence</Lb><div style={{ marginTop: 4, color: T.accent, fontWeight: 800 }}>{fmt(selected.confidence || 0)}</div></div>
-              <div><Lb>Type</Lb><div style={{ marginTop: 4, color: T.muted, fontWeight: 700 }}>{selected.source_type || "web"}</div></div>
-              <div><Lb>Source tier</Lb><div style={{ marginTop: 4, fontWeight: 800, color: selected.source_tier === 1 ? "#22c55e" : selected.source_tier === 2 ? T.accent : T.dim }}>{selected.source_tier === 1 ? "T1 — official" : selected.source_tier === 2 ? "T2 — news" : "T3 — web"}</div></div>
-              <div><Lb>Checked</Lb><div style={{ marginTop: 4, color: T.muted, fontWeight: 700 }}>{selected.last_checked ? new Date(selected.last_checked).toLocaleDateString() : "unknown"}</div></div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <Lb>Source</Lb>
-              <div style={{ display: "block", marginTop: 5, fontSize: 12, wordBreak: "break-all" }}><SourceLink url={selected.source_url}>{selected.source_url}</SourceLink></div>
-            </div>
-            <div style={{ marginTop: 14 }}>
-              <Lb>Payload</Lb>
-              <pre style={{ marginTop: 6, maxHeight: 270, overflow: "auto", padding: 10, borderRadius: 8, background: T.bgInset, border: `1px solid ${T.border}`, color: T.muted, fontSize: 11 }}>{JSON.stringify(selected.facts || {}, null, 2)}</pre>
-            </div>
-          </> : <div style={{ marginTop: 14, color: T.dim, fontSize: 12 }}>The detail panel appears after evidence exists.</div>}
+        <section style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, padding: 16, minHeight: 590, minWidth: 0, overflowY: "auto" }}>
+          {selected ? (() => {
+            const conf = Math.round((selected.confidence || 0) * 100);
+            const tierLabel = selected.source_tier === 1 ? "T1 — Official source" : selected.source_tier === 2 ? "T2 — News / press" : "T3 — General web";
+            const tierColor = selected.source_tier === 1 ? "#22c55e" : selected.source_tier === 2 ? T.accent : "#818cf8";
+            const hostname = (() => { try { return new URL(selected.source_url || "").hostname.replace(/^www\./, ""); } catch { return null; } })();
+            const firstSentence = (text) => { if (!text) return ""; const m = text.match(/^[^.!?]+[.!?]/); return m ? m[0] : text.slice(0, 160); };
+            const facts = selected.facts || {};
+            const factBullets = [];
+            if (Array.isArray(facts.key_facts)) factBullets.push(...facts.key_facts);
+            else if (Array.isArray(facts.signals)) factBullets.push(...facts.signals.map(s => typeof s === "string" ? s : s.description || s.signal || JSON.stringify(s)));
+            else if (Array.isArray(facts.change_indicators)) factBullets.push(...facts.change_indicators);
+            else if (typeof facts === "object") Object.entries(facts).slice(0, 6).forEach(([k, v]) => { if (typeof v === "string" && v.length > 4) factBullets.push(`${k.replace(/_/g," ")}: ${v}`); });
+            const copyInsight = () => { navigator.clipboard?.writeText(`${selected.entity_name}\n\n${selected.summary}\n\nSource: ${selected.source_url}`); toast.success("Insight copied"); };
+            return (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>Intelligence record</div>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{selected.entity_name || "Entity"}</h3>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 3, background: `${tierColor}12`, color: tierColor, fontWeight: 700, textTransform: "uppercase", border: `1px solid ${tierColor}25` }}>{tierLabel}</span>
+                    <button onClick={copyInsight} title="Copy insight" style={{ width: 26, height: 26, borderRadius: 5, border: `1px solid ${T.borderL}`, background: "transparent", color: T.dim, cursor: "pointer", display: "grid", placeItems: "center" }}><FileText size={11} /></button>
+                  </div>
+                </div>
+
+                {/* Key insight box */}
+                <div style={{ padding: "11px 14px", borderRadius: 7, background: "rgba(14,165,233,.05)", border: "1px solid rgba(14,165,233,.14)", borderLeft: "3px solid #0ea5e9", marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, color: T.accent, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>Key insight</div>
+                  <div style={{ fontSize: 13, color: "#dde4ee", lineHeight: 1.65 }}>{firstSentence(selected.summary)}</div>
+                </div>
+
+                {/* Full context */}
+                {selected.summary && selected.summary.length > firstSentence(selected.summary).length && (
+                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.75, marginBottom: 14 }}>{selected.summary.slice(firstSentence(selected.summary).length).trim()}</div>
+                )}
+
+                {/* Extracted facts as bullets */}
+                {factBullets.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>Extracted facts</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      {factBullets.slice(0, 6).map((f, i) => (
+                        <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                          <div style={{ width: 4, height: 4, borderRadius: "50%", background: T.accent, marginTop: 6, flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, color: T.muted, lineHeight: 1.55 }}>{String(f)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Metadata strip */}
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", paddingTop: 12, borderTop: `1px solid ${T.border}`, marginTop: 4 }}>
+                  <div>
+                    <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Confidence</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: conf > 79 ? "#22c55e" : conf > 59 ? "#f59e0b" : "#ef4444" }}>{conf}%</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Signal type</div>
+                    <div style={{ fontSize: 12, color: T.muted, textTransform: "capitalize" }}>{selected.source_type || "web"}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Freshness</div>
+                    <div style={{ fontSize: 12, color: selected.freshness_status === "fresh" ? "#22c55e" : T.muted, textTransform: "capitalize" }}>{selected.freshness_status || "unknown"}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3 }}>Checked</div>
+                    <div style={{ fontSize: 12, color: T.muted }}>{selected.last_checked ? new Date(selected.last_checked).toLocaleDateString() : "—"}</div>
+                  </div>
+                </div>
+
+                {/* Source — secondary, bottom */}
+                {selected.source_url && (
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                    <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Primary source</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, color: T.muted }}>{hostname}</span>
+                      <SourceLink url={selected.source_url} style={{ fontSize: 11 }}>View original ↗</SourceLink>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })() : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 300, color: T.dim, gap: 8 }}><Database size={24} color={T.dim} /><div style={{ fontSize: 12 }}>Select a record to see its intelligence</div></div>}
         </section>
 
         <aside style={{ background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 8, padding: 14, minHeight: 590, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 800 }}>Inspector</div>
-          <div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>Retrieval rank, source candidates, and graph context.</div>
+          <div style={{ fontSize: 13, fontWeight: 800 }}>Context</div>
+          <div style={{ fontSize: 11, color: T.dim, marginTop: 3 }}>Relevance rank · sources · graph</div>
+          {retrievalForSelected && (
+            <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 7, background: T.bgInset, border: `1px solid ${T.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700 }}>Relevance score</div>
+                <div style={{ fontSize: 16, color: T.accent, fontWeight: 800, fontFamily: "'JetBrains Mono'" }}>{retrievalForSelected.score}</div>
+              </div>
+              {retrievalReasons.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {retrievalReasons.map((r, i) => <div key={i} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}><div style={{ width: 4, height: 4, borderRadius: "50%", background: "#818cf8", marginTop: 5, flexShrink: 0 }} /><span style={{ fontSize: 11, color: T.muted, lineHeight: 1.4 }}>{r}</span></div>)}
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 800 }}>Retrieval</div>
-              <div style={{ fontSize: 18, color: T.accent, fontWeight: 800 }}>{retrievalForSelected?.score ?? "-"}</div>
-            </div>
-            <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {(retrievalReasons.length ? retrievalReasons : ["Rank this evidence to see match reasons."]).map(reason => <span key={reason} style={{ fontSize: 11, color: T.muted, lineHeight: 1.35, overflowWrap: "anywhere" }}>{reason}</span>)}
-            </div>
-          </div>
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-            <div style={{ fontSize: 12, fontWeight: 800 }}>Discovered sources</div>
-            {sources.slice(0, 5).map((source, i) => <div key={`${source.url}-${i}`} style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 11, color: T.text, fontWeight: 700, overflowWrap: "anywhere" }}>{source.title || source.url}</div>
-              <div style={{ marginTop: 3, fontSize: 10, overflowWrap: "anywhere" }}><SourceLink url={source.url}>{source.url}</SourceLink></div>
-            </div>)}
-            {!sources.length && <div style={{ marginTop: 8, fontSize: 11, color: T.dim, lineHeight: 1.5 }}>No source discovery run yet.</div>}
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Discovered sources</div>
+            {sources.slice(0, 5).map((source, i) => {
+              const h = (() => { try { return new URL(source.url || "").hostname.replace(/^www\./, ""); } catch { return source.url; } })();
+              return (
+                <div key={`${source.url}-${i}`} style={{ marginBottom: 10, padding: "8px 10px", borderRadius: 6, background: T.bgInset, border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 12, color: T.text, fontWeight: 600, lineHeight: 1.4, marginBottom: 3 }}>{source.title || h}</div>
+                  <SourceLink url={source.url} style={{ fontSize: 10 }}>{h} ↗</SourceLink>
+                </div>
+              );
+            })}
+            {!sources.length && <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.5 }}>Run source discovery to see candidates.</div>}
           </div>
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
