@@ -1539,18 +1539,6 @@ function HomePage({ nav, user, auth }) {
         {/* Subtle ambient glow — no texture */}
         <div style={{ position: "absolute", top: "20%", left: "50%", transform: "translate(-50%,-50%)", width: 700, height: 500, borderRadius: "50%", background: "radial-gradient(ellipse,rgba(14,165,233,0.04),transparent 70%)", pointerEvents: "none" }} />
 
-        {/* WebDataOS brand wordmark — the visual anchor */}
-        <div className="au" style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 0, marginBottom: 36, position: "relative" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 28px", borderRadius: 12, background: "rgba(14,165,233,.05)", border: "1px solid rgba(14,165,233,.14)", boxShadow: "0 0 60px rgba(14,165,233,.06)" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 9, background: "linear-gradient(135deg,#0ea5e9,#0284c7)", display: "grid", placeItems: "center", boxShadow: "0 0 20px rgba(14,165,233,.3)" }}>
-              <Layers size={18} color="#fff" />
-            </div>
-            <span style={{ fontSize: "clamp(22px,3vw,32px)", fontWeight: 800, letterSpacing: "-.05em", color: "#f0f4f8", fontFamily: "'JetBrains Mono'" }}>WebDataOS</span>
-            <span style={{ fontSize: 10, color: "rgba(14,165,233,.7)", fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", fontFamily: "'JetBrains Mono'", background: "rgba(14,165,233,.08)", padding: "2px 7px", borderRadius: 4, border: "1px solid rgba(14,165,233,.15)" }}>v0.5</span>
-          </div>
-          <div style={{ marginTop: 10, fontSize: 11, color: "#3d5266", letterSpacing: ".14em", textTransform: "uppercase", fontFamily: "'JetBrains Mono'" }}>Enterprise Intelligence Operating System</div>
-        </div>
-
         {/* Live status pill */}
         <div className="au" style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 24, padding: "5px 14px", borderRadius: 4, background: "rgba(34,197,94,.04)", border: "1px solid rgba(34,197,94,.12)", position: "relative" }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", animation: "pulse 2s ease infinite", display: "inline-block", flexShrink: 0 }} />
