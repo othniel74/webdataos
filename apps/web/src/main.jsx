@@ -1523,7 +1523,6 @@ function HomePage({ nav, user, auth }) {
   // Scroll-reveal refs for each section
   const [statsRef, statsVisible] = useInView(0.2);
   const [graphRef, graphVisible] = useInView(0.1);
-  const [whyRef, whyVisible] = useInView(0.1);
   const [domainsRef, domainsVisible] = useInView(0.1);
   const [howRef, howVisible] = useInView(0.1);
   // Hoisted count-ups (hooks must not be inside loops)
@@ -1574,14 +1573,13 @@ function HomePage({ nav, user, auth }) {
         </div>
 
         {/* What it delivers — qualitative */}
-        <div className="au s3" style={{ display: "flex", justifyContent: "center", gap: 0, margin: "48px auto 0", maxWidth: 860, flexWrap: "wrap", position: "relative" }}>
+        <div className="au s3" style={{ display: "flex", justifyContent: "center", gap: 0, margin: "40px auto 0", maxWidth: 700, flexWrap: "wrap", position: "relative" }}>
           {[
-            ["Source-cited evidence", "Every finding links back to its source"],
-            ["Business reasoning", "Not summaries — assessed materiality"],
-            ["24/7 monitoring", "Continuous, scheduled, or on demand"],
-            ["Approval-ready actions", "Proposed next steps, not vague recommendations"],
+            ["Source-cited evidence", "Every finding links back"],
+            ["Business reasoning", "Assessed materiality, not summaries"],
+            ["24/7 monitoring", "Continuous or on demand"],
           ].map(([title, sub], i) => (
-            <div key={title} style={{ padding: "0 22px", borderLeft: i ? `1px solid ${T.border}` : "none", textAlign: "center", minWidth: 160 }}>
+            <div key={title} style={{ padding: "0 28px", borderLeft: i ? `1px solid ${T.border}` : "none", textAlign: "center", minWidth: 160 }}>
               <div style={{ color: "#dde4ee", fontSize: 13, fontWeight: 700 }}>{title}</div>
               <div style={{ marginTop: 4, color: "#3d4a5a", fontSize: 11, lineHeight: 1.5 }}>{sub}</div>
             </div>
@@ -1594,11 +1592,8 @@ function HomePage({ nav, user, auth }) {
         <HomeDemo nav={nav} />
       </div>
 
-      {/* ── Live signal ticker ── */}
-      <SignalTicker />
-
       {/* ── Product surface — what you actually see ── */}
-      <section style={{ padding: "72px 24px", borderTop: `1px solid ${T.border}` }}>
+      <section style={{ padding: "96px 24px", borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 44 }}>
             <Eye>What you actually get</Eye>
@@ -1686,7 +1681,7 @@ function HomePage({ nav, user, auth }) {
       </section>
 
       {/* ── Pain stories — the cost of being last ── */}
-      <section ref={statsRef} style={{ padding: "64px 24px", borderTop: `1px solid ${T.border}` }}>
+      <section ref={statsRef} style={{ padding: "96px 24px", borderTop: `1px solid ${T.border}` }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 40 }}>
             <Eye>The cost of being last</Eye>
@@ -1735,15 +1730,9 @@ function HomePage({ nav, user, auth }) {
                     <div style={{ fontSize: 10, color: T.dim, marginTop: 1 }}>Discovery method: <span style={{ color: "#f59e0b" }}>{s.discovery}</span></div>
                   </div>
                 </div>
-                <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.7 }}>{s.story}</div>
-                  <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 6, background: "rgba(239,68,68,.05)", border: "1px solid rgba(239,68,68,.12)", fontSize: 11, color: "#ef4444", lineHeight: 1.5 }}>
-                    <strong>Cost:</strong> {s.cost}
-                  </div>
-                </div>
-                <div style={{ padding: "12px 18px", background: "rgba(34,197,94,.03)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 5 }}>With WebDataOS</div>
-                  <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>{s.after}</div>
+                <div style={{ padding: "20px 18px" }}>
+                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.8 }}>{s.story}</div>
+                  <div style={{ marginTop: 16, fontSize: 11, color: "#22c55e", lineHeight: 1.6, borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>{s.after}</div>
                 </div>
               </div>
             ))}
@@ -1751,8 +1740,8 @@ function HomePage({ nav, user, auth }) {
         </div>
       </section>
 
-      {/* Knowledge graph \u2014 scroll-reveal */}
-      <section ref={graphRef} className={`sr-wrap${graphVisible ? " in" : ""}`} style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px" }}>
+      {/* Knowledge graph */}
+      <section ref={graphRef} className={`sr-wrap${graphVisible ? " in" : ""}`} style={{ maxWidth: 1100, margin: "0 auto", padding: "96px 24px" }}>
         <Eye>Knowledge graph</Eye>
         <h2 style={{ fontSize: 26, marginTop: 6 }}>Every run builds your organization's knowledge map</h2>
         <p style={{ color: T.muted, marginTop: 8, maxWidth: 600, fontSize: 13, lineHeight: 1.7 }}>
@@ -1778,83 +1767,44 @@ function HomePage({ nav, user, auth }) {
         </div>
       </section>
 
-      {/* What it replaces — scroll-reveal */}
-      <section ref={whyRef} className={`sr-wrap${whyVisible ? " in" : ""}`} style={{ borderTop: `1px solid ${T.border}`, background: T.bgSub, padding: "56px 24px" }}>
+      {/* Intelligence domains */}
+      <section ref={domainsRef} className={`sr-wrap${domainsVisible ? " in" : ""}`} style={{ padding: "96px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <Eye>Why teams switch</Eye>
-          <h2 style={{ fontSize: 26, marginTop: 6 }}>Stop re-researching. Start remembering.</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 28 }}>
-            {[
-              { before: "Analysts re-research the same vendors every quarter", after: "Persistent memory means every run adds to what your team already knows", color: "#ef4444" },
-              { before: "Intelligence buried in reports nobody reads back", after: "Live briefs with source receipts and approval-ready action proposals every run", color: "#f59e0b" },
-              { before: "Signals discovered days after competitors act on them", after: "Real-time web monitoring catches pricing, hiring, and filing changes the day they happen", color: T.accent },
-            ].map((r, i) => (
-              <div key={i} className={`sr d${i + 1}`} style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${T.border}` }}>
-                <div style={{ padding: "14px 16px", background: `${r.color}08`, borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 10, color: r.color, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>Before</div>
-                  <div style={{ fontSize: 12, color: T.muted, lineHeight: 1.55 }}>{r.before}</div>
-                </div>
-                <div style={{ padding: "14px 16px", background: T.bgCard }}>
-                  <div style={{ fontSize: 10, color: "#22c55e", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 6 }}>After WebDataOS</div>
-                  <div style={{ fontSize: 12, color: T.text, lineHeight: 1.55 }}>{r.after}</div>
-                </div>
-              </div>
-            ))}
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <Eye>Intelligence domains</Eye>
+            <h2 style={{ fontSize: "clamp(22px,3vw,32px)", marginTop: 10, fontWeight: 800, letterSpacing: "-.03em" }}>Intelligence ready-built for your team's decisions.</h2>
+            <p style={{ color: T.dim, marginTop: 12, maxWidth: 500, margin: "12px auto 0", fontSize: 14, lineHeight: 1.7 }}>Each domain ships with pre-configured signals, entity defaults, and materiality logic.</p>
           </div>
-        </div>
-      </section>
-
-      {/* Intelligence domains — Bright Data style feature cards */}
-      <section ref={domainsRef} className={`sr-wrap${domainsVisible ? " in" : ""}`} style={{ padding: "72px 24px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <Eye>Intelligence domains</Eye>
-          <h2 style={{ fontSize: "clamp(22px,3vw,32px)", marginTop: 10, fontWeight: 800, letterSpacing: "-.03em" }}>Intelligence ready-built for your team's decisions.</h2>
-          <p style={{ color: T.dim, marginTop: 8, maxWidth: 540, fontSize: 13, lineHeight: 1.7 }}>Each domain ships with pre-configured signal types, entity defaults, and materiality logic — tuned for the decisions that team actually makes.</p>
-          <div style={{ marginTop: 32, display: "grid", gap: 2, borderRadius: 14, overflow: "hidden", border: `1px solid ${T.border}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 16 }}>
             {DOMAINS.map((d, i) => (
-              <div key={d.id} className={`sr d${(i % 4) + 1}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, background: T.bgCard, borderBottom: i < DOMAINS.length - 1 ? `1px solid ${T.border}` : "none" }}>
-                <div style={{ padding: "28px 32px", borderRight: `1px solid ${T.border}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 9, background: `${d.color}12`, border: `1px solid ${d.color}22`, display: "grid", placeItems: "center", color: d.color }}>{packIcon(d.icon)}</div>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: "#f0f4f8" }}>{d.name}</span>
-                  </div>
-                  <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.65, marginBottom: 16, maxWidth: 360 }}>{d.description}</p>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    {d.signals.map(s => (
-                      <div key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.text }}>
-                        <div style={{ width: 16, height: 16, borderRadius: 4, background: `${d.color}12`, border: `1px solid ${d.color}20`, display: "grid", placeItems: "center", flexShrink: 0 }}>
-                          <CheckCircle size={9} color={d.color} />
-                        </div>
-                        {s}
-                      </div>
-                    ))}
-                  </div>
+              <div key={d.id} className={`sr d${(i % 4) + 1} hl`} style={{ padding: "24px 26px", borderRadius: 14, background: T.bgCard, border: `1px solid ${T.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: `${d.color}12`, border: `1px solid ${d.color}22`, display: "grid", placeItems: "center", color: d.color, flexShrink: 0 }}>{packIcon(d.icon)}</div>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: "#f0f4f8" }}>{d.name}</span>
                 </div>
-                <div style={{ padding: "28px 32px", background: `${d.color}03` }}>
-                  <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 14 }}>What the brief delivers</div>
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {d.output.map(o => (
-                      <div key={o} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 7, background: T.bgInset, border: `1px solid ${T.border}` }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: T.muted, textTransform: "capitalize" }}>{o.replace(/_/g, " ")}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={() => nav("Demo")} style={{ marginTop: 18, padding: "9px 18px", borderRadius: 7, border: `1px solid ${d.color}30`, background: `${d.color}08`, color: d.color, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                    See {d.name.split(" ")[0]} brief →
-                  </button>
+                <p style={{ fontSize: 12, color: T.muted, lineHeight: 1.65, marginBottom: 18 }}>{d.description}</p>
+                <div style={{ display: "grid", gap: 5 }}>
+                  {d.signals.slice(0, 3).map(s => (
+                    <div key={s} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: T.dim }}>
+                      <div style={{ width: 4, height: 4, borderRadius: "50%", background: d.color, flexShrink: 0 }} />
+                      {s}
+                    </div>
+                  ))}
                 </div>
+                <button onClick={() => nav("Demo")} style={{ marginTop: 20, padding: "8px 16px", borderRadius: 7, border: `1px solid ${d.color}30`, background: `${d.color}08`, color: d.color, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  See brief →
+                </button>
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center", marginTop: 18 }}>
+          <div style={{ textAlign: "center", marginTop: 24 }}>
             <button onClick={() => nav("Pricing")} style={{ padding: "9px 20px", borderRadius: 7, border: `1px solid ${T.borderL}`, background: "transparent", color: T.muted, fontSize: 12, cursor: "pointer" }}>View plans and pricing →</button>
           </div>
         </div>
       </section>
 
-      {/* How it works — scroll-reveal */}
-      <section ref={howRef} className={`sr-wrap${howVisible ? " in" : ""}`} style={{ borderTop: `1px solid ${T.border}`, background: T.bgSub, padding: "56px 24px" }}>
+      {/* How it works */}
+      <section ref={howRef} className={`sr-wrap${howVisible ? " in" : ""}`} style={{ borderTop: `1px solid ${T.border}`, background: T.bgSub, padding: "96px 24px" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <Eye>How it works</Eye>
           <h2 style={{ fontSize: 26, marginTop: 6 }}>From signal to decision in one run</h2>
@@ -1882,7 +1832,7 @@ function HomePage({ nav, user, auth }) {
       <TeamPersonaSection nav={nav} />
 
       {/* ── Enterprise trust ── */}
-      <section style={{ borderTop: `1px solid ${T.border}`, padding: "64px 24px", background: T.bgSub }}>
+      <section style={{ borderTop: `1px solid ${T.border}`, padding: "96px 24px", background: T.bgSub }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 32 }}>
             <div>
