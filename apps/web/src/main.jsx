@@ -4687,37 +4687,58 @@ function EvidencePage({ ws }) {
             {graphView?.nodes?.length > 0 && (() => {
               const nodes = graphView.nodes || [];
               const rels = graphView.relationships || [];
-              const typeGroups = {};
-              nodes.forEach(n => { const t = n.labels?.[0] || n.type || "Entity"; typeGroups[t] = (typeGroups[t] || []); typeGroups[t].push(n); });
               const connCount = {};
               rels.forEach(r => { connCount[r.source] = (connCount[r.source] || 0) + 1; connCount[r.target] = (connCount[r.target] || 0) + 1; });
-              const topNodes = [...nodes].sort((a, b) => (connCount[b.id] || 0) - (connCount[a.id] || 0)).slice(0, 5);
-              const typeColor2 = { Entity: T.accent, Signal: "#f59e0b", Risk: "#ef4444", Action: "#22c55e", IntelligenceRun: "#818cf8" };
+              // Only show meaningful node types — skip infrastructure nodes
+              const interestingTypes = new Set(["Entity","Company","Vendor","Competitor","Supplier","Account","Market","Signal","Risk","Recommendation","WorkflowAction","Regulation","Regulator"]);
+              const topNodes = [...nodes].filter(n => interestingTypes.has(n.type)).sort((a, b) => (connCount[b.id] || 0) - (connCount[a.id] || 0)).slice(0, 6);
+              // Use label (already human-readable via nodeCanvasLabel logic) not raw ID
+              const readableLabel = (n) => { const l = stripPrefix(n.label || n.properties?.name || n.id || ""); return l.length > 30 ? l.slice(0, 30) + "…" : l; };
+              // Group relationships into plain-English sentences
+              const relSentences = rels.slice(0, 4).map(r => {
+                const src = nodes.find(n => n.id === r.source);
+                const tgt = nodes.find(n => n.id === r.target);
+                if (!src || !tgt) return null;
+                const rel = (r.type || "LINKED_TO").replace(/_/g, " ").toLowerCase();
+                return { src: readableLabel(src), rel, tgt: readableLabel(tgt), srcType: src.type, tgtType: tgt.type };
+              }).filter(Boolean);
+              // Color legend — only types present in graph
+              const presentTypes = [...new Set(nodes.map(n => n.type))].filter(t => GRAPH_NODE_COLORS[t]);
               return (
                 <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Most connected</div>
-                  {topNodes.map(n => {
-                    const label = n.properties?.name || n.id?.split("_").pop() || n.id || "node";
-                    const type = n.labels?.[0] || "Entity";
-                    const conns = connCount[n.id] || 0;
-                    return (
-                      <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: typeColor2[type] || T.accent, flexShrink: 0 }} />
-                        <span style={{ fontSize: 11, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                        <span style={{ fontSize: 9, color: typeColor2[type] || T.dim, textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>{type}</span>
-                        <span style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", flexShrink: 0 }}>{conns}</span>
-                      </div>
-                    );
-                  })}
-                  {rels.slice(0, 3).length > 0 && (
+                  {/* Color legend */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
+                    {presentTypes.slice(0, 8).map(t => (
+                      <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: nodeColor(t), fontWeight: 700 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: nodeColor(t), flexShrink: 0 }} />
+                        {nodeDisplay(t)}
+                      </span>
+                    ))}
+                  </div>
+                  {topNodes.length > 0 && <>
+                    <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 }}>Key entities</div>
+                    {topNodes.map(n => {
+                      const conns = connCount[n.id] || 0;
+                      return (
+                        <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: nodeColor(n.type), flexShrink: 0 }} />
+                          <span style={{ fontSize: 11, color: T.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{readableLabel(n)}</span>
+                          <span style={{ fontSize: 9, color: nodeColor(n.type), textTransform: "uppercase", letterSpacing: ".04em", flexShrink: 0 }}>{nodeDisplay(n.type)}</span>
+                          <span style={{ fontSize: 10, color: T.dim, fontFamily: "'JetBrains Mono'", flexShrink: 0 }}>{conns}</span>
+                        </div>
+                      );
+                    })}
+                  </>}
+                  {relSentences.length > 0 && (
                     <div style={{ marginTop: 8 }}>
-                      <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Key relationships</div>
-                      {rels.slice(0, 3).map((r, i) => {
-                        const sName = nodes.find(n => n.id === r.source)?.properties?.name || r.source?.split("_").pop() || r.source;
-                        const tName = nodes.find(n => n.id === r.target)?.properties?.name || r.target?.split("_").pop() || r.target;
-                        const rType = (r.type || r.label || "LINKED_TO").replace(/_/g, " ").toLowerCase();
-                        return <div key={i} style={{ fontSize: 11, color: T.muted, lineHeight: 1.5, padding: "3px 0" }}><span style={{ color: T.text }}>{sName}</span> <span style={{ color: T.dim }}>→ {rType} →</span> <span style={{ color: T.text }}>{tName}</span></div>;
-                      })}
+                      <div style={{ fontSize: 10, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5 }}>Relationships</div>
+                      {relSentences.map((r, i) => (
+                        <div key={i} style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "2px 0" }}>
+                          <span style={{ color: nodeColor(r.srcType) }}>{r.src}</span>
+                          <span style={{ color: T.dim }}> {r.rel} </span>
+                          <span style={{ color: nodeColor(r.tgtType) }}>{r.tgt}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -6815,32 +6836,44 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
           {selectedNode.properties.summary}
         </div>
       )}
-      {selectedNode.properties?.url && (
-        <a href={selectedNode.properties.url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, fontSize: 10, color: T.accent, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {selectedNode.properties.url}
-        </a>
-      )}
+      {selectedNode.properties?.url && (() => {
+        let display = selectedNode.properties.url;
+        try { display = new URL(selectedNode.properties.url).hostname.replace(/^www\./, ""); } catch (_) {}
+        return (
+          <a href={selectedNode.properties.url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, fontSize: 10, color: T.accent, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            ↗ {display}
+          </a>
+        );
+      })()}
       {connectedEdges.length > 0 && (
-        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
-          {connectedEdges.slice(0, 6).map((e, i) => {
-            const otherId = e.source === selectedId ? e.target : e.source;
-            const other = allNodes.find(n => n.id === otherId);
-            return other ? (
-              <span key={i} onClick={() => setSelectedId(otherId)} style={{
-                display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 7px",
-                borderRadius: 6, fontSize: 10, border: `1px solid ${T.border}`,
-                background: T.bgCard, cursor: "pointer", color: T.muted,
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: 99, background: nodeColor(other.type), flexShrink: 0 }} />
-                {shortLabel(other.label, 18)}
-                <span style={{ color: T.dim, fontSize: 9 }}>{e.type.replace(/_/g, " ").toLowerCase()}</span>
-              </span>
-            ) : null;
-          })}
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>Connected to</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {connectedEdges.slice(0, 5).map((e, i) => {
+              const otherId = e.source === selectedId ? e.target : e.source;
+              const other = allNodes.find(n => n.id === otherId);
+              const dir = e.source === selectedId ? "→" : "←";
+              return other ? (
+                <button key={i} onClick={() => setSelectedId(otherId)} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "5px 8px",
+                  borderRadius: 6, border: `1px solid ${T.border}`,
+                  background: T.bgCard, cursor: "pointer", textAlign: "left",
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 99, background: nodeColor(other.type), flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripPrefix(other.label)}</div>
+                    <div style={{ fontSize: 9, color: T.dim }}>{dir} {e.type.replace(/_/g, " ").toLowerCase()}</div>
+                  </div>
+                </button>
+              ) : null;
+            })}
+          </div>
         </div>
       )}
     </div>
   );
+
+  const presentNodeTypes = useMemo(() => [...new Set(allNodes.map(n => n.type))].filter(t => GRAPH_NODE_COLORS[t]).slice(0, 8), [allNodes]);
 
   return (
     <div style={{ marginTop: 10 }}>
@@ -6850,9 +6883,20 @@ function GraphMini({ graph, title, wsId, latestRunId }) {
         </span>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button onClick={refresh} disabled={loading} style={{ border: "none", background: "transparent", color: T.dim, fontSize: 12, lineHeight: 1 }} title="Refresh graph">↺</button>
-          <button onClick={() => setExpanded(true)} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 10, fontWeight: 800 }}>Expand</button>
+          <button onClick={() => setExpanded(true)} style={{ border: "none", background: "transparent", color: T.accent, fontSize: 10, fontWeight: 800 }}>Expand ↗</button>
         </div>
       </div>
+      {/* Color legend */}
+      {presentNodeTypes.length > 1 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+          {presentNodeTypes.map(t => (
+            <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: nodeColor(t), fontWeight: 700 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: nodeColor(t), flexShrink: 0 }} />
+              {nodeDisplay(t)}
+            </span>
+          ))}
+        </div>
+      )}
       {filterBar}
       <GraphCanvas
         nodes={allNodes} edges={allEdges}
