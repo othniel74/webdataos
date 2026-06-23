@@ -249,7 +249,7 @@ const packIcon = (id, size = 18) => {
 /* ═══════════════════════════════════════════════════════════════════════
    APP
    ═══════════════════════════════════════════════════════════════════════ */
-const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
+const PUB = ["Home", "Demo", "Solution", "Pricing"];
 const PRIV = ["Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
 const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
