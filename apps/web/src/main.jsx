@@ -2067,8 +2067,6 @@ const PERSONAS = [
       "Risk materiality assessed against your specific contract terms",
       "Approval-ready questionnaire and escalation actions proposed automatically",
     ],
-    quote: "We found out about a vendor breach from our own analyst's Slack message. That should never happen again.",
-    role: "CISO, Series C SaaS company",
   },
   {
     id: "gtm", label: "Sales & GTM", color: "#3b82f6", icon: <TrendingUp size={15} />,
@@ -2080,8 +2078,6 @@ const PERSONAS = [
       "Battlecard-ready competitive briefs generated automatically on demand",
       "Buying intent signals correlated across sources for territory prioritization",
     ],
-    quote: "I used to spend Monday morning catching up on what competitors did last week. Now I start Monday knowing.",
-    role: "VP Sales, Enterprise SaaS",
   },
   {
     id: "finance", label: "Finance & Strategy", color: "#22c55e", icon: <BarChart3 size={15} />,
@@ -2093,8 +2089,6 @@ const PERSONAS = [
       "SEC filings, regulatory changes, and earnings signals tracked automatically",
       "Brief-ready summaries with source receipts — boardroom-shareable in one click",
     ],
-    quote: "The CFO asked about our China supplier exposure in a board meeting. It took 2 days to answer. That's the last time.",
-    role: "Head of Strategy, PE-backed enterprise",
   },
   {
     id: "exec", label: "Executive & Ops", color: "#818cf8", icon: <Layers size={15} />,
@@ -2106,8 +2100,6 @@ const PERSONAS = [
       "Action proposals ready for approval — no research assembly required",
       "Knowledge graph that accumulates organizational context over time",
     ],
-    quote: "We replaced a 4-hour analyst briefing cycle with a 90-second brief. And the brief is better.",
-    role: "COO, Global logistics company",
   },
 ];
 
@@ -2140,11 +2132,7 @@ function TeamPersonaSection({ nav }) {
               <span style={{ fontSize: 11, fontWeight: 700, color: p.color, textTransform: "uppercase", letterSpacing: ".07em" }}>{p.label}</span>
             </div>
             <h3 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-.03em", color: "#f0f4f8", lineHeight: 1.25, marginBottom: 14 }}>{p.headline}</h3>
-            <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.75, marginBottom: 20 }}>{p.pain}</p>
-            <blockquote style={{ padding: "12px 16px", borderRadius: 7, background: `${p.color}07`, border: `1px solid ${p.color}18`, borderLeft: `2px solid ${p.color}` }}>
-              <p style={{ fontSize: 13, color: T.text, lineHeight: 1.65, fontStyle: "italic", marginBottom: 6 }}>"{p.quote}"</p>
-              <span style={{ fontSize: 11, color: T.dim }}>— {p.role}</span>
-            </blockquote>
+            <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.75 }}>{p.pain}</p>
           </div>
           <div style={{ padding: "28px 32px", borderRadius: 12, background: T.bgCard, border: `1px solid ${T.border}` }}>
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".09em", color: T.dim, marginBottom: 16 }}>What your team gets</div>
