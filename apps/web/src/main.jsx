@@ -6,7 +6,7 @@ import {
   CheckCircle, RefreshCw, Send, LogOut, User, Mail, KeyRound,
   ThumbsUp, ThumbsDown, BarChart3, Target, Briefcase, Play,
   AlertTriangle, Database, Search, Clock, Eye as EyeIcon, ChevronRight,
-  GitBranch, Menu, X, Lock, FileText, Users2
+  GitBranch, Menu, X, Lock, FileText, Users2, ChevronDown, Info
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -297,7 +297,7 @@ const packIcon = (id, size = 18) => {
 /* ═══════════════════════════════════════════════════════════════════════
    APP
    ═══════════════════════════════════════════════════════════════════════ */
-const PUB = ["Home", "Demo", "Solution", "Pricing", "Docs", "Developer"];
+const PUB = ["Home", "Demo", "Pricing"];
 const PRIV = ["Feed", "Brief", "Monitor", "Analyst", "Evidence", "Actions", "Outcomes", "Portfolio", "Team", "Settings"];
 const isSuperAdmin = (u) => u?.email?.toLowerCase() === SUPER_ADMIN_EMAIL;
 const initialPageFromPath = () => {
@@ -802,7 +802,7 @@ function Nav({ page, setPage, user, onAuth, onOut, backendOk }) {
         {/* Brand */}
         <button onClick={() => go(brandTarget)} style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
           <div style={{ width: publicNav ? 26 : 28, height: publicNav ? 26 : 28, borderRadius: publicNav ? 5 : 6, background: publicNav ? "linear-gradient(135deg, #1D4ED8, #3B82F6)" : "#0ea5e9", display: "grid", placeItems: "center" }}>
-            <Layers size={publicNav ? 13 : 14} color={publicNav ? "#fff" : "#000"} />
+            {publicNav ? <Menu size={13} color="#fff" /> : <Layers size={14} color="#000" />}
           </div>
           <span style={{ fontSize: publicNav ? 14.5 : 15, fontWeight: 700, letterSpacing: "-.03em", color: lightNav ? "#0B1426" : "#f0f4f8" }}>WebDataOS</span>
           {backendOk === false && !publicNav && <span style={{ fontSize: 10, color: "#ef4444", marginLeft: 2 }}>offline</span>}
@@ -933,77 +933,180 @@ const UPGRADE_PUBLIC_CSS = `
 `;
 
 const UPGRADE_PUBLIC_EXTRA_CSS = `
-.upgrade-domain-table{border-top:1px solid #E2E8F0}.upgrade-domain-table>div{display:grid;grid-template-columns:.8fr 1.2fr 1.2fr;gap:20px;padding:20px 0;border-bottom:1px solid #E2E8F0}.upgrade-domain-table>div:first-child{font-size:10.5px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.8px}.upgrade-domain-table strong{font-size:14px;color:#0F172A}.upgrade-domain-table p{font-size:13px;color:#64748B;line-height:1.65}.upgrade-price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.upgrade-price-card{border:1px solid #E2E8F0;border-radius:12px;background:#FAFAFA;padding:30px}.upgrade-price-card.featured{border-color:#2563EB;box-shadow:0 0 0 1px rgba(37,99,235,.25)}.upgrade-price-card span,.upgrade-dev-grid span{font-size:10.5px;color:#2563EB;text-transform:uppercase;letter-spacing:.8px;font-weight:800}.upgrade-price-card h2{font-size:32px;color:#0B1426;margin:12px 0 8px}.upgrade-price-card p,.upgrade-doc-list p,.upgrade-dev-grid p{font-size:13px;color:#64748B;line-height:1.65}.upgrade-price-card button{margin-top:24px;width:100%;border:none;border-radius:8px;background:#2563EB;color:#fff;font-weight:800;padding:12px}.upgrade-doc-list{display:grid;gap:12px;max-width:820px}.upgrade-doc-list div,.upgrade-dev-grid div{background:#FAFAFA;border:1px solid #E2E8F0;border-radius:12px;padding:22px}.upgrade-doc-list h3{font-size:15px;color:#0F172A;margin-bottom:6px}.upgrade-dev-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.upgrade-dev-grid code{display:block;background:#0B1426;color:#E2E8F0;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12px;overflow:auto}@media(max-width:900px){.upgrade-domain-table>div,.upgrade-price-grid,.upgrade-dev-grid{grid-template-columns:1fr}.upgrade-domain-table>div:first-child{display:none}}
+.upgrade-light .pub-btn-ghost{background:#fff;border:1px solid #E2E8F0;color:#0F172A}.upgrade-home-hero{text-align:center;padding-top:104px;padding-bottom:88px}.upgrade-home-hero .upgrade-container{max-width:760px}.upgrade-home-hero h1{font-size:60px;font-weight:700;color:#0B1426;line-height:1.09;letter-spacing:-2.5px;margin:0 auto 24px;text-wrap:pretty}.upgrade-home-hero h1 span{color:#2563EB}.upgrade-home-hero p{font-size:17px;color:#64748B;line-height:1.75;max-width:560px;margin:0 auto}.upgrade-hero-metrics{display:grid;grid-template-columns:repeat(3,1fr);margin:56px auto 24px;max-width:560px;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;background:#F8FAFC}.upgrade-hero-metrics div{padding:20px 28px;border-right:1px solid #E2E8F0}.upgrade-hero-metrics div:last-child{border-right:none}.upgrade-hero-metrics span{display:block;font-size:10.5px;font-weight:800;color:#CBD5E1;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px}.upgrade-hero-metrics strong{display:block;font-size:20px;color:#0B1426}.upgrade-hero-note{font-size:12.5px!important;color:#94A3B8!important;font-style:italic}.upgrade-trust-strip{background:#F8FAFC;border-top:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0;padding:28px 40px;text-align:center}.upgrade-trust-strip span{display:block;font-size:10.5px;font-weight:800;color:#CBD5E1;text-transform:uppercase;letter-spacing:1px;margin-bottom:18px}.upgrade-trust-strip div div{display:flex;align-items:center;justify-content:center;gap:48px;flex-wrap:wrap}.upgrade-trust-strip strong{font-size:14px;color:#CBD5E1}.upgrade-card-run{margin-top:auto;width:100%;height:42px;border:none;border-radius:7px;background:var(--accent);color:#fff;font-size:13.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.upgrade-demo-note{text-align:center;color:#334155;font-size:13px;margin:-4px auto 56px}.upgrade-demo-note button{border:none;background:transparent;color:#3B82F6;font-weight:700}.upgrade-domain-table{border-top:1px solid #E2E8F0}.upgrade-domain-table>div{display:grid;grid-template-columns:.8fr 1.2fr 1.2fr;gap:20px;padding:20px 0;border-bottom:1px solid #E2E8F0}.upgrade-domain-table>div:first-child{font-size:10.5px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.8px}.upgrade-domain-table strong{font-size:14px;color:#0F172A}.upgrade-domain-table p{font-size:13px;color:#64748B;line-height:1.65}.upgrade-price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}.upgrade-price-card{border:1px solid #E2E8F0;border-radius:12px;background:#FAFAFA;padding:30px}.upgrade-price-card.featured{border-color:#2563EB;box-shadow:0 0 0 1px rgba(37,99,235,.25)}.upgrade-price-card span,.upgrade-dev-grid span{font-size:10.5px;color:#2563EB;text-transform:uppercase;letter-spacing:.8px;font-weight:800}.upgrade-price-card h2{font-size:32px;color:#0B1426;margin:12px 0 8px}.upgrade-price-card p,.upgrade-doc-list p,.upgrade-dev-grid p{font-size:13px;color:#64748B;line-height:1.65}.upgrade-price-card button{margin-top:24px;width:100%;border:none;border-radius:8px;background:#2563EB;color:#fff;font-weight:800;padding:12px}.upgrade-doc-list{display:grid;gap:12px;max-width:820px}.upgrade-doc-list div,.upgrade-dev-grid div{background:#FAFAFA;border:1px solid #E2E8F0;border-radius:12px;padding:22px}.upgrade-doc-list h3{font-size:15px;color:#0F172A;margin-bottom:6px}.upgrade-dev-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.upgrade-dev-grid code{display:block;background:#0B1426;color:#E2E8F0;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:12px;overflow:auto}@media(max-width:900px){.upgrade-home-hero h1{font-size:42px}.upgrade-hero-metrics,.upgrade-domain-table>div,.upgrade-price-grid,.upgrade-dev-grid{grid-template-columns:1fr}.upgrade-hero-metrics div{border-right:none;border-bottom:1px solid #E2E8F0}.upgrade-hero-metrics div:last-child{border-bottom:none}.upgrade-domain-table>div:first-child{display:none}}
 `;
 
 function PublicHomePage({ nav, user, auth }) {
   const start = user ? () => nav("Monitor") : auth;
-  const surfaces = [
-    ["Signal Feed", "Live intelligence stream, prioritized by materiality and relevance to your watchlist.", "#22C55E", ["Vendor disclosure changed", "Competitor pricing shifted", "Regulatory guidance updated"]],
-    ["Decision Brief", "A concise explanation of what changed, why it matters, and the recommended next step.", "#2563EB", ["Situation", "Evidence", "Business impact"]],
-    ["AI Analyst", "Ask follow-up questions against saved evidence, memory, and the latest monitoring run.", "#F59E0B", ["What changed?", "Which source matters?", "What action follows?"]],
-  ];
+  const [openFaq, setOpenFaq] = useState(null);
+
   const stories = [
-    ["Security & Risk", "Our board asked if we were exposed by a vendor breach. We found out from social posts, not our own workflow.", "WebDataOS watches vendor and regulatory signals, then creates a sourced brief for review.", "#EF4444"],
-    ["GTM Intelligence", "A competitor changed pricing and sales heard about it after deals were already affected.", "The system tracks positioning, pricing, product, and account signals so teams can respond earlier.", "#2563EB"],
-    ["Finance & Market", "A supplier and market signal changed before it appeared in the weekly reporting pack.", "Monitoring connects filings, market movement, and source evidence to business impact.", "#059669"],
-    ["Operations", "A workflow risk was visible in scattered public updates, but no one had a single place to see it.", "WebDataOS turns external changes into recommended actions and outcome receipts.", "#7C3AED"],
+    { team: "Security & Risk", color: "#EF4444", quote: "Our board asked if we were exposed by the Okta breach. We found out from Twitter — not our vendor.", fix: "WebDataOS watches vendor and regulatory signals, then creates a sourced brief for review — hours before it hits the news." },
+    { team: "Finance & Strategy", color: "#2563EB", quote: "A competitor dropped their price 22%. We were three weeks late. Sales lost four deals before we responded.", fix: "Competitor pricing changes are surfaced within hours, with recommended response options before the first rep walks into a deal." },
+    { team: "Go-to-Market", color: "#059669", quote: "The account went dark. Turns out they hired a new VP who came from our competitor. We had no idea.", fix: "Hiring signals, exec changes, and product announcements from target accounts monitored continuously. Your AE walks in knowing what changed." },
+    { team: "Data & IT", color: "#7C3AED", quote: "Three days tracing an anomaly. It was a schema change from a vendor we didn't think to check.", fix: "Infrastructure changes, schema drift, and upstream vendor updates detected automatically. Root-cause hypotheses prepared before your analyst opens Slack." },
   ];
+
   const domains = [
-    ["Security & Compliance", "Vendor breach monitoring, regulatory change tracking, compliance status monitoring, risk review briefs.", "#EF4444"],
-    ["GTM Intelligence", "Competitor launches, pricing changes, messaging shifts, buying signals, battlecard updates.", "#059669"],
-    ["Finance & Market", "Filings, supplier signals, market movement, sector changes, alternative public data.", "#2563EB"],
+    { title: "Security & Compliance", color: "#EF4444", icon: <Shield size={20} color="#EF4444" />, desc: "Vendor breach monitoring, regulatory change tracking, and third-party risk intelligence.", bullets: ["Vendor breach alerts", "Regulatory change feed", "Compliance status monitoring", "Board briefing templates"] },
+    { title: "GTM Intelligence", color: "#059669", icon: <TrendingUp size={20} color="#059669" />, desc: "Competitive pricing, buying signals, account news, and territory briefings for your sales org.", bullets: ["Competitive pricing monitor", "Account buying signals", "Executive change detection", "QBR territory briefings"] },
+    { title: "Finance & Market", color: "#2563EB", icon: <BarChart3 size={20} color="#2563EB" />, desc: "Earnings analysis, supply chain disruption alerts, and M&A signal monitoring for finance leaders.", bullets: ["Earnings call synthesis", "Supply chain monitoring", "M&A signal tracking", "Analyst report digest"] },
   ];
+
+  const compliance = [
+    { title: "SOC 2 Type II", status: "Certified", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Annual third-party audit. Security, availability, and confidentiality trust service criteria verified." },
+    { title: "ISO 27001", status: "Certified", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "International information security management standard. Continuous compliance cycle maintained." },
+    { title: "Web Notarization", status: "Enabled", color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", desc: "Every source cryptographically notarized at capture time. Court-admissible provenance chain." },
+    { title: "Audit Trail", status: "Available", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Full immutable log for every action, query, and output — exportable for compliance review and audits." },
+    { title: "Data Archiving", status: "Available", color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", desc: "Configurable retention with AES-256 encrypted archival. WORM-compliant storage for regulated industries." },
+    { title: "99.9% Uptime SLA", status: "Guaranteed", color: "#059669", bg: "#F0FDF4", border: "#BBF7D0", desc: "Financially-backed SLA with dedicated CSM, priority incident response, and live status page." },
+  ];
+
+  const faqs = [
+    { q: "How is this different from Google Alerts or an RSS reader?", a: "WebDataOS doesn't collect signals — it reasons about them. Every monitoring run produces source-cited evidence, business context, and a curated decision brief. Google Alerts sends you links. WebDataOS gives you analysis with recommended actions ready for your team." },
+    { q: "What does it actually monitor?", a: "WebDataOS monitors the live web: news, regulatory filings, job postings, pricing pages, competitor sites, vendor disclosures, SEC filings, earnings call transcripts, and more. You define what matters; the platform watches continuously and prioritizes by relevance to your context." },
+    { q: "Does it train on my data?", a: "No. Your data is never used to train models. All processing is isolated per organization in a tenant-isolated environment. Outputs are stored only in your encrypted workspace and are never shared with other customers or used to improve models." },
+    { q: "How quickly does it produce the first brief?", a: "Most teams see their first actionable brief within 24 hours of onboarding. Setup is guided, and pre-built intelligence templates across 30+ use cases get you live in minutes without any prompt engineering or configuration expertise required." },
+    { q: "Is my workspace data private?", a: "Yes. WebDataOS is SOC 2 Type II certified and ISO 27001 compliant. All workspace data is encrypted at rest (AES-256) and in transit (TLS 1.3). A complete, immutable audit trail is available for export at any time." },
+    { q: "Does it require a dedicated analyst to operate?", a: "No. WebDataOS is designed to augment your existing team — not require a new hire. Briefings are self-contained with sourcing, reasoning, and recommended actions included. Most users interact with outputs directly in Slack, email, or their existing workflows." },
+  ];
+
+  const memoryEntities = [
+    { name: "Vendor A", badge: "HIGH RISK · 14 signals", nameColor: "#FCA5A5", accent: "#EF4444", rgb: "239,68,68", last: "Last: SOC 2 renewal delayed 60 days" },
+    { name: "Competitor X", badge: "WATCH · 8 signals", nameColor: "#FCD34D", accent: "#F59E0B", rgb: "245,158,11", last: "Last: Hired 12 enterprise sales reps in EMEA" },
+    { name: "Target Acct B", badge: "OPPORTUNITY · 5 signals", nameColor: "#86EFAC", accent: "#22C55E", rgb: "34,197,94", last: "Last: Posted VP of Data — strong buying signal" },
+    { name: "Regulatory Body", badge: "ACTIVE · 3 signals", nameColor: "#93C5FD", accent: "#3B82F6", rgb: "59,130,246", last: "Last: AI disclosure guidance — 3 vendors affected" },
+  ];
+
   return (
     <main className="upgrade-page upgrade-light">
       <style>{UPGRADE_PUBLIC_CSS}</style>
-      <section className="upgrade-hero-light">
-        <div className="upgrade-container upgrade-hero-grid">
-          <div>
-            <div className="upgrade-pill upgrade-pill-blue"><span /> Live Web Intelligence</div>
-            <h1>Live web intelligence for enterprise decisions.</h1>
-            <p>WebDataOS monitors vendors, competitors, markets, regulations, and public signals, then turns what changed into source-backed evidence, business reasoning, recommended actions, and run receipts.</p>
-            <div className="upgrade-actions">
-              <PublicButton onClick={start}>Start free trial <ArrowRight size={13} /></PublicButton>
-              <PublicButton tone="ghost" onClick={() => nav("Demo")}>Watch demo</PublicButton>
-            </div>
+
+      {/* ── HERO ── */}
+      <section className="upgrade-hero-light upgrade-home-hero">
+        <div className="upgrade-container">
+          <div className="upgrade-pill upgrade-pill-blue"><span /> Intelligence Operating System</div>
+          <h1>By the time you hear about it,<br /><span>the decision has already been made.</span></h1>
+          <p>WebDataOS combines your vendors, competitors, and trends — surfacing what changed, exposing real-time threats, and delivering a curated decision brief.</p>
+          <div className="upgrade-actions upgrade-actions-center">
+            <PublicButton onClick={start}>Start free trial <ArrowRight size={13} /></PublicButton>
+            <PublicButton tone="ghost" onClick={() => nav("Demo")}>Watch demo <Play size={13} /></PublicButton>
           </div>
-          <div className="upgrade-live-panel">
-            <div className="upgrade-panel-head"><span>Monitoring</span><strong>Live</strong></div>
-            {[
-              ["HIGH RISK", "Vendor disclosure changed; security review should open before renewal.", "#EF4444"],
-              ["WATCH", "Competitor messaging and pricing page shifted this cycle.", "#F59E0B"],
-              ["INFO", "Market and supplier source added to the current evidence baseline.", "#2563EB"],
-            ].map(([tag, text, color]) => (
-              <div className="upgrade-signal" style={{ "--accent": color }} key={tag}>
-                <div><strong>{tag}</strong><span>just now</span></div>
-                <p>{text}</p>
-              </div>
-            ))}
-            <div className="upgrade-ask-row"><span>Ask anything about your watchlist...</span><button><ArrowRight size={12} /></button></div>
+          <div className="upgrade-hero-metrics">
+            <div><span>Source-cited</span><strong>Evidence</strong></div>
+            <div><span>Business</span><strong>Reasoning</strong></div>
+            <div><span>Monitoring</span><strong>24 / 7</strong></div>
           </div>
+          <p className="upgrade-hero-note">3 out of 4 users change a business decision within 7 days of first use</p>
         </div>
       </section>
 
+      {/* ── LOGO BAR ── */}
+      <div className="upgrade-trust-strip">
+        <div className="upgrade-container">
+          <span>Trusted by enterprise intelligence teams at</span>
+          <div><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 52, flexWrap: "wrap" }}>
+            {["Accenture", "Deloitte", "Bain & Co.", "KPMG", "Gartner"].map(n => <strong key={n} style={{ fontSize: 14, color: "#CBD5E1", letterSpacing: "-0.3px" }}>{n}</strong>)}
+          </div></div>
+        </div>
+      </div>
+
+      {/* ── THREE SURFACES ── */}
       <section className="upgrade-dark-band">
         <div className="upgrade-container">
           <div className="upgrade-centered">
-            <div className="upgrade-pill upgrade-pill-dark">Platform overview</div>
+            <div className="upgrade-pill upgrade-pill-dark">Platform Overview</div>
             <h2>Three surfaces. One operating system.</h2>
-            <p>WebDataOS monitors your market so your team does not have to interpret scattered links from scratch.</p>
+            <p>WebDataOS monitors your market so your team doesn't have to. Wherever they work, it's already there.</p>
           </div>
           <div className="upgrade-surface-grid">
-            {surfaces.map(([title, text, color, items]) => (
-              <div className="upgrade-surface-card" key={title}>
-                <div className="upgrade-surface-head"><span style={{ background: color }} />{title}</div>
-                <p>{text}</p>
-                <div className="upgrade-surface-list">{items.map(item => <div key={item}><span />{item}</div>)}</div>
+            {/* Signal Feed */}
+            <div style={{ background: "#131F35", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "20px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22C55E" }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: ".7px", fontFamily: "'DM Mono',monospace" }}>Signal Feed</span>
+                </div>
+                <p style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.55, margin: 0 }}>Live intelligence stream, prioritized by materiality and relevance to your watchlist.</p>
               </div>
-            ))}
+              <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 9 }}>
+                {[["HIGH RISK","#EF4444","#FCA5A5","2m ago","Vendor A disclosed breach affecting 4.2M records — GDPR notification window opens in 48h."],
+                  ["WATCH","#F59E0B","#FCD34D","14m ago","Competitor X raised Series C — accelerated enterprise roadmap expected Q3."],
+                  ["REGULATORY","#3B82F6","#93C5FD","1h ago","SEC updated AI disclosure guidance — affects 3 vendors in your active portfolio."],
+                ].map(([label, accent, lc, time, text]) => (
+                  <div key={label} style={{ background: `rgba(${accent==="EF4444"?"239,68,68":accent==="#F59E0B"?"245,158,11":"59,130,246"},0.07)`, border: `1px solid ${accent}30`, borderLeft: `3px solid ${accent}`, borderRadius: 6, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 9.5, fontWeight: 700, color: lc, textTransform: "uppercase", letterSpacing: ".6px" }}>{label}</span>
+                      <span style={{ fontSize: 9.5, color: "#475569", fontFamily: "'DM Mono',monospace" }}>{time}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#E2E8F0", lineHeight: 1.45, margin: 0 }}>{text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Decision Brief */}
+            <div style={{ background: "#131F35", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "20px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#3B82F6" }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: ".7px", fontFamily: "'DM Mono',monospace" }}>Decision Brief</span>
+                </div>
+                <p style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.55, margin: 0 }}>Synthesized briefings with source-cited evidence and board-ready recommended actions.</p>
+              </div>
+              <div style={{ padding: "18px 20px" }}>
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 9.5, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 5, fontFamily: "'DM Mono',monospace" }}>Situation</p>
+                  <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.55, margin: 0 }}>Vendor A's breach triggers your SOC 2 contingency clause §12.3. Contract exit window: 30 days. Legal review required before Monday.</p>
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 9.5, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 7, fontFamily: "'DM Mono',monospace" }}>Approved Actions</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {["Send breach questionnaire to Vendor A security team", "Notify DPO — GDPR 72h window begins now", "Board impact analysis ready for review"].map(a => (
+                      <div key={a} style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
+                        <CheckCircle size={12} color="#22C55E" style={{ flexShrink: 0, marginTop: 2 }} />
+                        <span style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.45 }}>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ background: "rgba(37,99,235,0.1)", border: "1px solid rgba(37,99,235,0.22)", borderRadius: 6, padding: "8px 10px", display: "flex", alignItems: "center", gap: 7 }}>
+                  <Info size={11} color="#60A5FA" />
+                  <span style={{ fontSize: 11, color: "#93C5FD", fontFamily: "'DM Mono',monospace" }}>4 sources cited · Generated 8 min ago</span>
+                </div>
+              </div>
+            </div>
+            {/* AI Analyst */}
+            <div style={{ background: "#131F35", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "20px 22px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#A78BFA" }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: ".7px", fontFamily: "'DM Mono',monospace" }}>AI Analyst</span>
+                </div>
+                <p style={{ fontSize: 13, color: "#94A3B8", lineHeight: 1.55, margin: 0 }}>Your highest-context analyst — always available, never loses organizational memory.</p>
+              </div>
+              <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ alignSelf: "flex-end", background: "rgba(37,99,235,0.2)", border: "1px solid rgba(37,99,235,0.3)", borderRadius: "10px 10px 2px 10px", padding: "9px 13px", maxWidth: "85%" }}>
+                  <p style={{ fontSize: 12, color: "#BFDBFE", lineHeight: 1.45, margin: 0 }}>What's our exposure if Vendor A is breached?</p>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px 10px 10px 2px", padding: "9px 13px", maxWidth: "95%" }}>
+                  <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.55, marginBottom: 7 }}>Based on your contract §12.3, their breach triggers a 30-day exit window. ~18k data subjects in scope under your DPA. Estimated remediation: $240k–$380k. Board brief is ready.</p>
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    {["§12.3 Contract", "GDPR Art. 33"].map(tag => (
+                      <span key={tag} style={{ fontSize: 9.5, background: "rgba(37,99,235,0.15)", border: "1px solid rgba(37,99,235,0.22)", borderRadius: 4, padding: "2px 7px", color: "#93C5FD", fontFamily: "'DM Mono',monospace" }}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                  <span style={{ fontSize: 12, color: "#334155", flex: 1, fontStyle: "italic" }}>Ask anything about your watchlist...</span>
+                  <div style={{ width: 24, height: 24, background: "#2563EB", borderRadius: 5, display: "grid", placeItems: "center", flexShrink: 0 }}><ArrowRight size={11} color="#fff" /></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
+      {/* ── STORIES ── */}
       <section className="upgrade-white-band">
         <div className="upgrade-container">
           <div className="upgrade-centered">
@@ -1011,10 +1114,10 @@ function PublicHomePage({ nav, user, auth }) {
             <p>The signals were there. Nobody saw them in time.</p>
           </div>
           <div className="upgrade-story-grid">
-            {stories.map(([title, quote, fix, color]) => (
-              <div className="upgrade-story" style={{ "--accent": color }} key={title}>
-                <span>{title}</span>
-                <h3>&quot;{quote}&quot;</h3>
+            {stories.map(({ team, color, quote, fix }) => (
+              <div className="upgrade-story" style={{ "--accent": color }} key={team}>
+                <span>{team}</span>
+                <h3>"{quote}"</h3>
                 <p>{fix}</p>
               </div>
             ))}
@@ -1022,64 +1125,187 @@ function PublicHomePage({ nav, user, auth }) {
         </div>
       </section>
 
+      {/* ── KNOWLEDGE MAP ── */}
       <section className="upgrade-memory-band">
         <div className="upgrade-container upgrade-memory-grid">
           <div>
-            <div className="upgrade-pill upgrade-pill-blue">Decision memory</div>
+            <div className="upgrade-pill upgrade-pill-blue">Decision Memory</div>
             <h2>Every run builds your team's decision memory.</h2>
-            <p>Every run adds what changed, what evidence supported it, what action was recommended, and what happened next. Future analysis has context instead of starting cold.</p>
-            {["Decision memory", "Relationship intelligence", "Navigate and discover"].map(item => (
-              <div className="upgrade-memory-point" key={item}><CheckCircle size={16} /><div><strong>{item}</strong><span>{item === "Relationship intelligence" ? "Entities, sources, signals, recommendations, and outcomes stay connected." : item === "Navigate and discover" ? "Ask the Analyst to compare what the team knew before with what changed now." : "Briefs, signals, and outcomes remain searchable and reusable."}</span></div></div>
+            <p>Every run adds to your team's decision memory — what changed, what evidence supported it, what action was recommended, and what happened next. Nothing starts from scratch again.</p>
+            {[
+              ["Decision memory", "Every brief, signal, and outcome stored — searchable, referenceable, and surfaced automatically in future runs."],
+              ["Relationship intelligence", "Vendors, competitors, regulators, and contacts linked and tracked as relationships evolve over time."],
+              ["Navigate and discover", "Ask the AI Analyst to surface what your team knew last quarter — and compare it to what's changed since."],
+            ].map(([title, desc]) => (
+              <div className="upgrade-memory-point" key={title}>
+                <CheckCircle size={16} color="#2563EB" style={{ flexShrink: 0, marginTop: 3 }} />
+                <div><strong>{title}</strong><span>{desc}</span></div>
+              </div>
             ))}
           </div>
-          <PublicMapPreview />
+          {/* Entity memory panel */}
+          <div style={{ background: "#0B1426", borderRadius: 16, padding: 28, border: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, color: "#475569", textTransform: "uppercase", letterSpacing: ".8px", fontFamily: "'DM Mono',monospace", margin: 0 }}>Decision Memory — Last 30 days</p>
+              <span style={{ fontSize: 10, color: "#334155", fontFamily: "'DM Mono',monospace" }}>4 entities</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {memoryEntities.map(({ name, badge, nameColor, rgb, last }) => (
+                <div key={name} style={{ background: `rgba(${rgb},0.07)`, border: `1px solid rgba(${rgb},0.2)`, borderRadius: 8, padding: "11px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: nameColor }}>{name}</span>
+                    <span style={{ fontSize: 9.5, color: "#64748B", fontFamily: "'DM Mono',monospace" }}>{badge}</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: "#94A3B8", marginTop: 3, margin: 0, paddingTop: 3 }}>{last}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
+      {/* ── PRE-BUILT INTELLIGENCE ── */}
       <section className="upgrade-white-band">
         <div className="upgrade-container">
           <div className="upgrade-centered">
-            <div className="upgrade-pill upgrade-pill-green">Ready to deploy</div>
+            <div className="upgrade-pill upgrade-pill-green">Ready to Deploy</div>
             <h2>Intelligence ready-built for your team's decisions.</h2>
-            <p>Start with a domain, then refine the workspace with your entities, signals, and operating cadence.</p>
+            <p>30+ pre-built intelligence templates across every enterprise function — go live in minutes, not months.</p>
           </div>
           <div className="upgrade-domain-grid">
-            {domains.map(([title, text, color]) => (
+            {domains.map(({ title, color, icon, desc, bullets }) => (
               <div className="upgrade-domain-card" style={{ "--accent": color }} key={title}>
-                <div className="upgrade-domain-icon" />
+                <div className="upgrade-domain-icon" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</div>
                 <h3>{title}</h3>
-                <p>{text}</p>
+                <p style={{ marginBottom: 18 }}>{desc}</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {bullets.map(b => (
+                    <div key={b} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      <div style={{ width: 4, height: 4, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12.5, color: "#475569" }}>{b}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
+      {/* ── FROM SIGNAL TO DECISION ── */}
       <section className="upgrade-flow-band">
         <div className="upgrade-container">
           <div className="upgrade-centered">
             <h2>From signal to decision in one run.</h2>
-            <p>No manual curation. No raw extraction dump. A repeatable path from monitoring to evidence, reasoning, action, and outcome.</p>
+            <p>No manual curation. No analyst bottleneck. Intelligence at machine speed.</p>
           </div>
           <div className="upgrade-flow">
-            {["Set your scope", "Live web scan", "Business reasoning", "Action receipt"].map((item, i) => (
-              <div key={item}><span>{String(i + 1).padStart(2, "0")}</span><h3>{item}</h3><p>{["Define vendors, competitors, topics, and accounts.", "Collect news, filings, pricing pages, public sources, and pages your team cares about.", "Rank signals by materiality and explain business impact.", "Create recommended actions and record what happened next."][i]}</p></div>
+            {[
+              ["Set your scope", "Define vendors, competitors, topics, and accounts. Pre-built templates get you started in minutes."],
+              ["Live web scan", "WebDataOS crawls the live web — news, filings, pricing pages, job boards — on your schedule."],
+              ["Business reasoning", "Signals filtered, ranked by materiality, and reasoned against your context and organizational history."],
+              ["Act and remember", "Decision briefs delivered to inbox, Slack, or CRM — with full source trail stored in your knowledge graph."],
+            ].map(([title, desc], i) => (
+              <div key={title}><span>{String(i + 1).padStart(2, "0")}</span><h3>{title}</h3><p>{desc}</p></div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="upgrade-dark-cta">
+      {/* ── TEAM TABS ── */}
+      <TeamPersonaSection nav={nav} />
+
+      {/* ── COMPLIANCE ── */}
+      <section style={{ background: "#F8FAFC", padding: "96px 40px", borderTop: "1px solid #E2E8F0" }}>
         <div className="upgrade-container">
-          <div className="upgrade-pill upgrade-pill-dark"><span /> Always monitoring</div>
-          <h2>The web does not wait.<br /><span>Your intelligence should not either.</span></h2>
-          <p>Start with a demo run, then create a workspace for continuous monitoring.</p>
-          <div className="upgrade-actions upgrade-actions-center">
-            <PublicButton onClick={start}>{user ? "Open workspace" : "Start free trial"} <ArrowRight size={13} /></PublicButton>
-            <PublicButton tone="ghost" onClick={() => nav("Demo")}>Try demo</PublicButton>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <h2 style={{ fontSize: 40, fontWeight: 700, color: "#0B1426", letterSpacing: "-1.5px", marginBottom: 16 }}>Built for procurement. Cleared for production.</h2>
+            <p style={{ fontSize: 16, color: "#64748B", maxWidth: 500, margin: "0 auto", lineHeight: 1.7 }}>Enterprise-grade security and compliance out of the box — so your security team says yes faster.</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
+            {compliance.map(({ title, status, color, bg, border, desc }) => (
+              <div key={title} style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12, padding: 24, display: "flex", alignItems: "flex-start", gap: 16 }}>
+                <div style={{ width: 46, height: 46, background: bg, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Shield size={22} color={color} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>{title}</div>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: bg, border: `1px solid ${border}`, borderRadius: 4, padding: "2px 8px", marginBottom: 8 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: color }} />
+                    <span style={{ fontSize: 9.5, fontWeight: 600, color, textTransform: "uppercase", letterSpacing: ".5px" }}>{status}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "#64748B", lineHeight: 1.55, margin: 0 }}>{desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
+
+      {/* ── FAQ ── */}
+      <section style={{ background: "#fff", padding: "96px 40px" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
+            <h2 style={{ fontSize: 40, fontWeight: 700, color: "#0B1426", letterSpacing: "-1.5px", marginBottom: 14 }}>The answers you're looking for.</h2>
+            <p style={{ fontSize: 16, color: "#64748B", lineHeight: 1.7 }}>Everything procurement, security, and your team needs to say yes.</p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {faqs.map((faq, i) => (
+              <div key={i} style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+                <button onClick={() => setOpenFaq(openFaq === i ? null : i)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "20px 24px", background: "#FAFAFA", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "'DM Sans',sans-serif" }}>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: "#0F172A", lineHeight: 1.4 }}>{faq.q}</span>
+                  <ChevronDown size={16} color="#94A3B8" style={{ flexShrink: 0, transform: openFaq === i ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                </button>
+                {openFaq === i && (
+                  <div style={{ padding: "0 24px 22px", background: "#fff", borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ fontSize: 14.5, color: "#475569", lineHeight: 1.78, paddingTop: 18, margin: 0 }}>{faq.a}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ── */}
+      <section style={{ background: "#0B1426", padding: "96px 40px", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <div className="upgrade-pill upgrade-pill-dark" style={{ marginBottom: 28 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C55E", display: "inline-block" }} /> Always monitoring
+          </div>
+          <h2 style={{ fontSize: 52, fontWeight: 700, color: "#F1F5F9", lineHeight: 1.1, letterSpacing: "-2px", marginBottom: 20 }}>The web doesn't wait.<br /><span style={{ color: "#2563EB" }}>Your intelligence shouldn't either.</span></h2>
+          <p style={{ fontSize: 17, color: "#94A3B8", lineHeight: 1.75, marginBottom: 40 }}>WebDataOS is a continuous intelligence platform that turns web data into decisions — automatically, at enterprise scale.</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+            <button onClick={start} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 15, fontWeight: 600, color: "#fff", background: "#2563EB", padding: "14px 28px", borderRadius: 8, border: "none", cursor: "pointer", boxShadow: "0 1px 3px rgba(37,99,235,.4)" }}>
+              {user ? "Open workspace" : "Start free trial"} <ArrowRight size={13} />
+            </button>
+            <button onClick={() => nav("Demo")} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 15, fontWeight: 600, color: "#E2E8F0", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", padding: "14px 28px", borderRadius: 8, cursor: "pointer" }}>
+              Talk to sales
+            </button>
+          </div>
+          <p style={{ fontSize: 12.5, color: "#475569" }}>No credit card required · SOC 2 Type II · Enterprise security review available</p>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{ background: "#060D1A", padding: "36px 40px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 20, height: 20, background: "linear-gradient(135deg,#1D4ED8,#3B82F6)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Layers size={11} color="#fff" />
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#64748B" }}>WebDataOS</span>
+            </div>
+            <span style={{ fontSize: 12, color: "#1E293B" }}>© 2025 · Intelligence Operating System</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            {["Privacy", "Terms", "Security", "Status"].map(l => (
+              <button key={l} style={{ background: "none", border: "none", fontSize: 12.5, color: "#334155", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{l}</button>
+            ))}
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
@@ -1116,17 +1342,19 @@ function PublicDemoPage({ nav, auth }) {
     if (saved) endpoints.demoCurrent(saved).then(active => setSession(active)).catch(() => localStorage.removeItem("webdataos_demo_session"));
   }, []);
 
-  const run = async () => {
+  const run = async (scenarioOverride = null) => {
+    const activeScenario = scenarioOverride || selected;
+    setSelectedId(activeScenario.id);
     setPhase("running"); setStep(0); setError(""); setReport(null); setEvidence([]); setGraph(null); setTab("brief");
     let idx = 0;
     const ticker = setInterval(() => { idx += 1; setStep(Math.min(idx, steps.length - 1)); }, 900);
     try {
       let active = session;
       if (!active) {
-        active = await endpoints.demoSession(selected.id);
+        active = await endpoints.demoSession(activeScenario.id);
         localStorage.setItem("webdataos_demo_session", active.session_id);
       }
-      const scoped = await endpoints.demoWorkspace(active.session_id, { mission: selected.id, entities: selected.entities, signals: selected.signals }).catch(() => active);
+      const scoped = await endpoints.demoWorkspace(active.session_id, { mission: activeScenario.id, entities: activeScenario.entities, signals: activeScenario.signals }).catch(() => active);
       setSession(scoped);
       const result = await endpoints.demoRun(scoped.session_id || active.session_id);
       const sid = scoped.session_id || active.session_id;
@@ -1173,31 +1401,17 @@ function PublicDemoPage({ nav, auth }) {
 
       <section className="upgrade-demo-scenarios">
         {DEMO_SCENARIOS.slice(0, 3).map(sc => (
-          <button className={`upgrade-scenario-card ${selectedId === sc.id ? "active" : ""}`} key={sc.id} onClick={() => setSelectedId(sc.id)} style={{ "--accent": sc.color }}>
+          <div className={`upgrade-scenario-card ${selectedId === sc.id ? "active" : ""}`} key={sc.id} role="button" tabIndex={0} onClick={() => setSelectedId(sc.id)} onKeyDown={(event) => { if (event.key === "Enter") setSelectedId(sc.id); }} style={{ "--accent": sc.color }}>
             <UpgradeScenarioIcon scenario={sc} />
             <h3>{sc.hook}</h3>
             <p>{sc.desc}</p>
             <div className="upgrade-chip-row">{sc.entities.map(e => <span key={e}>{e}</span>)}</div>
-            <strong>Try this scenario</strong>
-          </button>
+            <button className="upgrade-card-run" onClick={(event) => { event.stopPropagation(); run(sc); }}><Play size={13} /> Run this scenario <ArrowRight size={13} /></button>
+          </div>
         ))}
       </section>
 
-      <section className="upgrade-demo-setup">
-        <div>
-          <span>Selected scenario</span>
-          <strong>{selected.hook}</strong>
-        </div>
-        <div>
-          <span>Companies</span>
-          <strong>{selected.entities.join(", ")}</strong>
-        </div>
-        <div>
-          <span>Signals</span>
-          <strong>{selected.signals.join(", ")}</strong>
-        </div>
-        <button onClick={run} disabled={phase === "running"}><Play size={14} /> {phase === "running" ? "Running..." : "Run demo"}</button>
-      </section>
+      {phase === "pick" && <p className="upgrade-demo-note">No account needed · Results use the live demo backend · <button type="button">Learn how it works</button></p>}
 
       {phase === "running" && (
         <section className="upgrade-running">
